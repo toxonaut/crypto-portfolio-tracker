@@ -8,7 +8,9 @@ from datetime import datetime
 app = Flask(__name__)
 
 # Database configuration
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:amNbFIoguiKkaUyFyISaRHkEWrXMOgBB@shuttle.proxy.rlwy.net:31198/railway')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///portfolio.db')
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -170,37 +172,67 @@ def get_history():
     history_data = [{'timestamp': h.timestamp, 'datetime': h.datetime, 'total_value': h.total_value} for h in history]
     return jsonify({'success': True, 'data': history_data})
 
-@app.route('/add_coin', methods=['POST'])
+@app.route('/api/add_coin', methods=['POST'])
 def add_coin():
     try:
         data = request.get_json()
         coin_id = data.get('coin_id')
         source = data.get('source')
-        amount = float(data.get('amount', 0))
+        amount = float(data.get('amount'))
         
-        # Validate input
-        if not coin_id or not source or amount <= 0:
-            return jsonify({'success': False, 'error': 'Invalid input'})
+        print(f"Adding coin: {coin_id}, source: {source}, amount: {amount}")  # Debug log
         
-        # Check if coin exists in CoinGecko
-        response = requests.get(f'https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd')
-        if not response.ok or coin_id not in response.json():
-            return jsonify({'success': False, 'error': 'Invalid coin ID'})
+        # Verify the coin exists in CoinGecko
+        url = f'https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd'
+        print(f"Calling CoinGecko API: {url}")  # Debug log
         
-        current_price = response.json()[coin_id]['usd']
+        response = requests.get(url)
+        print(f"CoinGecko API response status: {response.status_code}")  # Debug log
+        print(f"CoinGecko API response body: {response.text}")  # Debug log
         
-        # Add or update portfolio entry
-        entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
-        if entry:
-            entry.amount = amount
-            entry.last_price = current_price
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': f'CoinGecko API error: {response.text}'})
+            
+        response_data = response.json()
+        if coin_id not in response_data:
+            # Get list of valid IDs for better error message
+            valid_ids_response = requests.get('https://api.coingecko.com/api/v3/simple/supported_vs_currencies')
+            if valid_ids_response.ok:
+                valid_ids = valid_ids_response.json()
+                print(f"Valid currency IDs: {valid_ids}")  # Debug log
+            return jsonify({'success': False, 'error': f'Invalid coin ID: {coin_id}. Make sure to use the CoinGecko ID (e.g., "bitcoin" for Bitcoin)'})
+        
+        price = response_data[coin_id]['usd']
+        print(f"Got price for {coin_id}: ${price}")  # Debug log
+        
+        # Check if entry already exists
+        existing_entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
+        if existing_entry:
+            existing_entry.amount = amount
+            existing_entry.last_price = price
         else:
-            entry = Portfolio(coin_id=coin_id, source=source, amount=amount, last_price=current_price)
-            db.session.add(entry)
+            new_entry = Portfolio(coin_id=coin_id, source=source, amount=amount, last_price=price)
+            db.session.add(new_entry)
         
         db.session.commit()
         return jsonify({'success': True})
         
+    except Exception as e:
+        print(f"Error in add_coin: {str(e)}")  # Debug log
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/valid_coins')
+def get_valid_coins():
+    try:
+        response = requests.get('https://api.coingecko.com/api/v3/coins/list?include_platform=false')
+        if response.ok:
+            coins = response.json()
+            return jsonify({
+                'success': True,
+                'coins': [{'id': coin['id'], 'symbol': coin['symbol'], 'name': coin['name']} for coin in coins]
+            })
+        return jsonify({'success': False, 'error': 'Failed to fetch coin list'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -231,7 +263,5 @@ def create_tables():
 create_tables()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5016))
-    host = '0.0.0.0'
-    debug = os.environ.get('FLASK_ENV', 'development') == 'development'
-    app.run(host=host, port=port, debug=debug)
+    port = int(os.environ.get('PORT', 5018))
+    app.run(host='0.0.0.0', port=port, debug=True)

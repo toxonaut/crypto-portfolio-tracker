@@ -1,9 +1,14 @@
 document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const coinId = document.getElementById('coinId').value.toLowerCase();
-    const amount = document.getElementById('amount').value;
-    const source = document.getElementById('source').value;
+    const coinId = document.getElementById('coinId').value.toLowerCase().trim();
+    const amount = parseFloat(document.getElementById('amount').value);
+    const source = document.getElementById('source').value.trim();
+
+    if (!coinId || !source || isNaN(amount)) {
+        alert('Please fill in all fields correctly');
+        return;
+    }
 
     try {
         const response = await fetch('/api/add_coin', {
@@ -25,11 +30,11 @@ document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
             document.getElementById('source').value = '';
             updatePortfolio();
         } else {
-            alert('Error adding coin. Please check the coin ID.');
+            alert(data.error || 'Error adding coin. Please check the coin ID.');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Error adding coin to portfolio');
+        alert('Error adding coin to portfolio. Please check the browser console for details.');
     }
 });
 
@@ -142,6 +147,42 @@ async function updatePortfolio() {
         console.error('Error:', error);
     }
 }
+
+// Add coin search functionality
+let coinsList = [];
+
+async function loadCoinsList() {
+    try {
+        const response = await fetch('/api/valid_coins');
+        const data = await response.json();
+        if (data.success) {
+            coinsList = data.coins;
+            setupCoinSearch();
+        }
+    } catch (error) {
+        console.error('Error loading coins list:', error);
+    }
+}
+
+function setupCoinSearch() {
+    const coinInput = document.getElementById('coinId');
+    const datalist = document.createElement('datalist');
+    datalist.id = 'coinsList';
+    
+    coinsList.forEach(coin => {
+        const option = document.createElement('option');
+        option.value = coin.id;
+        option.label = `${coin.name} (${coin.symbol.toUpperCase()})`;
+        datalist.appendChild(option);
+    });
+    
+    document.body.appendChild(datalist);
+    coinInput.setAttribute('list', 'coinsList');
+    coinInput.setAttribute('placeholder', 'Start typing coin name...');
+}
+
+// Load coins list when page loads
+loadCoinsList();
 
 // Initial load
 updatePortfolio();
