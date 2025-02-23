@@ -194,12 +194,12 @@ def remove_source():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-# Create tables before first request
-@app.before_first_request
 def create_tables():
-    db.create_all()
+    with app.app_context():
+        db.create_all()
 
-# Import existing data from JSON files if they exist
+create_tables()
+
 def import_existing_data():
     try:
         if os.path.exists('portfolio.json'):
@@ -233,18 +233,13 @@ def import_existing_data():
         print(f"Error importing existing data: {str(e)}")
 
 if __name__ == '__main__':
-    # Create tables
+    port = int(os.environ.get('PORT', 5016))
+    host = '0.0.0.0'
+    debug = os.environ.get('FLASK_ENV', 'development') == 'development'
+    
+    # Import existing data if running for the first time
     with app.app_context():
-        db.create_all()
-        # Import existing data if running for the first time
         if not Portfolio.query.first():
             import_existing_data()
-    
-    # Get port from environment variable or use default
-    port = int(os.environ.get('PORT', 5016))
-    # In production, host should be '0.0.0.0' to accept all incoming connections
-    host = '0.0.0.0'
-    # Debug mode should be off in production
-    debug = os.environ.get('FLASK_ENV', 'development') == 'development'
     
     app.run(host=host, port=port, debug=debug)
