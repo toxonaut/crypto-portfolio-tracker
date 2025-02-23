@@ -106,7 +106,14 @@ async function updatePortfolio() {
         const response = await fetch('/api/portfolio');
         const data = await response.json();
         
-        updatePortfolioTable(data.portfolio);
+        // Check if we're on the edit page
+        const isEditPage = window.location.pathname.includes('/edit');
+        
+        if (isEditPage) {
+            updatePortfolioDetails(data.portfolio);
+        } else {
+            updatePortfolioTable(data.portfolio);
+        }
         
         document.getElementById('totalValue').textContent = data.total_value.toFixed(2);
     } catch (error) {
@@ -114,8 +121,41 @@ async function updatePortfolio() {
     }
 }
 
+function updatePortfolioDetails(portfolio) {
+    const portfolioDetails = document.getElementById('portfolioDetails');
+    if (!portfolioDetails) return; // Exit if not on edit page
+    
+    portfolioDetails.innerHTML = '';
+    
+    for (const [coinId, details] of Object.entries(portfolio)) {
+        const section = document.createElement('div');
+        section.className = 'card mb-3';
+        
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        header.textContent = coinId.charAt(0).toUpperCase() + coinId.slice(1);
+        
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        
+        const sourcesList = document.createElement('div');
+        sourcesList.className = 'sources-list';
+        
+        for (const [sourceName, amount] of Object.entries(details.sources)) {
+            sourcesList.appendChild(createSourceElement(coinId, sourceName, amount));
+        }
+        
+        body.appendChild(sourcesList);
+        section.appendChild(header);
+        section.appendChild(body);
+        portfolioDetails.appendChild(section);
+    }
+}
+
 function updatePortfolioTable(data) {
     const tableBody = document.getElementById('portfolioTableBody');
+    if (!tableBody) return; // Exit if not on overview page
+    
     tableBody.innerHTML = '';
 
     for (const [coinId, coinData] of Object.entries(data)) {
