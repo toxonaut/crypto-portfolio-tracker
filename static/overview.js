@@ -47,15 +47,22 @@ function initializePairSelection() {
 
 async function updateHistoryChart() {
     try {
-        const response = await fetch('/api/history');
-        const historyData = await response.json();
+        console.log('Fetching history data...');
+        const response = await fetch('/history');
+        const data = await response.json();
+        console.log('History data:', data);
         
-        const labels = historyData.map(item => {
+        if (!data.success) {
+            console.error('History data error:', data.error);
+            return;
+        }
+        
+        const labels = data.data.map(item => {
             const date = new Date(item.datetime);
             return date.toLocaleString();
         });
         
-        const values = historyData.map(item => item.total_value);
+        const values = data.data.map(item => item.total_value);
         
         if (historyChart) {
             historyChart.destroy();
@@ -105,8 +112,15 @@ async function updateHistoryChart() {
 
 async function updatePortfolio() {
     try {
+        console.log('Fetching portfolio data...');
         const response = await fetch('/portfolio');
         const data = await response.json();
+        console.log('Portfolio data:', data);
+        
+        if (!data.success) {
+            console.error('Portfolio data error:', data.error);
+            return;
+        }
         
         const portfolioTable = document.getElementById('portfolioTable');
         portfolioTable.innerHTML = '';
@@ -118,7 +132,7 @@ async function updatePortfolio() {
             coinCell.innerHTML = `
                 <div class="d-flex align-items-center">
                     <img src="${details.image}" alt="${coinId}" class="coin-logo me-2">
-                    <span>${coinId}</span>
+                    <span class="text-capitalize">${coinId.replace('-', ' ')}</span>
                 </div>
             `;
             
@@ -144,7 +158,7 @@ async function updatePortfolio() {
         // Update history chart
         await updateHistoryChart();
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error updating portfolio:', error);
     }
 }
 

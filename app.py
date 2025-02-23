@@ -75,25 +75,30 @@ def edit_portfolio():
 def get_portfolio():
     try:
         portfolio_data = get_portfolio_data()
+        print("Portfolio data:", portfolio_data)  # Debug print
         
         # Get current prices from CoinGecko
         if portfolio_data:
             coin_ids = list(portfolio_data.keys())
+            print("Coin IDs:", coin_ids)  # Debug print
+            
             prices_url = f'https://api.coingecko.com/api/v3/simple/price?ids={",".join(coin_ids)}&vs_currencies=usd'
             response = requests.get(prices_url)
             prices = response.json()
+            print("Price data:", prices)  # Debug print
             
             # Get coin metadata for images
             metadata_url = f'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={",".join(coin_ids)}&order=market_cap_desc&per_page=250&page=1&sparkline=false'
             metadata_response = requests.get(metadata_url)
             metadata = {coin['id']: coin['image'] for coin in metadata_response.json()}
+            print("Metadata:", metadata)  # Debug print
             
             total_value = 0
             for coin_id, data in portfolio_data.items():
                 if coin_id in prices:
                     current_price = prices[coin_id]['usd']
                     data['price'] = current_price
-                    data['image'] = metadata.get(coin_id, '')  # Add image URL
+                    data['image'] = metadata.get(coin_id, '')
                     
                     # Update price in database
                     entries = Portfolio.query.filter_by(coin_id=coin_id).all()
@@ -105,6 +110,9 @@ def get_portfolio():
                     coin_value = data['total_amount'] * current_price
                     total_value += coin_value
                     data['total_value'] = coin_value
+            
+            print("Final portfolio data:", portfolio_data)  # Debug print
+            print("Total value:", total_value)  # Debug print
             
             # Update history if needed
             update_history(total_value)
@@ -122,6 +130,7 @@ def get_portfolio():
             })
             
     except Exception as e:
+        print("Error in get_portfolio:", str(e))  # Debug print
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/history')
