@@ -105,17 +105,22 @@ async function updateHistoryChart() {
 
 async function updatePortfolio() {
     try {
-        const response = await fetch('/api/portfolio');
+        const response = await fetch('/portfolio');
         const data = await response.json();
         
         const portfolioTable = document.getElementById('portfolioTable');
         portfolioTable.innerHTML = '';
         
-        for (const [coinId, details] of Object.entries(data.portfolio)) {
+        for (const [coinId, details] of Object.entries(data.data)) {
             const row = document.createElement('tr');
             
             const coinCell = document.createElement('td');
-            coinCell.textContent = coinId;
+            coinCell.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <img src="${details.image}" alt="${coinId}" class="coin-logo me-2">
+                    <span>${coinId}</span>
+                </div>
+            `;
             
             const totalBalanceCell = document.createElement('td');
             totalBalanceCell.textContent = details.total_amount.toFixed(8);
@@ -123,24 +128,12 @@ async function updatePortfolio() {
             const priceCell = document.createElement('td');
             priceCell.textContent = `$${details.price.toFixed(2)}`;
             
-            const change1hCell = document.createElement('td');
-            change1hCell.innerHTML = formatPriceChange(details.price_change_1h);
-            
-            const change24hCell = document.createElement('td');
-            change24hCell.innerHTML = formatPriceChange(details.price_change_24h);
-            
-            const change7dCell = document.createElement('td');
-            change7dCell.innerHTML = formatPriceChange(details.price_change_7d);
-            
             const valueCell = document.createElement('td');
-            valueCell.textContent = `$${(details.total_amount * details.price).toFixed(2)}`;
+            valueCell.textContent = `$${details.total_value.toFixed(2)}`;
             
             row.appendChild(coinCell);
             row.appendChild(totalBalanceCell);
             row.appendChild(priceCell);
-            row.appendChild(change1hCell);
-            row.appendChild(change24hCell);
-            row.appendChild(change7dCell);
             row.appendChild(valueCell);
             
             portfolioTable.appendChild(row);

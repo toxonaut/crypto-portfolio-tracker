@@ -83,11 +83,17 @@ def get_portfolio():
             response = requests.get(prices_url)
             prices = response.json()
             
+            # Get coin metadata for images
+            metadata_url = f'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={",".join(coin_ids)}&order=market_cap_desc&per_page=250&page=1&sparkline=false'
+            metadata_response = requests.get(metadata_url)
+            metadata = {coin['id']: coin['image'] for coin in metadata_response.json()}
+            
             total_value = 0
             for coin_id, data in portfolio_data.items():
                 if coin_id in prices:
                     current_price = prices[coin_id]['usd']
                     data['price'] = current_price
+                    data['image'] = metadata.get(coin_id, '')  # Add image URL
                     
                     # Update price in database
                     entries = Portfolio.query.filter_by(coin_id=coin_id).all()
