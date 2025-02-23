@@ -106,43 +106,80 @@ async function updatePortfolio() {
         const response = await fetch('/api/portfolio');
         const data = await response.json();
         
-        const portfolioTable = document.getElementById('portfolioTable');
-        portfolioTable.innerHTML = '';
-        
-        for (const [coinId, details] of Object.entries(data.portfolio)) {
-            const row = document.createElement('tr');
-            
-            // Create sources list
-            const sourcesCell = document.createElement('td');
-            sourcesCell.className = 'sources-cell';
-            for (const [sourceName, amount] of Object.entries(details.sources)) {
-                sourcesCell.appendChild(createSourceElement(coinId, sourceName, amount));
-            }
-            
-            const coinCell = document.createElement('td');
-            coinCell.textContent = coinId;
-            
-            const balanceCell = document.createElement('td');
-            balanceCell.textContent = details.total_amount.toFixed(8);
-            
-            const priceCell = document.createElement('td');
-            priceCell.textContent = `$${details.price.toFixed(2)}`;
-            
-            const valueCell = document.createElement('td');
-            valueCell.textContent = `$${(details.total_amount * details.price).toFixed(2)}`;
-            
-            row.appendChild(coinCell);
-            row.appendChild(sourcesCell);
-            row.appendChild(balanceCell);
-            row.appendChild(priceCell);
-            row.appendChild(valueCell);
-            
-            portfolioTable.appendChild(row);
-        }
+        updatePortfolioTable(data.portfolio);
         
         document.getElementById('totalValue').textContent = data.total_value.toFixed(2);
     } catch (error) {
         console.error('Error:', error);
+    }
+}
+
+function updatePortfolioTable(data) {
+    const tableBody = document.getElementById('portfolioTableBody');
+    tableBody.innerHTML = '';
+
+    for (const [coinId, coinData] of Object.entries(data)) {
+        const row = document.createElement('tr');
+        
+        // Coin ID
+        const idCell = document.createElement('td');
+        idCell.textContent = coinId;
+        row.appendChild(idCell);
+        
+        // Sources list
+        const sourcesCell = document.createElement('td');
+        sourcesCell.className = 'sources-cell';
+        for (const [sourceName, amount] of Object.entries(coinData.sources)) {
+            sourcesCell.appendChild(createSourceElement(coinId, sourceName, amount));
+        }
+        row.appendChild(sourcesCell);
+        
+        // Total Amount
+        const amountCell = document.createElement('td');
+        amountCell.textContent = coinData.total_amount.toFixed(8);
+        row.appendChild(amountCell);
+        
+        // Current Price
+        const priceCell = document.createElement('td');
+        priceCell.textContent = `$${coinData.price.toFixed(2)}`;
+        row.appendChild(priceCell);
+        
+        // Hourly Change
+        const hourlyCell = document.createElement('td');
+        if (coinData.hourly_change !== undefined) {
+            hourlyCell.textContent = `${coinData.hourly_change.toFixed(2)}%`;
+            hourlyCell.style.color = coinData.hourly_change >= 0 ? 'green' : 'red';
+        } else {
+            hourlyCell.textContent = 'N/A';
+        }
+        row.appendChild(hourlyCell);
+        
+        // Daily Change
+        const dailyCell = document.createElement('td');
+        if (coinData.daily_change !== undefined) {
+            dailyCell.textContent = `${coinData.daily_change.toFixed(2)}%`;
+            dailyCell.style.color = coinData.daily_change >= 0 ? 'green' : 'red';
+        } else {
+            dailyCell.textContent = 'N/A';
+        }
+        row.appendChild(dailyCell);
+        
+        // 7-Day Change
+        const sevenDayCell = document.createElement('td');
+        if (coinData.seven_day_change !== undefined) {
+            sevenDayCell.textContent = `${coinData.seven_day_change.toFixed(2)}%`;
+            sevenDayCell.style.color = coinData.seven_day_change >= 0 ? 'green' : 'red';
+        } else {
+            sevenDayCell.textContent = 'N/A';
+        }
+        row.appendChild(sevenDayCell);
+        
+        // Total Value
+        const valueCell = document.createElement('td');
+        valueCell.textContent = `$${(coinData.total_amount * coinData.price).toFixed(2)}`;
+        row.appendChild(valueCell);
+        
+        tableBody.appendChild(row);
     }
 }
 

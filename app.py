@@ -106,6 +106,37 @@ def get_portfolio():
                         entry.last_price = current_price
                     db.session.commit()
                     
+                    # Fetch historical prices for hourly, daily, and 7-day changes
+                    historical_prices = {}  
+                    for coin_id in coin_ids:
+                        historical_url = f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=7'
+                        historical_response = requests.get(historical_url)
+                        if historical_response.ok:
+                            historical_prices[coin_id] = historical_response.json()['prices']
+
+                        # Calculate price changes if historical data is available
+                        if coin_id in historical_prices:
+                            historical_data = historical_prices[coin_id]
+                            current_time = int(time.time() * 1000)  # Current time in milliseconds
+                            
+                            # Hourly change
+                            one_hour_ago = current_time - 3600 * 1000
+                            hourly_price = next((price for timestamp, price in historical_data if timestamp >= one_hour_ago), None)
+                            if hourly_price:
+                                data['hourly_change'] = ((current_price - hourly_price) / hourly_price) * 100
+                            
+                            # Daily change
+                            one_day_ago = current_time - 86400 * 1000
+                            daily_price = next((price for timestamp, price in historical_data if timestamp >= one_day_ago), None)
+                            if daily_price:
+                                data['daily_change'] = ((current_price - daily_price) / daily_price) * 100
+                            
+                            # 7-day change
+                            seven_days_ago = current_time - 7 * 86400 * 1000
+                            seven_day_price = next((price for timestamp, price in historical_data if timestamp >= seven_days_ago), None)
+                            if seven_day_price:
+                                data['seven_day_change'] = ((current_price - seven_day_price) / seven_day_price) * 100
+                    
                     # Calculate total value for this coin
                     coin_value = data['total_amount'] * current_price
                     total_value += coin_value
