@@ -1,0 +1,45 @@
+{
+    "bitcoin": {
+        "sources": {
+            "SolvBTC Arbitrum Avalon": 1.0,
+            "Swell Earn BTC Vault": 1.0,
+            "Ledger": 50.0,
+            "Frankencoin coll": 0.2,
+            "cbBTC ZeroLend": 3.0032,
+            "SONIC SolvBTC Silo": 1.0049,
+            "WBTC Free": 5.0037,
+            "Solana Raydium": 3.2568,
+            "Nexo": 32.223,
+            "Swell BTC LRT on Swellchain": 1.049,
+            "LBTC in Lombard vault": 1.9981,
+            "LBTC Hourglass Pool": 0.995,
+            "cbBTC Base Aave": 2.0,
+            "Gate.io Earn": 5.003,
+            "cbBTC Euler finance": 0.861,
+            "WBTC Across": 3.0039,
+            "WBTC Strike": 3.0038,
+            "Ledn": 2.5,
+            "BTC Kraken": 5.2453,
+            "cbBTC Avalon Base": 0.08651,
+            "Zerolend WBTC & LBTC": 4.1201,
+            "cbBTC zero base": 0.8
+        },
+        "total_amount": 127.35731000000001,
+        "price": 95984
+    },
+    "ethereum": {
+        "sources": {
+            "Total": 1.0
+        },
+        "total_amount": 1.0,
+        "price": 2810.47
+    },
+    "solana": {
+        "sources": {
+            "Phantom mSOL": 5276.44,
+            "Phantom free": 4.15
+        },
+        "total_amount": 5280.589999999999,
+        "price": 169.01
+    }
+}

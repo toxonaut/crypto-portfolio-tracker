@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Portfolio - Crypto Portfolio Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container mt-5">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">Crypto Portfolio Tracker</a>
+                <div class="navbar-nav">
+                    <a class="nav-link" href="/">Overview</a>
+                    <a class="nav-link active" href="/edit">Edit Portfolio</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h3 class="card-title">Add New Entry</h3>
+                <form id="addCoinForm" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="coinId" class="form-label">Coin</label>
+                        <input type="text" class="form-control" id="coinId" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="source" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="source" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="amount" class="form-label">Amount</label>
+                        <input type="number" step="any" class="form-control" id="amount" required>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">Add Entry</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title">Portfolio Details</h3>
+                <div id="portfolioDetails">
+                    <!-- Portfolio details will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <template id="coinTemplate">
+        <div class="coin-section mb-4">
+            <h4 class="coin-name mb-3"></h4>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Location</th>
+                            <th>Amount</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Sources will be added here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+
+    <template id="sourceRowTemplate">
+        <tr>
+            <td>
+                <div class="input-group">
+                    <input type="text" class="form-control location-input" value="">
+                </div>
+            </td>
+            <td>
+                <div class="input-group">
+                    <input type="number" step="any" class="form-control amount-input" value="">
+                </div>
+            </td>
+            <td>
+                <div class="btn-group">
+                    <button class="btn btn-primary btn-sm save-btn">Save</button>
+                    <button class="btn btn-danger btn-sm remove-btn">Remove</button>
+                </div>
+            </td>
+        </tr>
+    </template>
+
+    <script src="{{ url_for('static', filename='edit.js') }}"></script>
+</body>
+</html>
