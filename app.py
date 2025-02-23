@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import requests
-import json
 import os
 import time
 from datetime import datetime
@@ -9,9 +8,8 @@ from datetime import datetime
 app = Flask(__name__)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///portfolio.db')
-if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:amNbFIoguiKkaUyFyISaRHkEWrXMOgBB@shuttle.proxy.rlwy.net:31198/railway')
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -57,12 +55,12 @@ def update_history(total_value):
     last_update = PortfolioHistory.query.order_by(PortfolioHistory.timestamp.desc()).first()
     
     if not last_update or (current_time - last_update.timestamp) >= HISTORY_UPDATE_INTERVAL:
-        new_history = PortfolioHistory(
+        history_entry = PortfolioHistory(
             timestamp=current_time,
             datetime=datetime.now().isoformat(),
             total_value=total_value
         )
-        db.session.add(new_history)
+        db.session.add(history_entry)
         db.session.commit()
 
 @app.route('/')
@@ -71,126 +69,112 @@ def index():
 
 @app.route('/edit')
 def edit_portfolio():
-    return render_template('edit_portfolio.html')
+    return render_template('index.html')
 
-@app.route('/api/portfolio')
+@app.route('/portfolio')
 def get_portfolio():
-    portfolio = get_portfolio_data()
-    updated_portfolio = {}
-    total_value = 0
-    
-    for coin_id, data in portfolio.items():
-        try:
-            response = requests.get(
-                f'https://api.coingecko.com/api/v3/simple/price',
-                params={
-                    'ids': coin_id,
-                    'vs_currencies': 'usd',
-                    'include_24hr_change': 'true',
-                    'include_1hr_change': 'true',
-                    'include_7d_change': 'true'
-                }
-            )
-            price_data = response.json()
-            current_price = price_data[coin_id]['usd']
-            
-            # Update price in database
-            entries = Portfolio.query.filter_by(coin_id=coin_id).all()
-            for entry in entries:
-                entry.last_price = current_price
-            db.session.commit()
-            
-            value = data['total_amount'] * current_price
-            total_value += value
-            
-            updated_portfolio[coin_id] = {
-                'sources': data['sources'],
-                'total_amount': data['total_amount'],
-                'price': current_price,
-                'value': value,
-                'price_change_1h': price_data[coin_id].get('usd_1h_change', 0),
-                'price_change_24h': price_data[coin_id].get('usd_24h_change', 0),
-                'price_change_7d': price_data[coin_id].get('usd_7d_change', 0)
-            }
-        except Exception as e:
-            print(f"Error updating {coin_id}: {str(e)}")
-            value = data['total_amount'] * data.get('price', 0)
-            total_value += value
-            updated_portfolio[coin_id] = {
-                'sources': data['sources'],
-                'total_amount': data['total_amount'],
-                'price': data.get('price', 0),
-                'value': value,
-                'price_change_1h': 0,
-                'price_change_24h': 0,
-                'price_change_7d': 0
-            }
-    
-    update_history(total_value)
-    
-    return jsonify({
-        'portfolio': updated_portfolio,
-        'total_value': total_value
-    })
-
-@app.route('/api/history')
-def get_history():
-    history = PortfolioHistory.query.order_by(PortfolioHistory.timestamp.asc()).all()
-    return jsonify([{
-        'timestamp': h.timestamp,
-        'datetime': h.datetime,
-        'total_value': h.total_value
-    } for h in history])
-
-@app.route('/api/add_coin', methods=['POST'])
-def add_coin():
-    data = request.json
-    coin_id = data.get('coin_id')
-    amount = float(data.get('amount', 0))
-    source = data.get('source', 'Default')
-    
     try:
-        response = requests.get(f'https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd')
-        price_data = response.json()
+        portfolio_data = get_portfolio_data()
         
-        if coin_id in price_data:
-            current_price = price_data[coin_id]['usd']
+        # Get current prices from CoinGecko
+        if portfolio_data:
+            coin_ids = list(portfolio_data.keys())
+            prices_url = f'https://api.coingecko.com/api/v3/simple/price?ids={",".join(coin_ids)}&vs_currencies=usd'
+            response = requests.get(prices_url)
+            prices = response.json()
             
-            # Check if entry exists
-            entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
-            if entry:
-                entry.amount = amount
-                entry.last_price = current_price
-            else:
-                entry = Portfolio(
-                    coin_id=coin_id,
-                    source=source,
-                    amount=amount,
-                    last_price=current_price
-                )
-                db.session.add(entry)
+            total_value = 0
+            for coin_id, data in portfolio_data.items():
+                if coin_id in prices:
+                    current_price = prices[coin_id]['usd']
+                    data['price'] = current_price
+                    
+                    # Update price in database
+                    entries = Portfolio.query.filter_by(coin_id=coin_id).all()
+                    for entry in entries:
+                        entry.last_price = current_price
+                    db.session.commit()
+                    
+                    # Calculate total value for this coin
+                    coin_value = data['total_amount'] * current_price
+                    total_value += coin_value
+                    data['total_value'] = coin_value
             
-            db.session.commit()
-            return jsonify({'success': True})
+            # Update history if needed
+            update_history(total_value)
             
-        return jsonify({'success': False, 'error': 'Coin not found'})
+            return jsonify({
+                'success': True,
+                'data': portfolio_data,
+                'total_value': total_value
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'data': {},
+                'total_value': 0
+            })
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/remove_source', methods=['POST'])
-def remove_source():
-    data = request.json
-    coin_id = data.get('coin_id')
-    source = data.get('source')
-    
+@app.route('/history')
+def get_history():
+    history = PortfolioHistory.query.order_by(PortfolioHistory.timestamp.asc()).all()
+    history_data = [{'timestamp': h.timestamp, 'datetime': h.datetime, 'total_value': h.total_value} for h in history]
+    return jsonify({'success': True, 'data': history_data})
+
+@app.route('/add_coin', methods=['POST'])
+def add_coin():
     try:
+        data = request.get_json()
+        coin_id = data.get('coin_id')
+        source = data.get('source')
+        amount = float(data.get('amount', 0))
+        
+        # Validate input
+        if not coin_id or not source or amount <= 0:
+            return jsonify({'success': False, 'error': 'Invalid input'})
+        
+        # Check if coin exists in CoinGecko
+        response = requests.get(f'https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd')
+        if not response.ok or coin_id not in response.json():
+            return jsonify({'success': False, 'error': 'Invalid coin ID'})
+        
+        current_price = response.json()[coin_id]['usd']
+        
+        # Add or update portfolio entry
+        entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
+        if entry:
+            entry.amount = amount
+            entry.last_price = current_price
+        else:
+            entry = Portfolio(coin_id=coin_id, source=source, amount=amount, last_price=current_price)
+            db.session.add(entry)
+        
+        db.session.commit()
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/remove_source', methods=['POST'])
+def remove_source():
+    try:
+        data = request.get_json()
+        coin_id = data.get('coin_id')
+        source = data.get('source')
+        
+        if not coin_id or not source:
+            return jsonify({'success': False, 'error': 'Invalid input'})
+        
         entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
         if entry:
             db.session.delete(entry)
             db.session.commit()
-            return jsonify({'success': True})
+            
+        return jsonify({'success': True})
         
-        return jsonify({'success': False, 'error': 'Source not found'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -200,46 +184,8 @@ def create_tables():
 
 create_tables()
 
-def import_existing_data():
-    try:
-        if os.path.exists('portfolio.json'):
-            with open('portfolio.json', 'r') as f:
-                portfolio_data = json.load(f)
-                
-            for coin_id, data in portfolio_data.items():
-                for source, amount in data['sources'].items():
-                    entry = Portfolio(
-                        coin_id=coin_id,
-                        source=source,
-                        amount=amount,
-                        last_price=data.get('price', 0)
-                    )
-                    db.session.add(entry)
-            
-        if os.path.exists('portfolio_history.json'):
-            with open('portfolio_history.json', 'r') as f:
-                history_data = json.load(f)
-                
-            for entry in history_data.get('data', []):
-                history_entry = PortfolioHistory(
-                    timestamp=entry['timestamp'],
-                    datetime=entry['datetime'],
-                    total_value=entry['total_value']
-                )
-                db.session.add(history_entry)
-        
-        db.session.commit()
-    except Exception as e:
-        print(f"Error importing existing data: {str(e)}")
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5016))
     host = '0.0.0.0'
     debug = os.environ.get('FLASK_ENV', 'development') == 'development'
-    
-    # Import existing data if running for the first time
-    with app.app_context():
-        if not Portfolio.query.first():
-            import_existing_data()
-    
     app.run(host=host, port=port, debug=debug)
