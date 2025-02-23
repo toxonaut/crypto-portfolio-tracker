@@ -69,7 +69,7 @@ def index():
 
 @app.route('/edit')
 def edit_portfolio():
-    return render_template('index.html')
+    return render_template('edit.html')
 
 @app.route('/portfolio')
 def get_portfolio():
