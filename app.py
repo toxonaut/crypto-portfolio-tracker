@@ -258,6 +258,47 @@ def get_valid_coins():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/update_coin', methods=['POST'])
+def update_coin():
+    try:
+        data = request.get_json()
+        coin_id = data.get('coin_id')
+        old_source = data.get('old_source')
+        new_source = data.get('new_source')
+        new_amount = data.get('new_amount')
+
+        if not all([coin_id, old_source, new_source, new_amount]):
+            return jsonify({'success': False, 'error': 'Missing required fields'})
+
+        try:
+            new_amount = float(new_amount)
+            if new_amount <= 0:
+                return jsonify({'success': False, 'error': 'Amount must be greater than 0'})
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid amount'})
+
+        # Get the current entry
+        entry = Portfolio.query.filter_by(coin_id=coin_id, source=old_source).first()
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'})
+
+        # If source is being changed, check if new source already exists
+        if old_source != new_source:
+            existing_entry = Portfolio.query.filter_by(coin_id=coin_id, source=new_source).first()
+            if existing_entry:
+                return jsonify({'success': False, 'error': f'Source {new_source} already exists for {coin_id}'})
+
+        # Update the entry
+        entry.source = new_source
+        entry.amount = new_amount
+        db.session.commit()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        print(f"Error updating coin: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/remove_source', methods=['POST'])
 def remove_source():
     try:

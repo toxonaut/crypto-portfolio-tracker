@@ -95,6 +95,73 @@ function createSourceElement(coinId, sourceName, amount) {
     return sourceRow;
 }
 
+async function updateCoinEntry(coinId, oldSource, newSource, newAmount) {
+    try {
+        const response = await fetch('/api/update_coin', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                coin_id: coinId,
+                old_source: oldSource,
+                new_source: newSource,
+                new_amount: newAmount
+            })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update entry');
+        }
+
+        updatePortfolio();
+    } catch (error) {
+        console.error('Error updating entry:', error);
+        alert(error.message || 'Error updating entry');
+    }
+}
+
+function makeEditable(element, currentValue, onSave) {
+    const input = document.createElement('input');
+    input.type = element.classList.contains('amount-cell') ? 'number' : 'text';
+    input.value = currentValue;
+    input.className = 'form-control form-control-sm';
+    if (input.type === 'number') {
+        input.step = 'any';
+        input.min = '0';
+    }
+    
+    const originalContent = element.innerHTML;
+    element.innerHTML = '';
+    element.appendChild(input);
+    input.focus();
+    
+    function handleSave() {
+        const newValue = input.value.trim();
+        if (newValue !== '' && newValue !== currentValue) {
+            onSave(newValue);
+        } else {
+            element.innerHTML = originalContent;
+        }
+        input.removeEventListener('blur', handleSave);
+        input.removeEventListener('keypress', handleKeyPress);
+    }
+    
+    function handleKeyPress(e) {
+        if (e.key === 'Enter') {
+            handleSave();
+        } else if (e.key === 'Escape') {
+            element.innerHTML = originalContent;
+            input.removeEventListener('blur', handleSave);
+            input.removeEventListener('keypress', handleKeyPress);
+        }
+    }
+    
+    input.addEventListener('blur', handleSave);
+    input.addEventListener('keypress', handleKeyPress);
+}
+
 async function updatePortfolio() {
     try {
         const response = await fetch('/portfolio');
@@ -136,13 +203,27 @@ async function updatePortfolio() {
                     </div>
                 `;
                 
-                // Source column
+                // Source column (editable)
                 const sourceCell = document.createElement('td');
-                sourceCell.textContent = source;
+                sourceCell.className = 'source-cell';
+                sourceCell.innerHTML = `<span class="editable">${source}</span>`;
+                sourceCell.addEventListener('click', () => {
+                    const span = sourceCell.querySelector('.editable');
+                    makeEditable(span, source, (newSource) => {
+                        updateCoinEntry(coinId, source, newSource, amount);
+                    });
+                });
                 
-                // Amount column
+                // Amount column (editable)
                 const amountCell = document.createElement('td');
-                amountCell.textContent = amount.toFixed(8);
+                amountCell.className = 'amount-cell';
+                amountCell.innerHTML = `<span class="editable">${amount.toFixed(8)}</span>`;
+                amountCell.addEventListener('click', () => {
+                    const span = amountCell.querySelector('.editable');
+                    makeEditable(span, amount, (newAmount) => {
+                        updateCoinEntry(coinId, source, source, newAmount);
+                    });
+                });
                 
                 // Value column
                 const valueCell = document.createElement('td');
@@ -153,26 +234,14 @@ async function updatePortfolio() {
                 const actionsCell = document.createElement('td');
                 actionsCell.innerHTML = `
                     <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-sm btn-outline-primary edit-btn">
-                            <i class="bi bi-pencil"></i>
-                        </button>
                         <button type="button" class="btn btn-sm btn-outline-danger delete-btn">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 `;
                 
-                // Add event listeners for edit and delete buttons
-                const editBtn = actionsCell.querySelector('.edit-btn');
+                // Add delete button event listener
                 const deleteBtn = actionsCell.querySelector('.delete-btn');
-                
-                editBtn.addEventListener('click', () => {
-                    // Pre-fill the form with current values
-                    document.getElementById('coinId').value = coinId;
-                    document.getElementById('source').value = source;
-                    document.getElementById('amount').value = amount;
-                });
-                
                 deleteBtn.addEventListener('click', () => {
                     if (confirm(`Are you sure you want to remove ${amount} ${coinId} from ${source}?`)) {
                         removeSource(coinId, source);
