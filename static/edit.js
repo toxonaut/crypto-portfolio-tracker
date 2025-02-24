@@ -97,54 +97,102 @@ function createSourceElement(coinId, sourceName, amount) {
 
 async function updatePortfolio() {
     try {
-        const response = await fetch('/api/portfolio');
+        const response = await fetch('/portfolio');
         const data = await response.json();
         
-        const portfolioDetails = document.getElementById('portfolioDetails');
-        portfolioDetails.innerHTML = '';
+        if (!data.success) {
+            console.error('Failed to fetch portfolio:', data.error);
+            return;
+        }
         
-        for (const [coinId, details] of Object.entries(data.portfolio)) {
-            const section = document.createElement('div');
-            section.className = 'card mb-3';
-            
-            const header = document.createElement('div');
-            header.className = 'card-header d-flex justify-content-between align-items-center';
-            
-            const titleDiv = document.createElement('div');
-            titleDiv.innerHTML = `
-                <h5 class="mb-0">${coinId.charAt(0).toUpperCase() + coinId.slice(1)}</h5>
-                <small class="text-muted">Price: $${details.price.toFixed(2)}</small>
-            `;
-            
-            const totalValue = document.createElement('div');
-            totalValue.className = 'text-end';
-            totalValue.innerHTML = `
-                <h6 class="mb-0">Total Value</h6>
-                <strong>$${(details.total_amount * details.price).toFixed(2)}</strong>
-            `;
-            
-            header.appendChild(titleDiv);
-            header.appendChild(totalValue);
-            
-            const body = document.createElement('div');
-            body.className = 'card-body';
-            
-            const sourcesList = document.createElement('div');
-            sourcesList.className = 'sources-list';
-            
-            for (const [sourceName, amount] of Object.entries(details.sources)) {
-                sourcesList.appendChild(createSourceElement(coinId, sourceName, amount));
+        const portfolioDetails = document.getElementById('portfolioDetails');
+        portfolioDetails.innerHTML = `
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Source</th>
+                        <th>Amount</th>
+                        <th>Value (USD)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolioTableBody"></tbody>
+            </table>
+        `;
+        
+        const tableBody = document.getElementById('portfolioTableBody');
+        
+        for (const [coinId, details] of Object.entries(data.data)) {
+            for (const [source, amount] of Object.entries(details.sources)) {
+                const row = document.createElement('tr');
+                
+                // Asset column with icon
+                const assetCell = document.createElement('td');
+                assetCell.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <img src="${details.image || ''}" alt="${coinId}" class="coin-logo me-2" style="width: 24px; height: 24px;">
+                        <span class="text-capitalize">${coinId.replace('-', ' ')}</span>
+                    </div>
+                `;
+                
+                // Source column
+                const sourceCell = document.createElement('td');
+                sourceCell.textContent = source;
+                
+                // Amount column
+                const amountCell = document.createElement('td');
+                amountCell.textContent = amount.toFixed(8);
+                
+                // Value column
+                const valueCell = document.createElement('td');
+                const value = amount * details.price;
+                valueCell.textContent = `$${value.toFixed(2)}`;
+                
+                // Actions column
+                const actionsCell = document.createElement('td');
+                actionsCell.innerHTML = `
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-primary edit-btn">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-btn">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listeners for edit and delete buttons
+                const editBtn = actionsCell.querySelector('.edit-btn');
+                const deleteBtn = actionsCell.querySelector('.delete-btn');
+                
+                editBtn.addEventListener('click', () => {
+                    // Pre-fill the form with current values
+                    document.getElementById('coinId').value = coinId;
+                    document.getElementById('source').value = source;
+                    document.getElementById('amount').value = amount;
+                });
+                
+                deleteBtn.addEventListener('click', () => {
+                    if (confirm(`Are you sure you want to remove ${amount} ${coinId} from ${source}?`)) {
+                        removeSource(coinId, source);
+                    }
+                });
+                
+                // Add all cells to the row
+                row.appendChild(assetCell);
+                row.appendChild(sourceCell);
+                row.appendChild(amountCell);
+                row.appendChild(valueCell);
+                row.appendChild(actionsCell);
+                
+                tableBody.appendChild(row);
             }
-            
-            body.appendChild(sourcesList);
-            section.appendChild(header);
-            section.appendChild(body);
-            portfolioDetails.appendChild(section);
         }
         
         document.getElementById('totalValue').textContent = data.total_value.toFixed(2);
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error updating portfolio:', error);
     }
 }
 

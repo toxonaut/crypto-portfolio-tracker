@@ -26,6 +26,7 @@
                 <form id="addCoinForm" class="mb-4">
                     <div class="row g-3">
                         <div class="col-md-4">
+                            <label for="coinId" class="form-label">Coin</label>
                             <input type="text" class="form-control" id="coinId" 
                                    placeholder="Start typing coin name..." 
                                    title="Enter the coin's CoinGecko ID (e.g., 'bitcoin' for Bitcoin)"
@@ -33,13 +34,24 @@
                             <small class="form-text text-muted">Start typing to search for coins</small>
                         </div>
                         <div class="col-md-4">
-                            <input type="text" class="form-control" id="source" placeholder="Source (e.g., binance)" required>
+                            <label for="source" class="form-label">Source</label>
+                            <input type="text" class="form-control" id="source" 
+                                   placeholder="e.g., binance, ledger" 
+                                   title="Enter where you hold this coin"
+                                   required>
                         </div>
                         <div class="col-md-3">
-                            <input type="number" class="form-control" id="amount" placeholder="Amount" step="any" required>
+                            <label for="amount" class="form-label">Amount</label>
+                            <input type="number" class="form-control" id="amount" 
+                                   placeholder="0.00" 
+                                   step="any" 
+                                   required>
                         </div>
                         <div class="col-md-1">
-                            <button type="submit" class="btn btn-primary">Add</button>
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
                         </div>
                     </div>
                 </form>
@@ -48,16 +60,15 @@
 
         <div class="card">
             <div class="card-body">
-                <h3 class="card-title">Portfolio Details</h3>
-                <div id="portfolioDetails"></div>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="card-title mb-0">Portfolio Details</h3>
+                    <h4 class="mb-0">Total Value: <span class="text-primary">$<span id="totalValue">0.00</span></span></h4>
+                </div>
+                <div id="portfolioDetails" class="table-responsive"></div>
             </div>
         </div>
 
-        <div class="mb-3">
-            <h4>Total Value: $<span id="totalValue">0.00</span></h4>
-        </div>
+        <script src="{{ url_for('static', filename='edit.js') }}"></script>
     </div>
-
-    <script src="{{ url_for('static', filename='edit.js') }}"></script>
 </body>
 </html>
