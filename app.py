@@ -94,6 +94,17 @@ def edit_portfolio():
 @app.route('/portfolio')
 def get_portfolio():
     try:
+        print("Starting portfolio data retrieval...")  # Debug log
+        
+        # Log database connection info
+        print("Database URL:", app.config['SQLALCHEMY_DATABASE_URI'])  # Debug log
+        
+        # Get all entries from database
+        entries = Portfolio.query.all()
+        print(f"Found {len(entries)} entries in database")  # Debug log
+        for entry in entries:
+            print(f"Entry: coin_id={entry.coin_id}, source={entry.source}, amount={entry.amount}")  # Debug log
+        
         portfolio_data = get_portfolio_data()
         print("Portfolio data:", portfolio_data)  # Debug print
         
@@ -103,6 +114,8 @@ def get_portfolio():
             print("Coin IDs:", coin_ids)  # Debug print
             
             prices_url = f'https://api.coingecko.com/api/v3/simple/price?ids={",".join(coin_ids)}&vs_currencies=usd'
+            print(f"Calling CoinGecko API: {prices_url}")  # Debug log
+            
             response = coingecko_request(prices_url)
             if response and response.ok:
                 prices = response.json()
@@ -110,9 +123,15 @@ def get_portfolio():
                 
                 # Get coin metadata for images
                 metadata_url = f'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={",".join(coin_ids)}&order=market_cap_desc&per_page=250&page=1&sparkline=false'
-                metadata_response = requests.get(metadata_url)
-                metadata = {coin['id']: coin['image'] for coin in metadata_response.json()}
-                print("Metadata:", metadata)  # Debug print
+                print(f"Fetching metadata: {metadata_url}")  # Debug log
+                
+                metadata_response = coingecko_request(metadata_url)
+                if metadata_response and metadata_response.ok:
+                    metadata = {coin['id']: coin['image'] for coin in metadata_response.json()}
+                    print("Metadata:", metadata)  # Debug print
+                else:
+                    print("Failed to fetch metadata:", metadata_response.status_code if metadata_response else "No response")
+                    metadata = {}
                 
                 total_value = 0
                 for coin_id, data in portfolio_data.items():
@@ -128,35 +147,31 @@ def get_portfolio():
                         db.session.commit()
                         
                         # Fetch historical prices for hourly, daily, and 7-day changes
-                        historical_prices = {}  
-                        for coin_id in coin_ids:
-                            historical_url = f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=7'
-                            historical_response = requests.get(historical_url)
-                            if historical_response.ok:
-                                historical_prices[coin_id] = historical_response.json()['prices']
-
-                            # Calculate price changes if historical data is available
-                            if coin_id in historical_prices:
-                                historical_data = historical_prices[coin_id]
-                                current_time = int(time.time() * 1000)  # Current time in milliseconds
-                                
-                                # Hourly change
-                                one_hour_ago = current_time - 3600 * 1000
-                                hourly_price = next((price for timestamp, price in historical_data if timestamp >= one_hour_ago), None)
-                                if hourly_price:
-                                    data['hourly_change'] = ((current_price - hourly_price) / hourly_price) * 100
-                                
-                                # Daily change
-                                one_day_ago = current_time - 86400 * 1000
-                                daily_price = next((price for timestamp, price in historical_data if timestamp >= one_day_ago), None)
-                                if daily_price:
-                                    data['daily_change'] = ((current_price - daily_price) / daily_price) * 100
-                                
-                                # 7-day change
-                                seven_days_ago = current_time - 7 * 86400 * 1000
-                                seven_day_price = next((price for timestamp, price in historical_data if timestamp >= seven_days_ago), None)
-                                if seven_day_price:
-                                    data['seven_day_change'] = ((current_price - seven_day_price) / seven_day_price) * 100
+                        historical_url = f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=7'
+                        print(f"Fetching historical data: {historical_url}")  # Debug log
+                        
+                        historical_response = coingecko_request(historical_url)
+                        if historical_response and historical_response.ok:
+                            historical_data = historical_response.json()['prices']
+                            current_time = int(time.time() * 1000)  # Current time in milliseconds
+                            
+                            # Calculate price changes
+                            one_hour_ago = current_time - 3600 * 1000
+                            one_day_ago = current_time - 86400 * 1000
+                            seven_days_ago = current_time - 7 * 86400 * 1000
+                            
+                            hourly_price = next((price for timestamp, price in historical_data if timestamp >= one_hour_ago), None)
+                            daily_price = next((price for timestamp, price in historical_data if timestamp >= one_day_ago), None)
+                            seven_day_price = next((price for timestamp, price in historical_data if timestamp >= seven_days_ago), None)
+                            
+                            if hourly_price:
+                                data['hourly_change'] = ((current_price - hourly_price) / hourly_price) * 100
+                            if daily_price:
+                                data['daily_change'] = ((current_price - daily_price) / daily_price) * 100
+                            if seven_day_price:
+                                data['seven_day_change'] = ((current_price - seven_day_price) / seven_day_price) * 100
+                        else:
+                            print(f"Failed to fetch historical data for {coin_id}")  # Debug log
                         
                         # Calculate total value for this coin
                         coin_value = data['total_amount'] * current_price
@@ -175,11 +190,14 @@ def get_portfolio():
                     'total_value': total_value
                 })
             else:
+                error_msg = f"Failed to fetch price data: {response.status_code if response else 'No response'}"
+                print(error_msg)  # Debug log
                 return jsonify({
                     'success': False,
-                    'error': 'Failed to fetch price data from CoinGecko'
+                    'error': error_msg
                 })
         else:
+            print("No portfolio data found")  # Debug log
             return jsonify({
                 'success': True,
                 'data': {},
@@ -187,8 +205,13 @@ def get_portfolio():
             })
             
     except Exception as e:
-        print("Error in get_portfolio:", str(e))  # Debug print
-        return jsonify({'success': False, 'error': str(e)})
+        print(f"Error in get_portfolio: {str(e)}")  # Debug log
+        import traceback
+        traceback.print_exc()  # Print full stack trace
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 @app.route('/history')
 def get_history():

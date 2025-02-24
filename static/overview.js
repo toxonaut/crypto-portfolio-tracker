@@ -112,8 +112,10 @@ async function updateHistoryChart() {
 
 async function updatePortfolio() {
     try {
-        console.log('Fetching portfolio data...');
+        console.log('Starting portfolio update...');
         const response = await fetch('/portfolio');
+        console.log('Portfolio response:', response);
+        
         const data = await response.json();
         console.log('Portfolio data:', data);
         
@@ -123,16 +125,25 @@ async function updatePortfolio() {
         }
         
         const portfolioTable = document.getElementById('portfolioTableBody');
+        if (!portfolioTable) {
+            console.error('Could not find portfolioTableBody element');
+            return;
+        }
+        
+        console.log('Clearing table...');
         portfolioTable.innerHTML = '';
         
+        console.log('Processing portfolio entries...');
         for (const [coinId, details] of Object.entries(data.data)) {
+            console.log(`Processing coin: ${coinId}`, details);
+            
             const row = document.createElement('tr');
             
             // Asset column with icon and name
             const coinCell = document.createElement('td');
             coinCell.innerHTML = `
                 <div class="d-flex align-items-center">
-                    <img src="${details.image}" alt="${coinId}" class="coin-logo me-2" style="width: 24px; height: 24px;">
+                    <img src="${details.image || ''}" alt="${coinId}" class="coin-logo me-2" style="width: 24px; height: 24px;">
                     <span class="text-capitalize">${coinId.replace('-', ' ')}</span>
                 </div>
             `;
@@ -178,21 +189,31 @@ async function updatePortfolio() {
             portfolioTable.appendChild(row);
         }
         
-        document.getElementById('totalValue').textContent = data.total_value.toFixed(2);
+        console.log('Updating total value...');
+        const totalValueElement = document.getElementById('totalValue');
+        if (totalValueElement) {
+            totalValueElement.textContent = data.total_value.toFixed(2);
+        } else {
+            console.error('Could not find totalValue element');
+        }
         
         // Update history chart
+        console.log('Updating history chart...');
         await updateHistoryChart();
+        
+        console.log('Portfolio update complete');
     } catch (error) {
         console.error('Error updating portfolio:', error);
     }
 }
 
-// Initialize TradingView chart with default pair (BTC/USD)
+// Initialize TradingView chart with default pair (BTC/USD) and start updates
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Page loaded, initializing...');
     createTradingViewWidget('BTCUSD');
     initializePairSelection();
     updatePortfolio();
+    
+    // Refresh portfolio data every 60 seconds
+    setInterval(updatePortfolio, 60000);
 });
-
-// Update portfolio every 30 seconds
-setInterval(updatePortfolio, 30000);
