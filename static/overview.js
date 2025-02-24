@@ -148,12 +148,6 @@ async function updatePortfolio() {
                 </div>
             `;
             
-            // Sources column
-            const sourcesCell = document.createElement('td');
-            sourcesCell.innerHTML = Object.entries(details.sources)
-                .map(([source, amount]) => `${source}: ${amount.toFixed(8)}`)
-                .join('<br>');
-            
             // Total Balance column
             const totalBalanceCell = document.createElement('td');
             totalBalanceCell.textContent = details.total_amount.toFixed(8);
@@ -178,7 +172,6 @@ async function updatePortfolio() {
             
             // Add all cells to the row
             row.appendChild(coinCell);
-            row.appendChild(sourcesCell);
             row.appendChild(totalBalanceCell);
             row.appendChild(priceCell);
             row.appendChild(hourlyChangeCell);
