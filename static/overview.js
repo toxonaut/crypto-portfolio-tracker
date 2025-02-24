@@ -122,32 +122,57 @@ async function updatePortfolio() {
             return;
         }
         
-        const portfolioTable = document.getElementById('portfolioTable');
+        const portfolioTable = document.getElementById('portfolioTableBody');
         portfolioTable.innerHTML = '';
         
         for (const [coinId, details] of Object.entries(data.data)) {
             const row = document.createElement('tr');
             
+            // Asset column with icon and name
             const coinCell = document.createElement('td');
             coinCell.innerHTML = `
                 <div class="d-flex align-items-center">
-                    <img src="${details.image}" alt="${coinId}" class="coin-logo me-2">
+                    <img src="${details.image}" alt="${coinId}" class="coin-logo me-2" style="width: 24px; height: 24px;">
                     <span class="text-capitalize">${coinId.replace('-', ' ')}</span>
                 </div>
             `;
             
+            // Sources column
+            const sourcesCell = document.createElement('td');
+            sourcesCell.innerHTML = Object.entries(details.sources)
+                .map(([source, amount]) => `${source}: ${amount.toFixed(8)}`)
+                .join('<br>');
+            
+            // Total Balance column
             const totalBalanceCell = document.createElement('td');
             totalBalanceCell.textContent = details.total_amount.toFixed(8);
             
+            // Price column
             const priceCell = document.createElement('td');
             priceCell.textContent = `$${details.price.toFixed(2)}`;
             
+            // Price change columns
+            const hourlyChangeCell = document.createElement('td');
+            hourlyChangeCell.innerHTML = details.hourly_change ? formatPriceChange(details.hourly_change) : '-';
+            
+            const dailyChangeCell = document.createElement('td');
+            dailyChangeCell.innerHTML = details.daily_change ? formatPriceChange(details.daily_change) : '-';
+            
+            const weeklyChangeCell = document.createElement('td');
+            weeklyChangeCell.innerHTML = details.seven_day_change ? formatPriceChange(details.seven_day_change) : '-';
+            
+            // Value column
             const valueCell = document.createElement('td');
             valueCell.textContent = `$${details.total_value.toFixed(2)}`;
             
+            // Add all cells to the row
             row.appendChild(coinCell);
+            row.appendChild(sourcesCell);
             row.appendChild(totalBalanceCell);
             row.appendChild(priceCell);
+            row.appendChild(hourlyChangeCell);
+            row.appendChild(dailyChangeCell);
+            row.appendChild(weeklyChangeCell);
             row.appendChild(valueCell);
             
             portfolioTable.appendChild(row);
