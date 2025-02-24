@@ -299,24 +299,26 @@ def update_coin():
         print(f"Error updating coin: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/remove_source', methods=['POST'])
+@app.route('/api/remove_source', methods=['POST'])
 def remove_source():
     try:
         data = request.get_json()
         coin_id = data.get('coin_id')
         source = data.get('source')
-        
+
         if not coin_id or not source:
-            return jsonify({'success': False, 'error': 'Invalid input'})
-        
+            return jsonify({'success': False, 'error': 'Missing coin_id or source'})
+
         entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
-        if entry:
-            db.session.delete(entry)
-            db.session.commit()
-            
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'})
+
+        db.session.delete(entry)
+        db.session.commit()
+
         return jsonify({'success': True})
-        
     except Exception as e:
+        print(f"Error removing source: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 def create_tables():

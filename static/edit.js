@@ -38,7 +38,7 @@ document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
     }
 });
 
-async function removeSource(coinId, source, element) {
+async function removeSource(coinId, source) {
     try {
         const response = await fetch('/api/remove_source', {
             method: 'POST',
@@ -52,14 +52,14 @@ async function removeSource(coinId, source, element) {
         });
 
         const data = await response.json();
-        if (data.success) {
-            updatePortfolio();
-        } else {
-            alert('Error removing source.');
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to remove entry');
         }
+
+        updatePortfolio();
     } catch (error) {
-        console.error('Error:', error);
-        alert('Error removing source');
+        console.error('Error removing entry:', error);
+        alert(error.message || 'Error removing entry');
     }
 }
 
@@ -83,7 +83,7 @@ function createSourceElement(coinId, sourceName, amount) {
     removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
     removeBtn.onclick = (e) => {
         e.preventDefault();
-        removeSource(coinId, sourceName, removeBtn);
+        removeSource(coinId, sourceName);
     };
     
     rightDiv.appendChild(amountSpan);
