@@ -123,6 +123,11 @@ async function updateCoinEntry(coinId, oldSource, newSource, newAmount) {
 }
 
 function makeEditable(element, currentValue, onSave) {
+    // Create edit container
+    const editContainer = document.createElement('div');
+    editContainer.className = 'd-flex gap-2';
+    
+    // Create input
     const input = document.createElement('input');
     input.type = element.classList.contains('amount-cell') ? 'number' : 'text';
     input.value = currentValue;
@@ -132,34 +137,50 @@ function makeEditable(element, currentValue, onSave) {
         input.min = '0';
     }
     
+    // Create save button
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-sm btn-success';
+    saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    
+    // Create cancel button
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-sm btn-outline-secondary';
+    cancelBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+    
+    // Add elements to container
+    editContainer.appendChild(input);
+    editContainer.appendChild(saveBtn);
+    editContainer.appendChild(cancelBtn);
+    
     const originalContent = element.innerHTML;
     element.innerHTML = '';
-    element.appendChild(input);
+    element.appendChild(editContainer);
     input.focus();
     
     function handleSave() {
         const newValue = input.value.trim();
-        if (newValue !== '' && newValue !== currentValue) {
+        if (newValue !== '' && newValue !== String(currentValue)) {
             onSave(newValue);
         } else {
-            element.innerHTML = originalContent;
+            handleCancel();
         }
-        input.removeEventListener('blur', handleSave);
-        input.removeEventListener('keypress', handleKeyPress);
     }
     
-    function handleKeyPress(e) {
+    function handleCancel() {
+        element.innerHTML = originalContent;
+        element.classList.remove('editing');
+    }
+    
+    saveBtn.addEventListener('click', handleSave);
+    cancelBtn.addEventListener('click', handleCancel);
+    
+    input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             handleSave();
         } else if (e.key === 'Escape') {
-            element.innerHTML = originalContent;
-            input.removeEventListener('blur', handleSave);
-            input.removeEventListener('keypress', handleKeyPress);
+            handleCancel();
         }
-    }
-    
-    input.addEventListener('blur', handleSave);
-    input.addEventListener('keypress', handleKeyPress);
+    });
 }
 
 async function updatePortfolio() {
@@ -206,23 +227,33 @@ async function updatePortfolio() {
                 // Source column (editable)
                 const sourceCell = document.createElement('td');
                 sourceCell.className = 'source-cell';
-                sourceCell.innerHTML = `<span class="editable">${source}</span>`;
+                const sourceSpan = document.createElement('span');
+                sourceSpan.className = 'editable';
+                sourceSpan.textContent = source;
+                sourceCell.appendChild(sourceSpan);
                 sourceCell.addEventListener('click', () => {
-                    const span = sourceCell.querySelector('.editable');
-                    makeEditable(span, source, (newSource) => {
-                        updateCoinEntry(coinId, source, newSource, amount);
-                    });
+                    if (!sourceSpan.classList.contains('editing')) {
+                        sourceSpan.classList.add('editing');
+                        makeEditable(sourceSpan, source, (newSource) => {
+                            updateCoinEntry(coinId, source, newSource, amount);
+                        });
+                    }
                 });
                 
                 // Amount column (editable)
                 const amountCell = document.createElement('td');
                 amountCell.className = 'amount-cell';
-                amountCell.innerHTML = `<span class="editable">${amount.toFixed(8)}</span>`;
+                const amountSpan = document.createElement('span');
+                amountSpan.className = 'editable';
+                amountSpan.textContent = amount.toFixed(8);
+                amountCell.appendChild(amountSpan);
                 amountCell.addEventListener('click', () => {
-                    const span = amountCell.querySelector('.editable');
-                    makeEditable(span, amount, (newAmount) => {
-                        updateCoinEntry(coinId, source, source, newAmount);
-                    });
+                    if (!amountSpan.classList.contains('editing')) {
+                        amountSpan.classList.add('editing');
+                        makeEditable(amountSpan, amount, (newAmount) => {
+                            updateCoinEntry(coinId, source, source, newAmount);
+                        });
+                    }
                 });
                 
                 // Value column

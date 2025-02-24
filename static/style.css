@@ -96,11 +96,40 @@ body {
     padding: 0.25rem 0.5rem;
     border-radius: 0.25rem;
     transition: background-color 0.2s;
+    display: block;
 }
 
 .source-cell .editable:hover,
 .amount-cell .editable:hover {
     background-color: rgba(0, 0, 0, 0.05);
+}
+
+.source-cell .editable.editing,
+.amount-cell .editable.editing {
+    background-color: #fff;
+    padding: 0;
+}
+
+.source-cell .editable.editing .d-flex,
+.amount-cell .editable.editing .d-flex {
+    gap: 0.5rem !important;
+}
+
+.source-cell .editable.editing input,
+.amount-cell .editable.editing input {
+    min-width: 100px;
+}
+
+.source-cell .editable.editing button,
+.amount-cell .editable.editing button {
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+}
+
+.source-cell .editable.editing,
+.amount-cell .editable.editing {
+    box-shadow: 0 0 0 2px #0d6efd;
+    border-radius: 0.25rem;
 }
 
 .source-cell input,
