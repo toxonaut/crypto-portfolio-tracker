@@ -67,10 +67,10 @@ def update_history(total_value):
         db.session.add(history_entry)
         db.session.commit()
 
-def coingecko_request(url, max_retries=3):
+def coingecko_request(url, max_retries=2, timeout=5):
     for attempt in range(max_retries):
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=timeout)
             if response.status_code == 429:  # Too Many Requests
                 if attempt < max_retries - 1:
                     time.sleep(60)  # Wait 60 seconds before retrying
@@ -80,7 +80,7 @@ def coingecko_request(url, max_retries=3):
         except requests.exceptions.RequestException as e:
             if attempt == max_retries - 1:
                 raise e
-            time.sleep(5)  # Wait 5 seconds before retrying other errors
+            time.sleep(2)  # Wait 2 seconds before retrying other errors
     return None
 
 @app.route('/')
@@ -94,95 +94,70 @@ def edit_portfolio():
 @app.route('/portfolio')
 def get_portfolio():
     try:
-        print("Starting portfolio data retrieval...")  # Debug log
+        print("Starting portfolio data retrieval...")
         
         # Log database connection info
-        print("Database URL:", app.config['SQLALCHEMY_DATABASE_URI'])  # Debug log
+        print("Database URL:", app.config['SQLALCHEMY_DATABASE_URI'])
         
         # Get all entries from database
         entries = Portfolio.query.all()
-        print(f"Found {len(entries)} entries in database")  # Debug log
+        print(f"Found {len(entries)} entries in database")
         for entry in entries:
-            print(f"Entry: coin_id={entry.coin_id}, source={entry.source}, amount={entry.amount}")  # Debug log
+            print(f"Entry: coin_id={entry.coin_id}, source={entry.source}, amount={entry.amount}")
         
         portfolio_data = get_portfolio_data()
-        print("Portfolio data:", portfolio_data)  # Debug print
+        print("Portfolio data:", portfolio_data)
         
         # Get current prices from CoinGecko
         if portfolio_data:
             coin_ids = list(portfolio_data.keys())
-            print("Coin IDs:", coin_ids)  # Debug print
+            print("Coin IDs:", coin_ids)
             
-            prices_url = f'https://api.coingecko.com/api/v3/simple/price?ids={",".join(coin_ids)}&vs_currencies=usd'
-            print(f"Calling CoinGecko API: {prices_url}")  # Debug log
+            # Combine price and metadata request into one
+            markets_url = f'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={",".join(coin_ids)}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d'
+            print(f"Calling CoinGecko API: {markets_url}")
             
-            response = coingecko_request(prices_url)
+            response = coingecko_request(markets_url, timeout=10)
             if response and response.ok:
-                prices = response.json()
-                print("Price data:", prices)  # Debug print
-                
-                # Get coin metadata for images
-                metadata_url = f'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={",".join(coin_ids)}&order=market_cap_desc&per_page=250&page=1&sparkline=false'
-                print(f"Fetching metadata: {metadata_url}")  # Debug log
-                
-                metadata_response = coingecko_request(metadata_url)
-                if metadata_response and metadata_response.ok:
-                    metadata = {coin['id']: coin['image'] for coin in metadata_response.json()}
-                    print("Metadata:", metadata)  # Debug print
-                else:
-                    print("Failed to fetch metadata:", metadata_response.status_code if metadata_response else "No response")
-                    metadata = {}
+                market_data = response.json()
+                print("Market data:", market_data)
                 
                 total_value = 0
-                for coin_id, data in portfolio_data.items():
-                    if coin_id in prices:
-                        current_price = prices[coin_id]['usd']
+                for coin in market_data:
+                    coin_id = coin['id']
+                    if coin_id in portfolio_data:
+                        data = portfolio_data[coin_id]
+                        current_price = coin['current_price']
                         data['price'] = current_price
-                        data['image'] = metadata.get(coin_id, '')
+                        data['image'] = coin['image']
+                        data['hourly_change'] = coin.get('price_change_percentage_1h_in_currency')
+                        data['daily_change'] = coin.get('price_change_percentage_24h')
+                        data['seven_day_change'] = coin.get('price_change_percentage_7d_in_currency')
                         
                         # Update price in database
                         entries = Portfolio.query.filter_by(coin_id=coin_id).all()
                         for entry in entries:
                             entry.last_price = current_price
-                        db.session.commit()
-                        
-                        # Fetch historical prices for hourly, daily, and 7-day changes
-                        historical_url = f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days=7'
-                        print(f"Fetching historical data: {historical_url}")  # Debug log
-                        
-                        historical_response = coingecko_request(historical_url)
-                        if historical_response and historical_response.ok:
-                            historical_data = historical_response.json()['prices']
-                            current_time = int(time.time() * 1000)  # Current time in milliseconds
-                            
-                            # Calculate price changes
-                            one_hour_ago = current_time - 3600 * 1000
-                            one_day_ago = current_time - 86400 * 1000
-                            seven_days_ago = current_time - 7 * 86400 * 1000
-                            
-                            hourly_price = next((price for timestamp, price in historical_data if timestamp >= one_hour_ago), None)
-                            daily_price = next((price for timestamp, price in historical_data if timestamp >= one_day_ago), None)
-                            seven_day_price = next((price for timestamp, price in historical_data if timestamp >= seven_days_ago), None)
-                            
-                            if hourly_price:
-                                data['hourly_change'] = ((current_price - hourly_price) / hourly_price) * 100
-                            if daily_price:
-                                data['daily_change'] = ((current_price - daily_price) / daily_price) * 100
-                            if seven_day_price:
-                                data['seven_day_change'] = ((current_price - seven_day_price) / seven_day_price) * 100
-                        else:
-                            print(f"Failed to fetch historical data for {coin_id}")  # Debug log
                         
                         # Calculate total value for this coin
                         coin_value = data['total_amount'] * current_price
                         total_value += coin_value
                         data['total_value'] = coin_value
                 
-                print("Final portfolio data:", portfolio_data)  # Debug print
-                print("Total value:", total_value)  # Debug print
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    print(f"Error updating prices in database: {str(e)}")
+                    db.session.rollback()
+                
+                print("Final portfolio data:", portfolio_data)
+                print("Total value:", total_value)
                 
                 # Update history if needed
-                update_history(total_value)
+                try:
+                    update_history(total_value)
+                except Exception as e:
+                    print(f"Error updating history: {str(e)}")
                 
                 return jsonify({
                     'success': True,
@@ -190,14 +165,14 @@ def get_portfolio():
                     'total_value': total_value
                 })
             else:
-                error_msg = f"Failed to fetch price data: {response.status_code if response else 'No response'}"
-                print(error_msg)  # Debug log
+                error_msg = f"Failed to fetch market data: {response.status_code if response else 'No response'}"
+                print(error_msg)
                 return jsonify({
                     'success': False,
                     'error': error_msg
                 })
         else:
-            print("No portfolio data found")  # Debug log
+            print("No portfolio data found")
             return jsonify({
                 'success': True,
                 'data': {},
@@ -205,9 +180,9 @@ def get_portfolio():
             })
             
     except Exception as e:
-        print(f"Error in get_portfolio: {str(e)}")  # Debug log
+        print(f"Error in get_portfolio: {str(e)}")
         import traceback
-        traceback.print_exc()  # Print full stack trace
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -227,26 +202,26 @@ def add_coin():
         source = data.get('source')
         amount = float(data.get('amount'))
         
-        print(f"Adding coin: {coin_id}, source: {source}, amount: {amount}")  # Debug log
+        print(f"Adding coin: {coin_id}, source: {source}, amount: {amount}")
         
         # Verify the coin exists in CoinGecko
         url = f'https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd'
-        print(f"Calling CoinGecko API: {url}")  # Debug log
+        print(f"Calling CoinGecko API: {url}")
         
         try:
             response = coingecko_request(url)
             if not response:
                 return jsonify({'success': False, 'error': 'Failed to fetch price data from CoinGecko'})
             
-            print(f"CoinGecko API response status: {response.status_code}")  # Debug log
-            print(f"CoinGecko API response body: {response.text}")  # Debug log
+            print(f"CoinGecko API response status: {response.status_code}")
+            print(f"CoinGecko API response body: {response.text}")
             
             response_data = response.json()
             if coin_id not in response_data:
                 return jsonify({'success': False, 'error': f'Invalid coin ID: {coin_id}. Make sure to use the CoinGecko ID (e.g., "bitcoin" for Bitcoin)'})
             
             price = response_data[coin_id]['usd']
-            print(f"Got price for {coin_id}: ${price}")  # Debug log
+            print(f"Got price for {coin_id}: ${price}")
             
             # Check if entry already exists
             existing_entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
@@ -261,11 +236,11 @@ def add_coin():
             return jsonify({'success': True})
             
         except requests.exceptions.RequestException as e:
-            print(f"CoinGecko API error: {str(e)}")  # Debug log
+            print(f"CoinGecko API error: {str(e)}")
             return jsonify({'success': False, 'error': 'Failed to fetch data from CoinGecko API. Please try again later.'})
             
     except Exception as e:
-        print(f"Error in add_coin: {str(e)}")  # Debug log
+        print(f"Error in add_coin: {str(e)}")
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
 
