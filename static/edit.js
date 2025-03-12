@@ -4,37 +4,41 @@ document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
     const coinId = document.getElementById('coinId').value.toLowerCase().trim();
     const amount = parseFloat(document.getElementById('amount').value);
     const source = document.getElementById('source').value.trim();
-
-    if (!coinId || !source || isNaN(amount)) {
-        alert('Please fill in all fields correctly');
+    
+    if (!coinId || !source || isNaN(amount) || amount <= 0) {
+        alert('Please fill all fields correctly');
         return;
     }
-
+    
     try {
         const response = await fetch('/api/add_coin', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                coin_id: coinId, 
-                amount: amount,
-                source: source
+            body: JSON.stringify({
+                coin_id: coinId,
+                source: source,
+                amount: amount
             })
         });
-
+        
         const data = await response.json();
-        if (data.success) {
-            document.getElementById('coinId').value = '';
-            document.getElementById('amount').value = '';
-            document.getElementById('source').value = '';
-            updatePortfolio();
-        } else {
-            alert(data.error || 'Error adding coin. Please check the coin ID.');
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to add coin');
         }
+        
+        // Reset form
+        document.getElementById('coinId').value = '';
+        document.getElementById('source').value = '';
+        document.getElementById('amount').value = '';
+        
+        // Update portfolio
+        updatePortfolio();
+        
     } catch (error) {
-        console.error('Error:', error);
-        alert('Error adding coin to portfolio. Please check the browser console for details.');
+        console.error('Error adding coin:', error);
+        alert(error.message || 'Error adding coin');
     }
 });
 
@@ -45,58 +49,27 @@ async function removeSource(coinId, source) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ 
-                coin_id: coinId, 
-                source: source 
+            body: JSON.stringify({
+                coin_id: coinId,
+                source: source
             })
         });
-
+        
         const data = await response.json();
         if (!data.success) {
-            throw new Error(data.error || 'Failed to remove entry');
+            throw new Error(data.error || 'Failed to remove source');
         }
-
+        
         updatePortfolio();
     } catch (error) {
-        console.error('Error removing entry:', error);
-        alert(error.message || 'Error removing entry');
+        console.error('Error removing source:', error);
+        alert(error.message || 'Error removing source');
     }
-}
-
-function createSourceElement(coinId, sourceName, amount) {
-    const sourceRow = document.createElement('div');
-    sourceRow.className = 'source-row d-flex justify-content-between align-items-center mb-2';
-    
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'source-name';
-    nameSpan.textContent = sourceName;
-    
-    const rightDiv = document.createElement('div');
-    rightDiv.className = 'd-flex align-items-center';
-    
-    const amountSpan = document.createElement('span');
-    amountSpan.className = 'source-amount me-3';
-    amountSpan.textContent = amount.toFixed(8);
-    
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'btn btn-sm btn-danger remove-source-btn';
-    removeBtn.innerHTML = '<i class="bi bi-trash"></i>';
-    removeBtn.onclick = (e) => {
-        e.preventDefault();
-        removeSource(coinId, sourceName);
-    };
-    
-    rightDiv.appendChild(amountSpan);
-    rightDiv.appendChild(removeBtn);
-    
-    sourceRow.appendChild(nameSpan);
-    sourceRow.appendChild(rightDiv);
-    
-    return sourceRow;
 }
 
 async function updateCoinEntry(coinId, oldSource, newSource, newAmount) {
     try {
+        console.log('Updating coin entry:', { coinId, oldSource, newSource, newAmount });
         const response = await fetch('/api/update_coin', {
             method: 'POST',
             headers: {
@@ -123,13 +96,9 @@ async function updateCoinEntry(coinId, oldSource, newSource, newAmount) {
 }
 
 function makeEditable(element, currentValue, onSave) {
-    // Create edit container
-    const editContainer = document.createElement('div');
-    editContainer.className = 'd-flex gap-2';
-    
-    // Create input
+    // Create input field
     const input = document.createElement('input');
-    input.type = element.classList.contains('amount-cell') ? 'number' : 'text';
+    input.type = typeof currentValue === 'number' ? 'number' : 'text';
     input.value = currentValue;
     input.className = 'form-control form-control-sm';
     if (input.type === 'number') {
@@ -140,47 +109,64 @@ function makeEditable(element, currentValue, onSave) {
     // Create save button
     const saveBtn = document.createElement('button');
     saveBtn.className = 'btn btn-sm btn-success';
-    saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    saveBtn.innerHTML = '✓';
     
-    // Create cancel button
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-sm btn-outline-secondary';
-    cancelBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+    // Create container
+    const container = document.createElement('div');
+    container.className = 'd-flex align-items-center gap-2';
+    container.appendChild(input);
+    container.appendChild(saveBtn);
     
-    // Add elements to container
-    editContainer.appendChild(input);
-    editContainer.appendChild(saveBtn);
-    editContainer.appendChild(cancelBtn);
-    
+    // Store original content and replace with input
     const originalContent = element.innerHTML;
     element.innerHTML = '';
-    element.appendChild(editContainer);
+    element.appendChild(container);
+    
+    // Focus input
     input.focus();
     
-    function handleSave() {
-        const newValue = input.value.trim();
-        if (newValue !== '' && newValue !== String(currentValue)) {
+    // Function to save changes
+    function save() {
+        const newValue = input.type === 'number' ? parseFloat(input.value) : input.value.trim();
+        if (newValue && newValue !== currentValue) {
             onSave(newValue);
         } else {
-            handleCancel();
+            // Restore original content if no changes
+            element.innerHTML = originalContent;
         }
     }
     
-    function handleCancel() {
+    // Function to cancel editing
+    function cancel() {
         element.innerHTML = originalContent;
-        element.classList.remove('editing');
     }
     
-    saveBtn.addEventListener('click', handleSave);
-    cancelBtn.addEventListener('click', handleCancel);
+    // Save button click
+    saveBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        save();
+    });
     
-    input.addEventListener('keypress', (e) => {
+    // Enter key to save, Escape to cancel
+    input.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
-            handleSave();
+            e.preventDefault();
+            save();
         } else if (e.key === 'Escape') {
-            handleCancel();
+            e.preventDefault();
+            cancel();
         }
     });
+    
+    // Click outside to cancel
+    setTimeout(function() {
+        document.addEventListener('click', function handleClickOutside(e) {
+            if (!element.contains(e.target)) {
+                cancel();
+                document.removeEventListener('click', handleClickOutside);
+            }
+        });
+    }, 10);
 }
 
 async function updatePortfolio() {
@@ -188,18 +174,30 @@ async function updatePortfolio() {
         const response = await fetch('/portfolio');
         const data = await response.json();
         
+        console.log('Portfolio data:', data);
+        
         if (!data.success) {
             console.error('Failed to fetch portfolio:', data.error);
             return;
         }
         
         const portfolioDetails = document.getElementById('portfolioDetails');
-        portfolioDetails.innerHTML = `
+        
+        if (!data.data || Object.keys(data.data).length === 0) {
+            portfolioDetails.innerHTML = `
+                <div class="alert alert-info">
+                    No portfolio data found. Add some coins using the form above.
+                </div>
+            `;
+            return;
+        }
+        
+        let tableHTML = `
             <table class="table">
                 <thead>
                     <tr>
                         <th>Asset</th>
-                        <th>Source</th>
+                        <th>Location</th>
                         <th>Amount</th>
                         <th>Value (USD)</th>
                         <th>Actions</th>
@@ -209,6 +207,7 @@ async function updatePortfolio() {
             </table>
         `;
         
+        portfolioDetails.innerHTML = tableHTML;
         const tableBody = document.getElementById('portfolioTableBody');
         
         for (const [coinId, details] of Object.entries(data.data)) {
@@ -227,33 +226,27 @@ async function updatePortfolio() {
                 // Source column (editable)
                 const sourceCell = document.createElement('td');
                 sourceCell.className = 'source-cell';
-                const sourceSpan = document.createElement('span');
-                sourceSpan.className = 'editable';
-                sourceSpan.textContent = source;
-                sourceCell.appendChild(sourceSpan);
-                sourceCell.addEventListener('click', () => {
-                    if (!sourceSpan.classList.contains('editing')) {
-                        sourceSpan.classList.add('editing');
-                        makeEditable(sourceSpan, source, (newSource) => {
-                            updateCoinEntry(coinId, source, newSource, amount);
-                        });
-                    }
+                sourceCell.innerHTML = `<span class="editable">${source}</span>`;
+                const sourceSpan = sourceCell.querySelector('.editable');
+                
+                sourceSpan.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    makeEditable(this, source, function(newSource) {
+                        updateCoinEntry(coinId, source, newSource, amount);
+                    });
                 });
                 
                 // Amount column (editable)
                 const amountCell = document.createElement('td');
                 amountCell.className = 'amount-cell';
-                const amountSpan = document.createElement('span');
-                amountSpan.className = 'editable';
-                amountSpan.textContent = amount.toFixed(8);
-                amountCell.appendChild(amountSpan);
-                amountCell.addEventListener('click', () => {
-                    if (!amountSpan.classList.contains('editing')) {
-                        amountSpan.classList.add('editing');
-                        makeEditable(amountSpan, amount, (newAmount) => {
-                            updateCoinEntry(coinId, source, source, newAmount);
-                        });
-                    }
+                amountCell.innerHTML = `<span class="editable">${amount.toFixed(8)}</span>`;
+                const amountSpan = amountCell.querySelector('.editable');
+                
+                amountSpan.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    makeEditable(this, amount, function(newAmount) {
+                        updateCoinEntry(coinId, source, source, newAmount);
+                    });
                 });
                 
                 // Value column
@@ -289,10 +282,14 @@ async function updatePortfolio() {
                 tableBody.appendChild(row);
             }
         }
-        
-        document.getElementById('totalValue').textContent = data.total_value.toFixed(2);
     } catch (error) {
         console.error('Error updating portfolio:', error);
+        const portfolioDetails = document.getElementById('portfolioDetails');
+        portfolioDetails.innerHTML = `
+            <div class="alert alert-danger">
+                Error loading portfolio data: ${error.message}
+            </div>
+        `;
     }
 }
 
@@ -301,32 +298,14 @@ let coinsList = [];
 
 async function loadCoinsList() {
     try {
-        const response = await fetch('/api/valid_coins');
+        const response = await fetch('/api/coins');
         const data = await response.json();
         if (data.success) {
-            coinsList = data.coins;
-            setupCoinSearch();
+            coinsList = data.data;
         }
     } catch (error) {
         console.error('Error loading coins list:', error);
     }
-}
-
-function setupCoinSearch() {
-    const coinInput = document.getElementById('coinId');
-    const datalist = document.createElement('datalist');
-    datalist.id = 'coinsList';
-    
-    coinsList.forEach(coin => {
-        const option = document.createElement('option');
-        option.value = coin.id;
-        option.label = `${coin.name} (${coin.symbol.toUpperCase()})`;
-        datalist.appendChild(option);
-    });
-    
-    document.body.appendChild(datalist);
-    coinInput.setAttribute('list', 'coinsList');
-    coinInput.setAttribute('placeholder', 'Start typing coin name...');
 }
 
 // Load coins list when page loads

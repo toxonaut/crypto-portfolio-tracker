@@ -7,14 +7,14 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Database configuration
+# Database configuration - simplified for Railway deployment
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///portfolio.db')
-if DATABASE_URL.startswith("postgres://"):
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-elif DATABASE_URL.startswith("railway://"):
-    DATABASE_URL = DATABASE_URL.replace("railway://", "postgresql://", 1)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['PORT'] = os.environ.get('PORT', 5000)
 
 db = SQLAlchemy(app)
 
@@ -328,5 +328,5 @@ def create_tables():
 create_tables()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5018))
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
