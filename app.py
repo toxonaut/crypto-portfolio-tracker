@@ -24,6 +24,7 @@ class Portfolio(db.Model):
     coin_id = db.Column(db.String(50), nullable=False)
     source = db.Column(db.String(100), nullable=False)
     amount = db.Column(db.Float, nullable=False)
+    apy = db.Column(db.Float, nullable=True, default=0.0)  # Added APY field
     last_price = db.Column(db.Float)
     
     __table_args__ = (
@@ -49,39 +50,41 @@ def get_portfolio_data():
                 'total_amount': 0,
                 'price': entry.last_price or 0
             }
-        portfolio_data[entry.coin_id]['sources'][entry.source] = entry.amount
+        
+        portfolio_data[entry.coin_id]['sources'][entry.source] = {
+            'amount': entry.amount,
+            'apy': entry.apy or 0.0  # Include APY in the sources data
+        }
         portfolio_data[entry.coin_id]['total_amount'] += entry.amount
     
     return portfolio_data
 
 def update_history(total_value):
     current_time = int(time.time())
-    last_update = PortfolioHistory.query.order_by(PortfolioHistory.timestamp.desc()).first()
+    last_history = PortfolioHistory.query.order_by(PortfolioHistory.timestamp.desc()).first()
     
-    if not last_update or (current_time - last_update.timestamp) >= HISTORY_UPDATE_INTERVAL:
-        history_entry = PortfolioHistory(
+    if not last_history or (current_time - last_history.timestamp) >= HISTORY_UPDATE_INTERVAL:
+        new_history = PortfolioHistory(
             timestamp=current_time,
-            datetime=datetime.now().isoformat(),
+            datetime=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             total_value=total_value
         )
-        db.session.add(history_entry)
+        db.session.add(new_history)
         db.session.commit()
 
 def coingecko_request(url, max_retries=2, timeout=5):
-    for attempt in range(max_retries):
+    retries = 0
+    while retries <= max_retries:
         try:
             response = requests.get(url, timeout=timeout)
-            if response.status_code == 429:  # Too Many Requests
-                if attempt < max_retries - 1:
-                    time.sleep(60)  # Wait 60 seconds before retrying
-                    continue
             response.raise_for_status()
-            return response
-        except requests.exceptions.RequestException as e:
-            if attempt == max_retries - 1:
-                raise e
-            time.sleep(2)  # Wait 2 seconds before retrying other errors
-    return None
+            return response.json()
+        except (requests.exceptions.RequestException, ValueError) as e:
+            retries += 1
+            if retries > max_retries:
+                print(f"Failed after {max_retries} retries: {e}")
+                return None
+            time.sleep(1)  # Wait before retrying
 
 @app.route('/')
 def index():
@@ -89,236 +92,259 @@ def index():
 
 @app.route('/edit')
 def edit_portfolio():
-    return render_template('edit.html')
+    return render_template('edit_portfolio.html')
 
 @app.route('/portfolio')
 def get_portfolio():
     try:
-        print("Starting portfolio data retrieval...")
-        
-        # Log database connection info
-        print("Database URL:", app.config['SQLALCHEMY_DATABASE_URI'])
-        
-        # Get all entries from database
-        entries = Portfolio.query.all()
-        print(f"Found {len(entries)} entries in database")
-        for entry in entries:
-            print(f"Entry: coin_id={entry.coin_id}, source={entry.source}, amount={entry.amount}")
-        
         portfolio_data = get_portfolio_data()
-        print("Portfolio data:", portfolio_data)
         
-        # Get current prices from CoinGecko
-        if portfolio_data:
-            coin_ids = list(portfolio_data.keys())
-            print("Coin IDs:", coin_ids)
+        if not portfolio_data:
+            return jsonify({'success': True, 'data': {}, 'total_value': 0})
+        
+        # Get coin IDs
+        coin_ids = list(portfolio_data.keys())
+        
+        # Fetch current prices from CoinGecko
+        coins_data = {}
+        if coin_ids:
+            url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={','.join(coin_ids)}&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h,24h,7d"
+            coins_data = coingecko_request(url) or []
+        
+        # Create a map of coin_id to price data
+        price_data = {}
+        for coin in coins_data:
+            price_data[coin['id']] = {
+                'price': coin['current_price'],
+                'image': coin['image'],
+                'hourly_change': coin.get('price_change_percentage_1h_in_currency', 0),
+                'daily_change': coin.get('price_change_percentage_24h', 0),
+                'seven_day_change': coin.get('price_change_percentage_7d_in_currency', 0)
+            }
+        
+        # Update portfolio with price data
+        total_value = 0
+        for coin_id, details in portfolio_data.items():
+            # Default values if coin not found in CoinGecko response
+            price = 0
+            image = ''
+            hourly_change = 0
+            daily_change = 0
+            seven_day_change = 0
             
-            # Combine price and metadata request into one
-            markets_url = f'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={",".join(coin_ids)}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=1h,24h,7d'
-            print(f"Calling CoinGecko API: {markets_url}")
+            # Update with actual data if available
+            if coin_id in price_data:
+                price = price_data[coin_id]['price']
+                image = price_data[coin_id]['image']
+                hourly_change = price_data[coin_id]['hourly_change']
+                daily_change = price_data[coin_id]['daily_change']
+                seven_day_change = price_data[coin_id]['seven_day_change']
+                
+                # Update last_price in database
+                for entry in Portfolio.query.filter_by(coin_id=coin_id).all():
+                    entry.last_price = price
+                db.session.commit()
             
-            response = coingecko_request(markets_url, timeout=10)
-            if response and response.ok:
-                market_data = response.json()
-                print("Market data:", market_data)
-                
-                total_value = 0
-                for coin in market_data:
-                    coin_id = coin['id']
-                    if coin_id in portfolio_data:
-                        data = portfolio_data[coin_id]
-                        current_price = coin['current_price']
-                        data['price'] = current_price
-                        data['image'] = coin['image']
-                        data['hourly_change'] = coin.get('price_change_percentage_1h_in_currency')
-                        data['daily_change'] = coin.get('price_change_percentage_24h')
-                        data['seven_day_change'] = coin.get('price_change_percentage_7d_in_currency')
-                        
-                        # Update price in database
-                        entries = Portfolio.query.filter_by(coin_id=coin_id).all()
-                        for entry in entries:
-                            entry.last_price = current_price
-                        
-                        # Calculate total value for this coin
-                        coin_value = data['total_amount'] * current_price
-                        total_value += coin_value
-                        data['total_value'] = coin_value
-                
-                try:
-                    db.session.commit()
-                except Exception as e:
-                    print(f"Error updating prices in database: {str(e)}")
-                    db.session.rollback()
-                
-                print("Final portfolio data:", portfolio_data)
-                print("Total value:", total_value)
-                
-                # Update history if needed
-                try:
-                    update_history(total_value)
-                except Exception as e:
-                    print(f"Error updating history: {str(e)}")
-                
-                return jsonify({
-                    'success': True,
-                    'data': portfolio_data,
-                    'total_value': total_value
-                })
-            else:
-                error_msg = f"Failed to fetch market data: {response.status_code if response else 'No response'}"
-                print(error_msg)
-                return jsonify({
-                    'success': False,
-                    'error': error_msg
-                })
-        else:
-            print("No portfolio data found")
-            return jsonify({
-                'success': True,
-                'data': {},
-                'total_value': 0
-            })
+            # Calculate total value for this coin
+            coin_value = details['total_amount'] * price
+            total_value += coin_value
             
-    except Exception as e:
-        print(f"Error in get_portfolio: {str(e)}")
-        import traceback
-        traceback.print_exc()
+            # Update portfolio data with price and value
+            portfolio_data[coin_id]['price'] = price
+            portfolio_data[coin_id]['total_value'] = coin_value
+            portfolio_data[coin_id]['image'] = image
+            portfolio_data[coin_id]['hourly_change'] = hourly_change
+            portfolio_data[coin_id]['daily_change'] = daily_change
+            portfolio_data[coin_id]['seven_day_change'] = seven_day_change
+            
+            # Convert sources from dict with amount and apy to just amount for backward compatibility
+            sources_dict = {}
+            for source, source_data in details['sources'].items():
+                sources_dict[source] = {
+                    'amount': source_data['amount'],
+                    'apy': source_data['apy']
+                }
+            
+            portfolio_data[coin_id]['sources'] = sources_dict
+        
+        # Update history if needed
+        update_history(total_value)
+        
         return jsonify({
-            'success': False,
-            'error': str(e)
+            'success': True,
+            'data': portfolio_data,
+            'total_value': total_value
         })
+    
+    except Exception as e:
+        print(f"Error in get_portfolio: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/history')
 def get_history():
     history = PortfolioHistory.query.order_by(PortfolioHistory.timestamp.asc()).all()
-    history_data = [{'timestamp': h.timestamp, 'datetime': h.datetime, 'total_value': h.total_value} for h in history]
+    history_data = [{'timestamp': h.timestamp, 'datetime': h.datetime, 'value': h.total_value} for h in history]
     return jsonify({'success': True, 'data': history_data})
 
 @app.route('/api/add_coin', methods=['POST'])
 def add_coin():
     try:
-        data = request.get_json()
-        coin_id = data.get('coin_id')
-        source = data.get('source')
-        amount = float(data.get('amount'))
+        data = request.json
         
-        print(f"Adding coin: {coin_id}, source: {source}, amount: {amount}")
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'})
         
-        # Verify the coin exists in CoinGecko
-        url = f'https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd'
-        print(f"Calling CoinGecko API: {url}")
+        coin_id = data.get('coin_id', '').strip().lower()
+        source = data.get('source', '').strip()
+        amount = data.get('amount', 0)
+        apy = data.get('apy', 0)  # Get APY from request
+        
+        # Validate inputs
+        if not coin_id or not source:
+            return jsonify({'success': False, 'error': 'Coin ID and source are required'})
         
         try:
-            response = coingecko_request(url)
-            if not response:
-                return jsonify({'success': False, 'error': 'Failed to fetch price data from CoinGecko'})
-            
-            print(f"CoinGecko API response status: {response.status_code}")
-            print(f"CoinGecko API response body: {response.text}")
-            
-            response_data = response.json()
-            if coin_id not in response_data:
-                return jsonify({'success': False, 'error': f'Invalid coin ID: {coin_id}. Make sure to use the CoinGecko ID (e.g., "bitcoin" for Bitcoin)'})
-            
-            price = response_data[coin_id]['usd']
-            print(f"Got price for {coin_id}: ${price}")
-            
-            # Check if entry already exists
-            existing_entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
-            if existing_entry:
-                existing_entry.amount = amount
-                existing_entry.last_price = price
-            else:
-                new_entry = Portfolio(coin_id=coin_id, source=source, amount=amount, last_price=price)
-                db.session.add(new_entry)
-            
-            db.session.commit()
-            return jsonify({'success': True})
-            
-        except requests.exceptions.RequestException as e:
-            print(f"CoinGecko API error: {str(e)}")
-            return jsonify({'success': False, 'error': 'Failed to fetch data from CoinGecko API. Please try again later.'})
-            
+            amount = float(amount)
+            apy = float(apy)  # Convert APY to float
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Amount and APY must be valid numbers'})
+        
+        if amount <= 0:
+            return jsonify({'success': False, 'error': 'Amount must be greater than zero'})
+        
+        if apy < 0:
+            return jsonify({'success': False, 'error': 'APY cannot be negative'})
+        
+        # Check if coin exists in CoinGecko
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false"
+        coin_data = coingecko_request(url)
+        
+        if not coin_data:
+            return jsonify({'success': False, 'error': f"Coin '{coin_id}' not found on CoinGecko"})
+        
+        # Check if entry already exists
+        existing_entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
+        
+        if existing_entry:
+            existing_entry.amount += amount
+            existing_entry.apy = apy  # Update APY
+        else:
+            new_entry = Portfolio(coin_id=coin_id, source=source, amount=amount, apy=apy)
+            db.session.add(new_entry)
+        
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    
     except Exception as e:
-        print(f"Error in add_coin: {str(e)}")
-        db.session.rollback()
+        print(f"Error in add_coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/valid_coins')
+@app.route('/api/coins')
 def get_valid_coins():
     try:
-        response = coingecko_request('https://api.coingecko.com/api/v3/coins/list?include_platform=false')
-        if response and response.ok:
-            coins = response.json()
-            return jsonify({
-                'success': True,
-                'coins': [{'id': coin['id'], 'symbol': coin['symbol'], 'name': coin['name']} for coin in coins]
-            })
-        return jsonify({'success': False, 'error': 'Failed to fetch coin list'})
+        url = "https://api.coingecko.com/api/v3/coins/list"
+        coins_data = coingecko_request(url)
+        
+        if not coins_data:
+            return jsonify({'success': False, 'error': 'Failed to fetch coins list from CoinGecko'})
+        
+        return jsonify({'success': True, 'data': coins_data})
+    
     except Exception as e:
+        print(f"Error in get_valid_coins: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/update_coin', methods=['POST'])
 def update_coin():
     try:
-        data = request.get_json()
-        coin_id = data.get('coin_id')
-        old_source = data.get('old_source')
-        new_source = data.get('new_source')
+        data = request.json
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'})
+        
+        coin_id = data.get('coin_id', '').strip().lower()
+        old_source = data.get('old_source', '').strip()
+        new_source = data.get('new_source', '').strip()
         new_amount = data.get('new_amount')
-
-        if not all([coin_id, old_source, new_source, new_amount]):
-            return jsonify({'success': False, 'error': 'Missing required fields'})
-
-        try:
-            new_amount = float(new_amount)
-            if new_amount <= 0:
-                return jsonify({'success': False, 'error': 'Amount must be greater than 0'})
-        except ValueError:
-            return jsonify({'success': False, 'error': 'Invalid amount'})
-
-        # Get the current entry
+        new_apy = data.get('new_apy')  # Get new APY from request
+        
+        # Validate inputs
+        if not coin_id or not old_source:
+            return jsonify({'success': False, 'error': 'Coin ID and old source are required'})
+        
+        # Find the entry to update
         entry = Portfolio.query.filter_by(coin_id=coin_id, source=old_source).first()
+        
         if not entry:
-            return jsonify({'success': False, 'error': 'Entry not found'})
-
-        # If source is being changed, check if new source already exists
-        if old_source != new_source:
+            return jsonify({'success': False, 'error': f"Entry for {coin_id} at {old_source} not found"})
+        
+        # Update source if provided and different
+        if new_source and new_source != old_source:
+            # Check if there's already an entry with the new source
             existing_entry = Portfolio.query.filter_by(coin_id=coin_id, source=new_source).first()
+            
             if existing_entry:
-                return jsonify({'success': False, 'error': f'Source {new_source} already exists for {coin_id}'})
-
-        # Update the entry
-        entry.source = new_source
-        entry.amount = new_amount
+                return jsonify({'success': False, 'error': f"Entry for {coin_id} at {new_source} already exists"})
+            
+            entry.source = new_source
+        
+        # Update amount if provided
+        if new_amount is not None:
+            try:
+                new_amount = float(new_amount)
+                if new_amount <= 0:
+                    return jsonify({'success': False, 'error': 'Amount must be greater than zero'})
+                entry.amount = new_amount
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Amount must be a valid number'})
+        
+        # Update APY if provided
+        if new_apy is not None:
+            try:
+                new_apy = float(new_apy)
+                if new_apy < 0:
+                    return jsonify({'success': False, 'error': 'APY cannot be negative'})
+                entry.apy = new_apy
+            except ValueError:
+                return jsonify({'success': False, 'error': 'APY must be a valid number'})
+        
         db.session.commit()
-
+        
         return jsonify({'success': True})
-
+    
     except Exception as e:
-        print(f"Error updating coin: {str(e)}")
+        print(f"Error in update_coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/remove_source', methods=['POST'])
 def remove_source():
     try:
-        data = request.get_json()
-        coin_id = data.get('coin_id')
-        source = data.get('source')
-
+        data = request.json
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'})
+        
+        coin_id = data.get('coin_id', '').strip().lower()
+        source = data.get('source', '').strip()
+        
+        # Validate inputs
         if not coin_id or not source:
-            return jsonify({'success': False, 'error': 'Missing coin_id or source'})
-
+            return jsonify({'success': False, 'error': 'Coin ID and source are required'})
+        
+        # Find the entry to remove
         entry = Portfolio.query.filter_by(coin_id=coin_id, source=source).first()
+        
         if not entry:
-            return jsonify({'success': False, 'error': 'Entry not found'})
-
+            return jsonify({'success': False, 'error': f"Entry for {coin_id} at {source} not found"})
+        
         db.session.delete(entry)
         db.session.commit()
-
+        
         return jsonify({'success': True})
+    
     except Exception as e:
-        print(f"Error removing source: {str(e)}")
+        print(f"Error in remove_source: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 def create_tables():
@@ -328,5 +354,5 @@ def create_tables():
 create_tables()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    port = int(os.environ.get('PORT', 5004))
+    app.run(debug=True, host='0.0.0.0', port=port)

@@ -24,17 +24,21 @@
             <div class="card-body">
                 <h3 class="card-title">Add New Entry</h3>
                 <form id="addCoinForm" class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="coinId" class="form-label">Coin</label>
                         <input type="text" class="form-control" id="coinId" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="source" class="form-label">Location</label>
                         <input type="text" class="form-control" id="source" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="amount" class="form-label">Amount</label>
                         <input type="number" step="any" class="form-control" id="amount" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="apy" class="form-label">APY Yield (%)</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="apy" value="0">
                     </div>
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">Add Entry</button>
@@ -62,6 +66,7 @@
                         <tr>
                             <th>Location</th>
                             <th>Amount</th>
+                            <th>APY Yield (%)</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -83,6 +88,11 @@
             <td>
                 <div class="input-group">
                     <input type="number" step="any" class="form-control amount-input" value="">
+                </div>
+            </td>
+            <td>
+                <div class="input-group">
+                    <input type="number" step="0.01" min="0" class="form-control apy-input" value="0">
                 </div>
             </td>
             <td>

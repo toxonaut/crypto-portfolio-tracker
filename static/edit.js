@@ -4,6 +4,7 @@ document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
     const coinId = document.getElementById('coinId').value.toLowerCase().trim();
     const amount = parseFloat(document.getElementById('amount').value);
     const source = document.getElementById('source').value.trim();
+    const apy = parseFloat(document.getElementById('apy')?.value || 0);
     
     if (!coinId || !source || isNaN(amount) || amount <= 0) {
         alert('Please fill all fields correctly');
@@ -19,7 +20,8 @@ document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
             body: JSON.stringify({
                 coin_id: coinId,
                 source: source,
-                amount: amount
+                amount: amount,
+                apy: apy
             })
         });
         
@@ -32,6 +34,9 @@ document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
         document.getElementById('coinId').value = '';
         document.getElementById('source').value = '';
         document.getElementById('amount').value = '';
+        if (document.getElementById('apy')) {
+            document.getElementById('apy').value = '';
+        }
         
         // Update portfolio
         updatePortfolio();
@@ -67,9 +72,9 @@ async function removeSource(coinId, source) {
     }
 }
 
-async function updateCoinEntry(coinId, oldSource, newSource, newAmount) {
+async function updateCoinEntry(coinId, oldSource, newSource, newAmount, newApy) {
     try {
-        console.log('Updating coin entry:', { coinId, oldSource, newSource, newAmount });
+        console.log('Updating coin entry:', { coinId, oldSource, newSource, newAmount, newApy });
         const response = await fetch('/api/update_coin', {
             method: 'POST',
             headers: {
@@ -79,7 +84,8 @@ async function updateCoinEntry(coinId, oldSource, newSource, newAmount) {
                 coin_id: coinId,
                 old_source: oldSource,
                 new_source: newSource,
-                new_amount: newAmount
+                new_amount: newAmount,
+                new_apy: newApy
             })
         });
 
@@ -189,8 +195,17 @@ async function updatePortfolio() {
                     No portfolio data found. Add some coins using the form above.
                 </div>
             `;
+            // Update the total value to 0 if no portfolio data
+            const totalValueElement = document.getElementById('totalValue');
+            if (totalValueElement) {
+                totalValueElement.textContent = '0.00';
+            }
             return;
         }
+        
+        let totalPortfolioValue = 0;
+        let totalYield = 0;
+        console.log('Starting total value calculation');
         
         let tableHTML = `
             <table class="table">
@@ -199,11 +214,29 @@ async function updatePortfolio() {
                         <th>Asset</th>
                         <th>Location</th>
                         <th>Amount</th>
+                        <th>APY Yield (%)</th>
                         <th>Value (USD)</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="portfolioTableBody"></tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold">Total Value:</td>
+                        <td id="totalValueCell" class="fw-bold"></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold">Total Yield:</td>
+                        <td id="totalYieldCell" class="fw-bold"></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold">Monthly Yield:</td>
+                        <td id="monthlyYieldCell" class="fw-bold"></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
             </table>
         `;
         
@@ -211,7 +244,18 @@ async function updatePortfolio() {
         const tableBody = document.getElementById('portfolioTableBody');
         
         for (const [coinId, details] of Object.entries(data.data)) {
-            for (const [source, amount] of Object.entries(details.sources)) {
+            console.log(`Processing coin: ${coinId}, price: ${details.price}`);
+            for (const [source, sourceData] of Object.entries(details.sources)) {
+                // Handle both old format (just amount) and new format (object with amount and apy)
+                let amount, apy = 0;
+                if (typeof sourceData === 'object' && sourceData !== null) {
+                    amount = sourceData.amount;
+                    apy = sourceData.apy || 0;
+                } else {
+                    amount = sourceData;
+                }
+                
+                console.log(`  Source: ${source}, amount: ${amount}, apy: ${apy}`);
                 const row = document.createElement('tr');
                 
                 // Asset column with icon
@@ -232,7 +276,7 @@ async function updatePortfolio() {
                 sourceSpan.addEventListener('click', function(e) {
                     e.stopPropagation();
                     makeEditable(this, source, function(newSource) {
-                        updateCoinEntry(coinId, source, newSource, amount);
+                        updateCoinEntry(coinId, source, newSource, amount, apy);
                     });
                 });
                 
@@ -245,14 +289,37 @@ async function updatePortfolio() {
                 amountSpan.addEventListener('click', function(e) {
                     e.stopPropagation();
                     makeEditable(this, amount, function(newAmount) {
-                        updateCoinEntry(coinId, source, source, newAmount);
+                        updateCoinEntry(coinId, source, source, newAmount, apy);
+                    });
+                });
+                
+                // APY column (editable)
+                const apyCell = document.createElement('td');
+                apyCell.className = 'apy-cell';
+                apyCell.innerHTML = `<span class="editable">${apy.toFixed(2)}</span>`;
+                const apySpan = apyCell.querySelector('.editable');
+                
+                apySpan.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    makeEditable(this, apy, function(newApy) {
+                        updateCoinEntry(coinId, source, source, amount, newApy);
                     });
                 });
                 
                 // Value column
                 const valueCell = document.createElement('td');
                 const value = amount * details.price;
+                console.log(`  Calculated value: ${value} (${amount} * ${details.price})`);
                 valueCell.textContent = `$${value.toFixed(2)}`;
+                
+                // Calculate yield for this row
+                const rowYield = value * (apy / 100);
+                totalYield += rowYield;
+                console.log(`  Row yield: $${rowYield.toFixed(2)} (${value} * ${apy / 100})`);
+                
+                // Add to total value
+                totalPortfolioValue += value;
+                console.log(`  Running total: ${totalPortfolioValue}`);
                 
                 // Actions column
                 const actionsCell = document.createElement('td');
@@ -276,12 +343,54 @@ async function updatePortfolio() {
                 row.appendChild(assetCell);
                 row.appendChild(sourceCell);
                 row.appendChild(amountCell);
+                row.appendChild(apyCell);
                 row.appendChild(valueCell);
                 row.appendChild(actionsCell);
                 
                 tableBody.appendChild(row);
             }
         }
+        
+        // Update total value cell in table footer
+        console.log(`Final total portfolio value: ${totalPortfolioValue}`);
+        const totalValueCell = document.getElementById('totalValueCell');
+        if (totalValueCell) {
+            totalValueCell.textContent = `$${totalPortfolioValue.toFixed(2)}`;
+            console.log(`Set total value cell to: $${totalPortfolioValue.toFixed(2)}`);
+        } else {
+            console.error('Total value cell not found!');
+        }
+        
+        // Update total yield cell in table footer
+        console.log(`Final total yield: ${totalYield}`);
+        const totalYieldCell = document.getElementById('totalYieldCell');
+        if (totalYieldCell) {
+            totalYieldCell.textContent = `$${totalYield.toFixed(2)}`;
+            console.log(`Set total yield cell to: $${totalYield.toFixed(2)}`);
+        } else {
+            console.error('Total yield cell not found!');
+        }
+        
+        // Calculate and update monthly yield
+        const monthlyYield = totalYield / 12;
+        console.log(`Monthly yield: ${monthlyYield}`);
+        const monthlyYieldCell = document.getElementById('monthlyYieldCell');
+        if (monthlyYieldCell) {
+            monthlyYieldCell.textContent = `$${monthlyYield.toFixed(2)}`;
+            console.log(`Set monthly yield cell to: $${monthlyYield.toFixed(2)}`);
+        } else {
+            console.error('Monthly yield cell not found!');
+        }
+        
+        // Update the total value in the header section
+        const totalValueElement = document.getElementById('totalValue');
+        if (totalValueElement) {
+            totalValueElement.textContent = totalPortfolioValue.toFixed(2);
+            console.log(`Set header total value to: ${totalPortfolioValue.toFixed(2)}`);
+        } else {
+            console.log('Header total value element not found - this is normal for edit_portfolio.html');
+        }
+        
     } catch (error) {
         console.error('Error updating portfolio:', error);
         const portfolioDetails = document.getElementById('portfolioDetails');
@@ -290,6 +399,12 @@ async function updatePortfolio() {
                 Error loading portfolio data: ${error.message}
             </div>
         `;
+        
+        // Reset total value on error
+        const totalValueElement = document.getElementById('totalValue');
+        if (totalValueElement) {
+            totalValueElement.textContent = '0.00';
+        }
     }
 }
 
