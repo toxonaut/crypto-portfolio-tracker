@@ -122,43 +122,46 @@ def get_portfolio():
     grouped_data = {}
     total_value = 0
     
+    # First, group all entries by coin_id
     for item in portfolio_data:
         coin_id = item['coin_id']
+        source = item['source']
+        amount = item['amount']
+        apy = item.get('apy', 0)
         
         # Initialize coin data if not exists
         if coin_id not in grouped_data:
+            # Default image for the coin
+            image_url = f"https://assets.coingecko.com/coins/images/1/small/{coin_id}.png"
+            
+            # Get price data if available
+            price = 0
+            if coin_id in prices:
+                price_data = prices[coin_id]
+                price = price_data.get('usd', 0)
+                # Try to get image URL
+                if 'image' in price_data:
+                    image_url = price_data['image']
+            
             grouped_data[coin_id] = {
-                'total_amount': 0,
-                'total_value': 0,
-                'price': 0,
-                'hourly_change': 0,
-                'daily_change': 0,
-                'seven_day_change': 0,
-                'image': f"https://assets.coingecko.com/coins/images/1/small/bitcoin.png"  # Default image
+                'price': price,
+                'image': image_url,
+                'sources': {}
             }
         
-        # Add amount to total
-        grouped_data[coin_id]['total_amount'] += item['amount']
-        
-        # Get price data
-        if coin_id in prices:
-            price_data = prices[coin_id]
-            price = price_data.get('usd', 0)
-            
-            # Update price info
-            grouped_data[coin_id]['price'] = price
-            grouped_data[coin_id]['hourly_change'] = price_data.get('usd_1h_change', 0)
-            grouped_data[coin_id]['daily_change'] = price_data.get('usd_24h_change', 0)
-            grouped_data[coin_id]['seven_day_change'] = price_data.get('usd_7d_change', 0)
-            
-            # Calculate value
-            value = item['amount'] * price
-            grouped_data[coin_id]['total_value'] += value
+        # Add source data to the coin
+        grouped_data[coin_id]['sources'][source] = {
+            'amount': amount,
+            'apy': apy
+        }
+    
+    # Calculate total values
+    for coin_id, coin_data in grouped_data.items():
+        price = coin_data['price']
+        for source, source_data in coin_data['sources'].items():
+            amount = source_data['amount']
+            value = amount * price
             total_value += value
-            
-            # Try to get image URL
-            if 'image' in price_data:
-                grouped_data[coin_id]['image'] = price_data['image']
     
     # Return formatted data
     return jsonify({
