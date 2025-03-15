@@ -1,8 +1,24 @@
 from app import app, db, Portfolio, PortfolioHistory
 import datetime
-import sqlite3
-import shutil
 import os
+import logging
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+# Load environment variables from .env file if it exists
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Get the database URL from environment variable
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@containers-us-west-141.railway.app:7617/railway')
+
+# If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 # Bitcoin entries to add
 bitcoin_entries = [
@@ -31,65 +47,57 @@ bitcoin_entries = [
     ("bitcoin", "eBTC Zerolend", 1, 0)
 ]
 
-def update_local_database():
-    print("Updating local database with Bitcoin entries...")
+def update_railway_database():
+    """Update the Railway PostgreSQL database with Bitcoin entries"""
+    logger.info("Updating Railway PostgreSQL database with Bitcoin entries...")
+    logger.info(f"Using database URL: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'PostgreSQL'}")
     
-    # Path to the database
-    db_path = "portfolio.db"
-    
-    # Create a backup of the current database
-    backup_path = f"{db_path}.backup"
-    print(f"Creating backup of database at {backup_path}")
-    shutil.copy2(db_path, backup_path)
-    
-    # Connect to the database directly
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Clear existing portfolio data
-    print("Clearing existing portfolio data...")
-    cursor.execute("DELETE FROM portfolio")
-    
-    # Add new Bitcoin entries
-    print("Adding new Bitcoin entries...")
-    for coin_id, source, amount, apy in bitcoin_entries:
-        cursor.execute(
-            "INSERT INTO portfolio (coin_id, source, amount, apy) VALUES (?, ?, ?, ?)",
-            (coin_id, source, amount, apy)
-        )
-    
-    # Calculate total Bitcoin and value
-    total_btc = sum(entry[2] for entry in bitcoin_entries)
-    btc_price = 65000  # Assuming a Bitcoin price of around $65,000
-    total_value = total_btc * btc_price
-    
-    print(f"Total Bitcoin: {total_btc}")
-    print(f"Total portfolio value: ${total_value:,.2f}")
-    
-    # Add a history entry for today
-    current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     try:
-        cursor.execute(
-            "INSERT INTO portfolio_history (date, total_value) VALUES (?, ?)",
-            (current_date, total_value)
+        # Create a SQLAlchemy engine and session
+        engine = create_engine(DATABASE_URL)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        
+        # Clear existing portfolio data
+        logger.info("Clearing existing portfolio data...")
+        session.query(Portfolio).delete()
+        
+        # Add new Bitcoin entries
+        logger.info("Adding new Bitcoin entries...")
+        for coin_id, source, amount, apy in bitcoin_entries:
+            portfolio_entry = Portfolio(
+                coin_id=coin_id,
+                source=source,
+                amount=amount,
+                apy=apy
+            )
+            session.add(portfolio_entry)
+        
+        # Calculate total Bitcoin and value
+        total_btc = sum(entry[2] for entry in bitcoin_entries)
+        btc_price = 65000  # Assuming a Bitcoin price of around $65,000
+        total_value = total_btc * btc_price
+        
+        logger.info(f"Total Bitcoin: {total_btc}")
+        logger.info(f"Total portfolio value: ${total_value:,.2f}")
+        
+        # Add a history entry for today
+        current_date = datetime.datetime.now()
+        history_entry = PortfolioHistory(
+            date=current_date,
+            total_value=total_value
         )
-        print("Added history entry for today's value")
+        session.add(history_entry)
+        
+        # Commit changes and close session
+        session.commit()
+        session.close()
+        
+        logger.info("Database update completed successfully")
+        return True
     except Exception as e:
-        print(f"Error adding history entry: {e}")
-    
-    # Commit changes and close connection
-    conn.commit()
-    conn.close()
-    
-    print("Database update completed")
-    
-    # Create a copy for Railway deployment
-    railway_db_path = "initial_data.sqlite.backup"
-    print(f"Creating copy for Railway deployment at {railway_db_path}")
-    shutil.copy2(db_path, railway_db_path)
-    
-    print(f"Railway database copy created at {railway_db_path}")
-    print("You can now commit and push this file to GitHub to update the Railway deployment")
+        logger.error(f"Error updating database: {str(e)}")
+        return False
 
 if __name__ == "__main__":
-    update_local_database()
+    update_railway_database()

@@ -5,16 +5,20 @@ import requests
 import json
 import datetime
 import logging
-import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
 # Version indicator
 APP_VERSION = "1.3.0"
-print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
+logger.info(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 
 # Database configuration - use Railway PostgreSQL for both local and Railway environments
 # The DATABASE_URL environment variable is automatically set by Railway in production
@@ -25,7 +29,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@co
 if DATABASE_URL.startswith('postgres://'):
     DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
-print(f"Using database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'PostgreSQL'}")
+logger.info(f"Using database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'PostgreSQL'}")
 
 # Configure the database
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
@@ -71,7 +75,7 @@ def get_portfolio_data():
         portfolio = Portfolio.query.all()
         return [item.to_dict() for item in portfolio]
     except Exception as e:
-        logging.error(f"Error fetching portfolio data: {e}")
+        logger.error(f"Error fetching portfolio data: {e}")
         return []
 
 def get_history_data():
@@ -79,7 +83,7 @@ def get_history_data():
         history = PortfolioHistory.query.order_by(PortfolioHistory.date).all()
         return [item.to_dict() for item in history]
     except Exception as e:
-        logging.error(f"Error fetching history data: {e}")
+        logger.error(f"Error fetching history data: {e}")
         return []
 
 def get_coin_prices(coin_ids):
@@ -92,10 +96,10 @@ def get_coin_prices(coin_ids):
         if response.status_code == 200:
             return response.json()
         else:
-            logging.error(f"Error fetching prices: {response.status_code}")
+            logger.error(f"Error fetching prices: {response.status_code}")
             return {}
     except Exception as e:
-        logging.error(f"Exception fetching prices: {e}")
+        logger.error(f"Exception fetching prices: {e}")
         return {}
 
 @app.route('/')
@@ -238,7 +242,7 @@ def add_coin_api():
         
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error adding coin: {e}")
+        logger.error(f"Error adding coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_coin', methods=['POST'])
@@ -258,7 +262,7 @@ def add_coin():
         
         return jsonify({'success': True, 'id': new_entry.id})
     except Exception as e:
-        logging.error(f"Error adding coin: {e}")
+        logger.error(f"Error adding coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/update_coin/<int:coin_id>', methods=['PUT'])
@@ -278,7 +282,7 @@ def update_coin(coin_id):
         
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error updating coin: {e}")
+        logger.error(f"Error updating coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/update_coin', methods=['POST'])
@@ -307,7 +311,7 @@ def update_coin_api():
         
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error updating coin: {e}")
+        logger.error(f"Error updating coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/remove_source', methods=['POST'])
@@ -328,7 +332,7 @@ def delete_coin_api():
         
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error deleting coin: {e}")
+        logger.error(f"Error deleting coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/delete_coin/<int:coin_id>', methods=['DELETE'])
@@ -344,7 +348,7 @@ def delete_coin(coin_id):
         
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error deleting coin: {e}")
+        logger.error(f"Error deleting coin: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_history', methods=['POST'])
@@ -362,7 +366,7 @@ def add_history():
         
         return jsonify({'success': True, 'id': new_entry.id})
     except Exception as e:
-        logging.error(f"Error adding history: {e}")
+        logger.error(f"Error adding history: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/debug_db')
@@ -388,7 +392,7 @@ def debug_db():
             'history_data': history_items
         })
     except Exception as e:
-        logging.error(f"Error debugging database: {e}")
+        logger.error(f"Error debugging database: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -457,7 +461,7 @@ def initialize_bitcoin_data():
         })
     except Exception as e:
         db.session.rollback()
-        logging.error(f"Error initializing Bitcoin data: {e}")
+        logger.error(f"Error initializing Bitcoin data: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
