@@ -1,9 +1,8 @@
 [build]
 builder = "nixpacks"
-buildCommand = "python setup_db.py"
 
 [deploy]
-startCommand = "gunicorn app:app"
+startCommand = "python copy_db.py && gunicorn app:app"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
