@@ -208,6 +208,58 @@ def add_history():
     
     return jsonify({'success': True, 'id': new_entry.id})
 
+@app.route('/debug_db')
+def debug_db():
+    """Debug endpoint to check database contents directly"""
+    try:
+        # Check if the database file exists
+        if DATABASE_URL.startswith('sqlite:///'):
+            db_path = DATABASE_URL.replace('sqlite:///', '')
+            file_exists = os.path.exists(db_path)
+            file_size = os.path.getsize(db_path) if file_exists else 0
+        else:
+            file_exists = True  # Assume PostgreSQL is available
+            file_size = 0  # Not applicable for PostgreSQL
+        
+        # Get portfolio data
+        portfolio = Portfolio.query.all()
+        portfolio_data = [item.to_dict() for item in portfolio]
+        
+        # Get history data
+        history = PortfolioHistory.query.all()
+        history_data = [item.to_dict() for item in history]
+        
+        # List tables in the database
+        tables = []
+        if DATABASE_URL.startswith('sqlite:///'):
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in cursor.fetchall()]
+            conn.close()
+        
+        # Return debug information
+        return jsonify({
+            'database_info': {
+                'url': DATABASE_URL,
+                'file_exists': file_exists,
+                'file_size': file_size,
+                'tables': tables
+            },
+            'portfolio_count': len(portfolio_data),
+            'portfolio_data': portfolio_data,
+            'history_count': len(history_data),
+            'history_data': history_data,
+            'app_version': APP_VERSION
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'database_url': DATABASE_URL,
+            'app_version': APP_VERSION
+        })
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
