@@ -136,9 +136,17 @@ def get_portfolio():
             
             # Get price data if available
             price = 0
+            hourly_change = None
+            daily_change = None
+            seven_day_change = None
+            
             if coin_id in prices:
                 price_data = prices[coin_id]
                 price = price_data.get('usd', 0)
+                hourly_change = price_data.get('usd_1h_change')
+                daily_change = price_data.get('usd_24h_change')
+                seven_day_change = price_data.get('usd_7d_change')
+                
                 # Try to get image URL
                 if 'image' in price_data:
                     image_url = price_data['image']
@@ -146,6 +154,11 @@ def get_portfolio():
             grouped_data[coin_id] = {
                 'price': price,
                 'image': image_url,
+                'hourly_change': hourly_change,
+                'daily_change': daily_change,
+                'seven_day_change': seven_day_change,
+                'total_amount': 0,  # Initialize total amount
+                'total_value': 0,   # Initialize total value
                 'sources': {}
             }
         
@@ -154,14 +167,23 @@ def get_portfolio():
             'amount': amount,
             'apy': apy
         }
+        
+        # Add to the total amount for this coin
+        grouped_data[coin_id]['total_amount'] += amount
     
     # Calculate total values
     for coin_id, coin_data in grouped_data.items():
         price = coin_data['price']
+        coin_total_value = 0
+        
         for source, source_data in coin_data['sources'].items():
             amount = source_data['amount']
             value = amount * price
-            total_value += value
+            coin_total_value += value
+        
+        # Set the total value for this coin
+        grouped_data[coin_id]['total_value'] = coin_total_value
+        total_value += coin_total_value
     
     # Return formatted data
     return jsonify({
@@ -186,6 +208,22 @@ def get_history():
         'success': True,
         'data': formatted_data
     })
+
+@app.route('/api/add_coin', methods=['POST'])
+def add_coin_api():
+    data = request.json
+    
+    new_entry = Portfolio(
+        coin_id=data['coin_id'],
+        source=data['source'],
+        amount=float(data['amount']),
+        apy=float(data.get('apy', 0))
+    )
+    
+    db.session.add(new_entry)
+    db.session.commit()
+    
+    return jsonify({'success': True})
 
 @app.route('/add_coin', methods=['POST'])
 def add_coin():
@@ -215,6 +253,48 @@ def update_coin(coin_id):
     if 'apy' in data:
         entry.apy = float(data['apy'])
     
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@app.route('/api/update_coin', methods=['POST'])
+def update_coin_api():
+    data = request.json
+    
+    # Find the entry based on coin_id and source
+    entry = Portfolio.query.filter_by(
+        coin_id=data['coin_id'],
+        source=data['old_source']
+    ).first()
+    
+    if not entry:
+        return jsonify({'success': False, 'error': 'Entry not found'})
+    
+    # Update the entry
+    entry.source = data['new_source']
+    entry.amount = float(data['new_amount'])
+    
+    # Check if new_apy is explicitly defined (including 0 values)
+    if 'new_apy' in data:
+        entry.apy = float(data['new_apy'])
+    
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@app.route('/api/remove_source', methods=['POST'])
+def delete_coin_api():
+    data = request.json
+    
+    entry = Portfolio.query.filter_by(
+        coin_id=data['coin_id'],
+        source=data['source']
+    ).first()
+    
+    if not entry:
+        return jsonify({'success': False, 'error': 'Entry not found'})
+    
+    db.session.delete(entry)
     db.session.commit()
     
     return jsonify({'success': True})

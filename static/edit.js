@@ -134,7 +134,7 @@ function makeEditable(element, currentValue, onSave) {
     // Function to save changes
     function save() {
         const newValue = input.type === 'number' ? parseFloat(input.value) : input.value.trim();
-        if (newValue && newValue !== currentValue) {
+        if ((newValue !== null && newValue !== undefined && (input.type === 'number' || newValue !== '')) && newValue !== currentValue) {
             onSave(newValue);
         } else {
             // Restore original content if no changes
