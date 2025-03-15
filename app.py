@@ -147,36 +147,19 @@ def get_portfolio():
         
         # Initialize coin data if not exists
         if coin_id not in grouped_data:
-            # Default image for the coin
-            image_url = f"https://assets.coingecko.com/coins/images/1/small/{coin_id}.png"
-            
-            # Get price data if available
-            price = 0
-            hourly_change = None
-            daily_change = None
-            seven_day_change = None
-            
-            if coin_id in prices:
-                price_data = prices[coin_id]
-                price = price_data.get('usd', 0)
-                hourly_change = price_data.get('usd_1h_change')
-                daily_change = price_data.get('usd_24h_change')
-                seven_day_change = price_data.get('usd_7d_change')
-                
-                # Try to get image URL
-                if 'image' in price_data:
-                    image_url = price_data['image']
+            # Use local image for the coin
+            image_url = url_for('static', filename=f'img/{coin_id.lower()}.png')
             
             grouped_data[coin_id] = {
-                'price': price,
-                'image': image_url,
-                'hourly_change': hourly_change,
-                'daily_change': daily_change,
-                'seven_day_change': seven_day_change,
-                'total_amount': 0,  # Initialize total amount
-                'total_value': 0,   # Initialize total value
-                'monthly_yield': 0,  # Initialize monthly yield
-                'sources': {}
+                'total_amount': 0,
+                'sources': {},
+                'price': 0,
+                'total_value': 0,
+                'hourly_change': 0,
+                'daily_change': 0,
+                'seven_day_change': 0,
+                'monthly_yield': 0,
+                'image': image_url
             }
         
         # Add source data to the coin
@@ -190,7 +173,18 @@ def get_portfolio():
     
     # Calculate total values and monthly yield
     for coin_id, coin_data in grouped_data.items():
-        price = coin_data['price']
+        price = 0
+        hourly_change = None
+        daily_change = None
+        seven_day_change = None
+        
+        if coin_id in prices:
+            price_data = prices[coin_id]
+            price = price_data.get('usd', 0)
+            hourly_change = price_data.get('usd_1h_change')
+            daily_change = price_data.get('usd_24h_change')
+            seven_day_change = price_data.get('usd_7d_change')
+        
         coin_total_value = 0
         coin_monthly_yield = 0
         
@@ -208,6 +202,10 @@ def get_portfolio():
         # Set the total value and monthly yield for this coin
         grouped_data[coin_id]['total_value'] = coin_total_value
         grouped_data[coin_id]['monthly_yield'] = coin_monthly_yield
+        grouped_data[coin_id]['price'] = price
+        grouped_data[coin_id]['hourly_change'] = hourly_change
+        grouped_data[coin_id]['daily_change'] = daily_change
+        grouped_data[coin_id]['seven_day_change'] = seven_day_change
         total_value += coin_total_value
         total_monthly_yield += coin_monthly_yield
     
