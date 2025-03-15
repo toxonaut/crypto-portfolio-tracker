@@ -5,6 +5,51 @@ import sqlite3
 import datetime
 import shutil
 
+def setup_db():
+    """
+    Sets up the database tables if they don't exist.
+    """
+    print(f"Connecting to database: {app.config['SQLALCHEMY_DATABASE_URI']}")
+    
+    # Check if we're running on Railway and if we should preserve the database
+    is_railway = 'RAILWAY_ENVIRONMENT' in os.environ
+    preserve_db = os.environ.get('RAILWAY_PRESERVE_DB') == 'true'
+    
+    if is_railway and preserve_db:
+        print("Running on Railway with RAILWAY_PRESERVE_DB=true - skipping database initialization")
+        return
+    
+    # Check if we should initialize the database
+    if not INITIALIZE_DB:
+        print("INITIALIZE_DB is False - skipping database initialization")
+        return
+    
+    # Check if the database already has data before initializing
+    if is_railway:
+        try:
+            # Connect to the database directly to check if it has data
+            conn = sqlite3.connect(SQLITE_PATH)
+            cursor = conn.cursor()
+            
+            # Check if the portfolio table exists and has data
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='portfolio'")
+            if cursor.fetchone():
+                cursor.execute("SELECT COUNT(*) FROM portfolio")
+                count = cursor.fetchone()[0]
+                print(f"Found {count} records in portfolio table")
+                
+                if count > 0:
+                    print("Database contains user data - skipping initialization")
+                    # Set environment variable to preserve the database
+                    os.environ['RAILWAY_PRESERVE_DB'] = 'true'
+                    print("Set RAILWAY_PRESERVE_DB=true")
+                    conn.close()
+                    return
+            
+            conn.close()
+        except Exception as e:
+            print(f"Error checking database: {str(e)}")
+
 print("Starting database setup...")
 
 # Check if we're running on Railway
@@ -167,6 +212,8 @@ if is_railway and not os.path.exists(SQLITE_PATH):
             print(f"ERROR: Database copy failed, {SQLITE_PATH} does not exist")
     except Exception as e:
         print(f"Error copying database to Railway path: {e}")
+
+setup_db()
 
 while retry_count < max_retries and not success:
     try:
