@@ -43,6 +43,7 @@ with app.app_context():
     db.create_all()
 
 class Portfolio(db.Model):
+    __tablename__ = 'portfolio'  # Explicitly set lowercase table name
     id = db.Column(db.Integer, primary_key=True)
     coin_id = db.Column(db.String(50), nullable=False)
     source = db.Column(db.String(50), nullable=False)
@@ -59,6 +60,7 @@ class Portfolio(db.Model):
         }
 
 class PortfolioHistory(db.Model):
+    __tablename__ = 'portfolio_history'  # Explicitly set lowercase table name
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.DateTime, nullable=False)
     total_value = db.Column(db.Float, nullable=False)
