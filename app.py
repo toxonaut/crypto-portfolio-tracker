@@ -8,7 +8,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 # Version indicator
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 
 # Database configuration - simplified for Railway deployment
