@@ -1,7 +1,8 @@
-from app import app, db, Portfolio
+from app import app, db, Portfolio, PortfolioHistory
 import os
 import time
 import sqlite3
+import datetime
 
 print("Starting database setup...")
 
@@ -69,23 +70,54 @@ while retry_count < max_retries and not success:
             if not tables_exist:
                 print("Testing database schema with sample entry...")
                 try:
-                    # Try to add a test entry to check if the apy column exists
-                    test_entry = Portfolio(
-                        coin_id="test_coin",
-                        source="test_source",
-                        amount=1.0,
-                        apy=1.0
-                    )
-                    db.session.add(test_entry)
-                    db.session.commit()
-                    print("APY column exists and is working correctly")
+                    # Check if there's any data in the portfolio table
+                    portfolio_count = Portfolio.query.count()
+                    print(f"Found {portfolio_count} existing portfolio entries")
                     
-                    # Clean up the test entry
-                    db.session.delete(test_entry)
-                    db.session.commit()
-                    print("Test entry removed successfully")
+                    # Only add test data if the portfolio is empty
+                    if portfolio_count == 0:
+                        print("Adding test data to the database...")
+                        
+                        # Add test data - popular cryptocurrencies
+                        test_data = [
+                            ('bitcoin', 'Coinbase', 0.5, 0.0),
+                            ('ethereum', 'Binance', 2.5, 4.5),
+                            ('solana', 'Kraken', 15.0, 6.2),
+                            ('cardano', 'Ledger', 500.0, 3.0),
+                            ('polkadot', 'Metamask', 50.0, 8.0),
+                            ('avalanche-2', 'Coinbase', 10.0, 9.5)
+                        ]
+                        
+                        for coin_id, source, amount, apy in test_data:
+                            new_entry = Portfolio(
+                                coin_id=coin_id,
+                                source=source,
+                                amount=amount,
+                                apy=apy
+                            )
+                            db.session.add(new_entry)
+                        
+                        # Add some history data
+                        history_data = [
+                            (datetime.datetime.now(), 5000.0),
+                            (datetime.datetime.now(), 5100.0)
+                        ]
+                        
+                        for date, total_value in history_data:
+                            new_history = PortfolioHistory(
+                                date=date,
+                                total_value=total_value
+                            )
+                            db.session.add(new_history)
+                        
+                        db.session.commit()
+                        print(f"Added {len(test_data)} test coins to the portfolio")
+                        print(f"Added {len(history_data)} history entries")
+                    else:
+                        print("Database already has data, skipping test data insertion")
+                    
                 except Exception as e:
-                    print(f"Error testing APY column: {e}")
+                    print(f"Error testing or adding data: {e}")
                     print("This is normal if the column doesn't exist yet")
             else:
                 print("Skipping test entry since tables already exist")
