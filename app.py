@@ -16,6 +16,16 @@ print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 # Database configuration - use the same database file for local and Railway
 SQLITE_PATH = 'portfolio.db'
 print(f"Using SQLite database at: {SQLITE_PATH}")
+print(f"Current working directory: {os.getcwd()}")
+print(f"Files in current directory: {os.listdir('.')}")
+
+# Check if the database file exists
+if os.path.exists(SQLITE_PATH):
+    print(f"Database file exists at: {SQLITE_PATH}")
+    print(f"Database file size: {os.path.getsize(SQLITE_PATH)} bytes")
+else:
+    print(f"WARNING: Database file does not exist at: {SQLITE_PATH}")
+    print("Will attempt to create it when the application starts")
 
 # Configure the database URI
 DATABASE_URL = f'sqlite:///{SQLITE_PATH}'
@@ -26,6 +36,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PORT'] = os.environ.get('PORT', 5000)
 
 db = SQLAlchemy(app)
+
+# Create the database tables if they don't exist
+with app.app_context():
+    db.create_all()
 
 class Portfolio(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -56,12 +70,20 @@ class PortfolioHistory(db.Model):
         }
 
 def get_portfolio_data():
-    portfolio = Portfolio.query.all()
-    return [item.to_dict() for item in portfolio]
+    try:
+        portfolio = Portfolio.query.all()
+        return [item.to_dict() for item in portfolio]
+    except Exception as e:
+        logging.error(f"Error fetching portfolio data: {e}")
+        return []
 
 def get_history_data():
-    history = PortfolioHistory.query.order_by(PortfolioHistory.date).all()
-    return [item.to_dict() for item in history]
+    try:
+        history = PortfolioHistory.query.order_by(PortfolioHistory.date).all()
+        return [item.to_dict() for item in history]
+    except Exception as e:
+        logging.error(f"Error fetching history data: {e}")
+        return []
 
 def get_coin_prices(coin_ids):
     if not coin_ids:
@@ -73,10 +95,10 @@ def get_coin_prices(coin_ids):
         if response.status_code == 200:
             return response.json()
         else:
-            print(f"Error fetching prices: {response.status_code}")
+            logging.error(f"Error fetching prices: {response.status_code}")
             return {}
     except Exception as e:
-        print(f"Exception fetching prices: {e}")
+        logging.error(f"Exception fetching prices: {e}")
         return {}
 
 @app.route('/')
@@ -204,119 +226,147 @@ def get_history():
 
 @app.route('/api/add_coin', methods=['POST'])
 def add_coin_api():
-    data = request.json
-    
-    new_entry = Portfolio(
-        coin_id=data['coin_id'],
-        source=data['source'],
-        amount=float(data['amount']),
-        apy=float(data.get('apy', 0))
-    )
-    
-    db.session.add(new_entry)
-    db.session.commit()
-    
-    return jsonify({'success': True})
+    try:
+        data = request.json
+        
+        new_entry = Portfolio(
+            coin_id=data['coin_id'],
+            source=data['source'],
+            amount=float(data['amount']),
+            apy=float(data.get('apy', 0))
+        )
+        
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error adding coin: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_coin', methods=['POST'])
 def add_coin():
-    data = request.json
-    
-    new_entry = Portfolio(
-        coin_id=data['coin_id'],
-        source=data['source'],
-        amount=float(data['amount']),
-        apy=float(data.get('apy', 0))
-    )
-    
-    db.session.add(new_entry)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'id': new_entry.id})
+    try:
+        data = request.json
+        
+        new_entry = Portfolio(
+            coin_id=data['coin_id'],
+            source=data['source'],
+            amount=float(data['amount']),
+            apy=float(data.get('apy', 0))
+        )
+        
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'id': new_entry.id})
+    except Exception as e:
+        logging.error(f"Error adding coin: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/update_coin/<int:coin_id>', methods=['PUT'])
 def update_coin(coin_id):
-    data = request.json
-    entry = Portfolio.query.get(coin_id)
-    
-    if not entry:
-        return jsonify({'success': False, 'error': 'Entry not found'})
-    
-    entry.amount = float(data['amount'])
-    if 'apy' in data:
-        entry.apy = float(data['apy'])
-    
-    db.session.commit()
-    
-    return jsonify({'success': True})
+    try:
+        data = request.json
+        entry = Portfolio.query.get(coin_id)
+        
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'})
+        
+        entry.amount = float(data['amount'])
+        if 'apy' in data:
+            entry.apy = float(data['apy'])
+        
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error updating coin: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/update_coin', methods=['POST'])
 def update_coin_api():
-    data = request.json
-    
-    # Find the entry based on coin_id and source
-    entry = Portfolio.query.filter_by(
-        coin_id=data['coin_id'],
-        source=data['old_source']
-    ).first()
-    
-    if not entry:
-        return jsonify({'success': False, 'error': 'Entry not found'})
-    
-    # Update the entry
-    entry.source = data['new_source']
-    entry.amount = float(data['new_amount'])
-    
-    # Check if new_apy is explicitly defined (including 0 values)
-    if 'new_apy' in data:
-        entry.apy = float(data['new_apy'])
-    
-    db.session.commit()
-    
-    return jsonify({'success': True})
+    try:
+        data = request.json
+        
+        # Find the entry based on coin_id and source
+        entry = Portfolio.query.filter_by(
+            coin_id=data['coin_id'],
+            source=data['old_source']
+        ).first()
+        
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'})
+        
+        # Update the entry
+        entry.source = data['new_source']
+        entry.amount = float(data['new_amount'])
+        
+        # Check if new_apy is explicitly defined (including 0 values)
+        if 'new_apy' in data:
+            entry.apy = float(data['new_apy'])
+        
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error updating coin: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/remove_source', methods=['POST'])
 def delete_coin_api():
-    data = request.json
-    
-    entry = Portfolio.query.filter_by(
-        coin_id=data['coin_id'],
-        source=data['source']
-    ).first()
-    
-    if not entry:
-        return jsonify({'success': False, 'error': 'Entry not found'})
-    
-    db.session.delete(entry)
-    db.session.commit()
-    
-    return jsonify({'success': True})
+    try:
+        data = request.json
+        
+        entry = Portfolio.query.filter_by(
+            coin_id=data['coin_id'],
+            source=data['source']
+        ).first()
+        
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'})
+        
+        db.session.delete(entry)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error deleting coin: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/delete_coin/<int:coin_id>', methods=['DELETE'])
 def delete_coin(coin_id):
-    entry = Portfolio.query.get(coin_id)
-    
-    if not entry:
-        return jsonify({'success': False, 'error': 'Entry not found'})
-    
-    db.session.delete(entry)
-    db.session.commit()
-    
-    return jsonify({'success': True})
+    try:
+        entry = Portfolio.query.get(coin_id)
+        
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'})
+        
+        db.session.delete(entry)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error deleting coin: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_history', methods=['POST'])
 def add_history():
-    data = request.json
-    
-    new_entry = PortfolioHistory(
-        date=datetime.datetime.now(),
-        total_value=float(data['total_value'])
-    )
-    
-    db.session.add(new_entry)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'id': new_entry.id})
+    try:
+        data = request.json
+        
+        new_entry = PortfolioHistory(
+            date=datetime.datetime.now(),
+            total_value=float(data['total_value'])
+        )
+        
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'id': new_entry.id})
+    except Exception as e:
+        logging.error(f"Error adding history: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/debug_db')
 def debug_db():
@@ -341,6 +391,7 @@ def debug_db():
             'history_data': history_items
         })
     except Exception as e:
+        logging.error(f"Error debugging database: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -409,12 +460,11 @@ def initialize_bitcoin_data():
         })
     except Exception as e:
         db.session.rollback()
+        logging.error(f"Error initializing Bitcoin data: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
         })
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
