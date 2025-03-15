@@ -2,11 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python copy_db.py && gunicorn app:app"
+startCommand = "gunicorn app:app"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
-
-[mounts]
-source = "data"
-destination = "/data"

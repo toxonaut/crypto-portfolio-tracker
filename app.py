@@ -13,66 +13,12 @@ app = Flask(__name__)
 APP_VERSION = "1.3.0"
 print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 
-# Database configuration - separate paths for local and Railway environments
-is_railway = 'RAILWAY_ENVIRONMENT' in os.environ
-print(f"Is Railway environment: {is_railway}")
-print(f"RAILWAY_PRESERVE_DB: {os.environ.get('RAILWAY_PRESERVE_DB')}")
-print(f"Testing database persistence with Gist - deployment timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+# Database configuration - use the same database file for local and Railway
+SQLITE_PATH = 'portfolio.db'
+print(f"Using SQLite database at: {SQLITE_PATH}")
 
-if is_railway:
-    # On Railway, use a path in the persistent storage volume
-    SQLITE_PATH = '/data/railway_portfolio.db'
-    print(f"Running on Railway - using database at {SQLITE_PATH}")
-    
-    # Make sure the directory exists
-    os.makedirs('/data', exist_ok=True)
-    
-    # Check for marker file that indicates the database has user data
-    MARKER_FILE = '/data/db_has_data.marker'
-    if os.path.exists(MARKER_FILE):
-        print(f"Found marker file at {MARKER_FILE} - database has user data")
-        os.environ['RAILWAY_PRESERVE_DB'] = 'true'
-        print("Set RAILWAY_PRESERVE_DB=true to preserve database")
-    
-    # Set a flag to prevent database initialization on Railway
-    # Only initialize if the database doesn't exist AND we're not preserving it
-    preserve_db = os.environ.get('RAILWAY_PRESERVE_DB') == 'true'
-    INITIALIZE_DB = not preserve_db
-    
-    print(f"RAILWAY_PRESERVE_DB: {preserve_db}, INITIALIZE_DB: {INITIALIZE_DB}")
-    
-    # Check if we need to initialize the database
-    if not os.path.exists(SQLITE_PATH):
-        print(f"Railway database does not exist yet at {SQLITE_PATH} - it will be created")
-        # Even if we're preserving the DB, we need to create it if it doesn't exist
-        INITIALIZE_DB = True
-    else:
-        print(f"Railway database exists at {SQLITE_PATH} with size {os.path.getsize(SQLITE_PATH)} bytes")
-        if preserve_db:
-            print("Preserving existing database - will not initialize")
-            INITIALIZE_DB = False
-else:
-    # Locally, use the regular path
-    SQLITE_PATH = 'portfolio.db'
-    print(f"Running locally - using database at {SQLITE_PATH}")
-    INITIALIZE_DB = True
-
-# Database URL configuration
-DATABASE_URL = os.environ.get('DATABASE_URL', f'sqlite:///{SQLITE_PATH}')
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-# Log which database we're using and environment variables
-print(f"Connecting to database: {DATABASE_URL}")
-print(f"Environment variables: {[key for key in os.environ.keys() if 'DATABASE' in key]}")
-
-# For SQLite, ensure the database directory exists
-if DATABASE_URL.startswith('sqlite:///'):
-    db_path = DATABASE_URL.replace('sqlite:///', '')
-    db_dir = os.path.dirname(db_path)
-    if db_dir and not os.path.exists(db_dir):
-        os.makedirs(db_dir)
-    print(f"Using SQLite database at: {db_path}")
+# Configure the database URI
+DATABASE_URL = f'sqlite:///{SQLITE_PATH}'
 
 # Configure the database
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
@@ -426,6 +372,5 @@ def debug_db():
 
 if __name__ == '__main__':
     with app.app_context():
-        if INITIALIZE_DB:
-            db.create_all()
+        db.create_all()
     app.run(debug=True)
