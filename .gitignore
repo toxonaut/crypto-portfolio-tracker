@@ -26,6 +26,7 @@ var/
 *.sqlite3
 portfolio.db
 portfolio.db-journal
+test.db
 
 # Local configuration
 instance/
