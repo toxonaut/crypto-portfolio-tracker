@@ -12,8 +12,9 @@ DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///portfolio.db')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Log which database we're using
+# Log which database we're using and environment variables
 print(f"Connecting to database: {DATABASE_URL}")
+print(f"Environment variables: {[key for key in os.environ.keys() if 'DATABASE' in key]}")
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
