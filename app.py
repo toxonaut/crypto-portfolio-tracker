@@ -320,54 +320,98 @@ def add_history():
 
 @app.route('/debug_db')
 def debug_db():
-    """Debug endpoint to check database contents directly"""
+    """
+    Debug endpoint to check database contents directly.
+    """
     try:
-        # Check if the database file exists
-        if DATABASE_URL.startswith('sqlite:///'):
-            db_path = DATABASE_URL.replace('sqlite:///', '')
-            file_exists = os.path.exists(db_path)
-            file_size = os.path.getsize(db_path) if file_exists else 0
-        else:
-            file_exists = True  # Assume PostgreSQL is available
-            file_size = 0  # Not applicable for PostgreSQL
-        
         # Get portfolio data
-        portfolio = Portfolio.query.all()
-        portfolio_data = [item.to_dict() for item in portfolio]
+        portfolio_data = Portfolio.query.all()
+        portfolio_items = [item.to_dict() for item in portfolio_data]
         
         # Get history data
-        history = PortfolioHistory.query.all()
-        history_data = [item.to_dict() for item in history]
+        history_data = PortfolioHistory.query.all()
+        history_items = [item.to_dict() for item in history_data]
         
-        # List tables in the database
-        tables = []
-        if DATABASE_URL.startswith('sqlite:///'):
-            import sqlite3
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = [row[0] for row in cursor.fetchall()]
-            conn.close()
-        
-        # Return debug information
+        # Return all data
         return jsonify({
-            'database_info': {
-                'url': DATABASE_URL,
-                'file_exists': file_exists,
-                'file_size': file_size,
-                'tables': tables
-            },
-            'portfolio_count': len(portfolio_data),
-            'portfolio_data': portfolio_data,
-            'history_count': len(history_data),
-            'history_data': history_data,
-            'app_version': APP_VERSION
+            'success': True,
+            'portfolio_count': len(portfolio_items),
+            'portfolio_data': portfolio_items,
+            'history_count': len(history_items),
+            'history_data': history_items
         })
     except Exception as e:
         return jsonify({
-            'error': str(e),
-            'database_url': DATABASE_URL,
-            'app_version': APP_VERSION
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/initialize_bitcoin_data', methods=['POST'])
+def initialize_bitcoin_data():
+    """
+    Initialize the database with Bitcoin data from the update_local_bitcoin_data.py script.
+    """
+    try:
+        # Bitcoin entries to add (copied from update_local_bitcoin_data.py)
+        bitcoin_entries = [
+            ("bitcoin", "SolvBTC Arbitrum Avalon", 1, 0),
+            ("bitcoin", "Swell Earn BTC Vault", 1, 0),
+            ("bitcoin", "Ledger", 50, 0),
+            ("bitcoin", "Frankencoin coll", 0.2, 0),
+            ("bitcoin", "cbBTC ZeroLend", 3.0677, 0),
+            ("bitcoin", "SONIC SolvBTC Silo", 1.0049, 0),
+            ("bitcoin", "Aave WBTC", 1.5, 0),
+            ("bitcoin", "WBTC Free", 1.5, 0),
+            ("bitcoin", "Solana Raydium", 3.2845, 0),
+            ("bitcoin", "Nexo", 34.7484, 0),
+            ("bitcoin", "Swell swBTC", 1.049, 0),
+            ("bitcoin", "swapX Sonic", 1.011, 0),
+            ("bitcoin", "LBTC in Lombard vault", 2.9965, 0),
+            ("bitcoin", "cbBTC Base Aave", 2, 0),
+            ("bitcoin", "Gate.io Earn", 5.0054, 0),
+            ("bitcoin", "cbBTC Euler finance", 0.861, 0),
+            ("bitcoin", "WBTC Across", 3.0043, 0),
+            ("bitcoin", "WBTC Strike", 3.0044, 0),
+            ("bitcoin", "BTC Kraken", 5.2453, 0),
+            ("bitcoin", "cbBTC Avalon Base", 0.0868, 0),
+            ("bitcoin", "Zerolend WBTC & LBTC", 4.1316, 0),
+            ("bitcoin", "cbBTC zero base", 0.8, 0),
+            ("bitcoin", "eBTC Zerolend", 1, 0)
+        ]
+        
+        # Clear existing portfolio data
+        Portfolio.query.delete()
+        db.session.commit()
+        
+        # Add new Bitcoin entries
+        for coin_id, source, amount, apy in bitcoin_entries:
+            new_entry = Portfolio(coin_id=coin_id, source=source, amount=amount, apy=apy)
+            db.session.add(new_entry)
+        
+        # Calculate total Bitcoin and value
+        total_btc = sum(entry[2] for entry in bitcoin_entries)
+        btc_price = 65000  # Assuming a Bitcoin price of around $65,000
+        total_value = total_btc * btc_price
+        
+        # Add a history entry for today
+        current_date = datetime.datetime.now()
+        new_history = PortfolioHistory(date=current_date, total_value=total_value)
+        db.session.add(new_history)
+        
+        # Commit all changes
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Database initialized with Bitcoin data',
+            'total_bitcoin': total_btc,
+            'total_value': total_value
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
         })
 
 if __name__ == '__main__':

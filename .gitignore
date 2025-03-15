@@ -24,7 +24,7 @@ var/
 *.db
 *.sqlite
 *.sqlite3
-portfolio.db
+!portfolio.db  # Include this specific file
 portfolio.db-journal
 test.db
 

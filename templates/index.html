@@ -80,10 +80,43 @@
         </div>
     </div>
 
-    <footer class="container mt-4 mb-2 text-center text-muted">
-        <small>Crypto Portfolio Tracker v{{ version }} | Database: {{ db_type }}</small>
+    <footer class="container mt-4 mb-2 text-muted">
+        <div class="row">
+            <div class="col text-center">
+                <small>Crypto Portfolio Tracker v{{ version }} | Database: {{ db_type }}</small>
+            </div>
+            <div class="col-auto">
+                <button id="initializeBitcoinData" class="btn btn-sm btn-outline-secondary">Initialize Bitcoin Data</button>
+            </div>
+        </div>
     </footer>
 
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
+    <script>
+        // Add event listener for the Initialize Bitcoin Data button
+        document.getElementById('initializeBitcoinData').addEventListener('click', function() {
+            if (confirm('This will clear all existing data and initialize the database with Bitcoin data. Are you sure?')) {
+                fetch('/initialize_bitcoin_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Database initialized with Bitcoin data. Total Bitcoin: ' + data.total_bitcoin + ', Total Value: $' + data.total_value.toLocaleString());
+                        // Reload the page to show the new data
+                        window.location.reload();
+                    } else {
+                        alert('Error initializing database: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('Error initializing database: ' + error);
+                });
+            }
+        });
+    </script>
 </body>
 </html>
