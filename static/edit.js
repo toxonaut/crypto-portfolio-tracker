@@ -205,6 +205,7 @@ async function updatePortfolio() {
         
         let totalPortfolioValue = 0;
         let totalYield = 0;
+        let totalDailyYield = 0;
         console.log('Starting total value calculation');
         
         let tableHTML = `
@@ -216,6 +217,7 @@ async function updatePortfolio() {
                         <th>Amount</th>
                         <th>APY Yield (%)</th>
                         <th>Value (USD)</th>
+                        <th>Daily Yield</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -225,15 +227,24 @@ async function updatePortfolio() {
                         <td colspan="4" class="text-end fw-bold">Total Value:</td>
                         <td id="totalValueCell" class="fw-bold"></td>
                         <td></td>
+                        <td></td>
                     </tr>
                     <tr>
                         <td colspan="4" class="text-end fw-bold">Total Yield:</td>
                         <td id="totalYieldCell" class="fw-bold"></td>
                         <td></td>
+                        <td></td>
                     </tr>
                     <tr>
                         <td colspan="4" class="text-end fw-bold">Monthly Yield:</td>
                         <td id="monthlyYieldCell" class="fw-bold"></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold">Daily Yield:</td>
+                        <td id="dailyYieldCell" class="fw-bold"></td>
+                        <td></td>
                         <td></td>
                     </tr>
                 </tfoot>
@@ -317,6 +328,13 @@ async function updatePortfolio() {
                 totalYield += rowYield;
                 console.log(`  Row yield: $${rowYield.toFixed(2)} (${value} * ${apy / 100})`);
                 
+                // Daily Yield column
+                const dailyYieldCell = document.createElement('td');
+                const dailyYield = rowYield / 365;
+                totalDailyYield += dailyYield;
+                dailyYieldCell.textContent = `$${dailyYield.toFixed(2)}`;
+                console.log(`  Daily yield: $${dailyYield.toFixed(2)} (${rowYield} / 365)`);
+                
                 // Add to total value
                 totalPortfolioValue += value;
                 console.log(`  Running total: ${totalPortfolioValue}`);
@@ -345,6 +363,7 @@ async function updatePortfolio() {
                 row.appendChild(amountCell);
                 row.appendChild(apyCell);
                 row.appendChild(valueCell);
+                row.appendChild(dailyYieldCell);
                 row.appendChild(actionsCell);
                 
                 tableBody.appendChild(row);
@@ -380,6 +399,16 @@ async function updatePortfolio() {
             console.log(`Set monthly yield cell to: $${monthlyYield.toFixed(2)}`);
         } else {
             console.error('Monthly yield cell not found!');
+        }
+        
+        // Update daily yield cell in table footer
+        console.log(`Final total daily yield: ${totalDailyYield}`);
+        const dailyYieldCell = document.getElementById('dailyYieldCell');
+        if (dailyYieldCell) {
+            dailyYieldCell.textContent = `$${totalDailyYield.toFixed(2)}`;
+            console.log(`Set daily yield cell to: $${totalDailyYield.toFixed(2)}`);
+        } else {
+            console.error('Daily yield cell not found!');
         }
         
         // Update the total value in the header section
