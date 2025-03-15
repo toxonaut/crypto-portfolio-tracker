@@ -17,7 +17,7 @@
                 <a class="navbar-brand" href="/">Crypto Portfolio Tracker</a>
                 <div class="navbar-nav">
                     <a class="nav-link active" href="/">Overview</a>
-                    <a class="nav-link" href="/edit">Edit Portfolio</a>
+                    <a class="nav-link" href="/edit_portfolio">Edit Portfolio</a>
                 </div>
             </div>
         </nav>
@@ -77,6 +77,10 @@
             </div>
         </div>
     </div>
+
+    <footer class="container mt-4 mb-2 text-center text-muted">
+        <small>Crypto Portfolio Tracker v{{ version }} | Database: {{ db_type }}</small>
+    </footer>
 
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
 </body>

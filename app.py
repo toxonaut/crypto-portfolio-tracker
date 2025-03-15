@@ -7,6 +7,10 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+# Version indicator
+APP_VERSION = "1.1.0"
+print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
+
 # Database configuration - simplified for Railway deployment
 DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///portfolio.db')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
@@ -100,11 +104,13 @@ def coingecko_request(url, max_retries=2, timeout=5):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
+    return render_template('index.html', version=APP_VERSION, db_type=db_type)
 
-@app.route('/edit')
+@app.route('/edit_portfolio')
 def edit_portfolio():
-    return render_template('edit_portfolio.html')
+    db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
+    return render_template('edit_portfolio.html', version=APP_VERSION, db_type=db_type)
 
 @app.route('/portfolio')
 def get_portfolio():
