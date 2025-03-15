@@ -14,14 +14,10 @@ def setup_database():
     Create all database tables if they don't exist.
     """
     try:
-        # Get the database URL from environment variable
-        database_url = os.environ.get('DATABASE_URL')
+        # When running on Railway, always use the internal connection string
+        database_url = "postgresql://postgres:RyWIsfflSCUOVGjjfrBvSVLGfqeGGYet@postgres.railway.internal:5432/railway"
         
-        if not database_url:
-            logger.error("DATABASE_URL environment variable not set")
-            return False
-            
-        logger.info(f"Setting up database: {database_url.split('@')[1] if '@' in database_url else 'PostgreSQL'}")
+        logger.info(f"Setting up database using internal Railway connection: postgres.railway.internal:5432/railway")
         
         with app.app_context():
             # Create all tables

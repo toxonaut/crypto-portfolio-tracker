@@ -20,15 +20,17 @@ database_url = os.environ.get('DATABASE_URL')
 # If running on Railway, use the internal connection string
 if 'RAILWAY_ENVIRONMENT' in os.environ:
     logger.info("Running on Railway - using internal PostgreSQL connection")
-    # Railway automatically sets DATABASE_URL in the environment
-    if not database_url:
-        logger.error("DATABASE_URL environment variable not set on Railway")
+    # Use the internal connection string for better performance and security
+    database_url = "postgresql://postgres:RyWIsfflSCUOVGjjfrBvSVLGfqeGGYet@postgres.railway.internal:5432/railway"
+    logger.info(f"Using internal Railway database connection")
 else:
     logger.info("Running locally - using external PostgreSQL connection")
     # Local environment should have DATABASE_URL in .env file
     if not database_url:
         logger.warning("DATABASE_URL environment variable not set locally, using default SQLite")
         database_url = 'sqlite:///portfolio.db'
+    else:
+        logger.info(f"Using external Railway database connection")
 
 # If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
 if database_url and database_url.startswith('postgres://'):
