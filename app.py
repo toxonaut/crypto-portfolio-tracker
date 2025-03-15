@@ -470,4 +470,7 @@ def initialize_bitcoin_data():
         })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Only run the development server when running locally
+    # Railway will use gunicorn to run the application
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
