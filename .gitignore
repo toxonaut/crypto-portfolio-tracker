@@ -28,6 +28,11 @@ portfolio.db
 portfolio.db-journal
 test.db
 
+# Instance directory database files
+instance/*.db
+instance/*.sqlite
+instance/*.sqlite3
+
 # Local configuration
 instance/
 .webassets-cache
