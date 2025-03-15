@@ -7,32 +7,39 @@ import datetime
 import logging
 from dotenv import load_dotenv
 
-# Load environment variables from .env file if it exists
-load_dotenv()
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Load environment variables from .env file if it exists
+load_dotenv()
 
-# Version indicator
-APP_VERSION = "1.3.0"
-logger.info(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
+# Get the database URL from environment variable
+database_url = os.environ.get('DATABASE_URL')
 
-# Database configuration - use Railway PostgreSQL for both local and Railway environments
-# The DATABASE_URL environment variable is automatically set by Railway in production
-# For local development, you'll need to set this environment variable to your Railway PostgreSQL URL
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@containers-us-west-141.railway.app:7617/railway')
+# If running on Railway, use the internal connection string
+if 'RAILWAY_ENVIRONMENT' in os.environ:
+    logger.info("Running on Railway - using internal PostgreSQL connection")
+    # Railway automatically sets DATABASE_URL in the environment
+    if not database_url:
+        logger.error("DATABASE_URL environment variable not set on Railway")
+else:
+    logger.info("Running locally - using external PostgreSQL connection")
+    # Local environment should have DATABASE_URL in .env file
+    if not database_url:
+        logger.warning("DATABASE_URL environment variable not set locally, using default SQLite")
+        database_url = 'sqlite:///portfolio.db'
 
 # If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
-if DATABASE_URL.startswith('postgres://'):
-    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-logger.info(f"Using database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'PostgreSQL'}")
+logger.info(f"Starting Crypto Portfolio Tracker v1.3.0")
+logger.info(f"Using database: {database_url.split('@')[1] if database_url and '@' in database_url else 'Unknown'}")
 
-# Configure the database
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+# Configure the Flask application
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PORT'] = os.environ.get('PORT', 5000)
 
@@ -107,12 +114,12 @@ def get_coin_prices(coin_ids):
 @app.route('/')
 def index():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
-    return render_template('index.html', version=APP_VERSION, db_type=db_type)
+    return render_template('index.html', version="1.3.0", db_type=db_type)
 
 @app.route('/edit_portfolio')
 def edit_portfolio():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
-    return render_template('edit_portfolio.html', version=APP_VERSION, db_type=db_type)
+    return render_template('edit_portfolio.html', version="1.3.0", db_type=db_type)
 
 @app.route('/portfolio')
 def get_portfolio():
