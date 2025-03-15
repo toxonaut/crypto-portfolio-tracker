@@ -1,0 +1,13 @@
+[build]
+builder = "nixpacks"
+buildCommand = "python setup_db.py"
+
+[deploy]
+startCommand = "gunicorn app:app"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+
+[mounts]
+source = "data"
+destination = "/data"

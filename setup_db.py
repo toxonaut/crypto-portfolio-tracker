@@ -3,6 +3,7 @@ import os
 import time
 import sqlite3
 import datetime
+import shutil
 
 print("Starting database setup...")
 
@@ -12,6 +13,11 @@ if is_railway:
     # On Railway, use a path in the persistent filesystem
     SQLITE_PATH = '/data/railway_portfolio.db'
     print(f"Running on Railway - using database at {SQLITE_PATH}")
+    
+    # Make sure the /data directory exists
+    if not os.path.exists('/data'):
+        os.makedirs('/data')
+        print("Created /data directory")
 else:
     # Locally, use the regular path
     SQLITE_PATH = 'portfolio.db'
@@ -36,6 +42,7 @@ if DATABASE_URL.startswith('sqlite:///'):
         os.makedirs(db_dir)
 
 # Check if we can connect to the SQLite database
+tables_exist = False
 if DATABASE_URL.startswith('sqlite:///'):
     db_path = DATABASE_URL.replace('sqlite:///', '')
     print(f"Checking SQLite database at {db_path}")
@@ -57,6 +64,83 @@ if DATABASE_URL.startswith('sqlite:///'):
 else:
     print("Not using SQLite, skipping direct connection test")
     tables_exist = False
+
+# If we're on Railway and the database doesn't exist yet, create a local one first and then copy it
+if is_railway and not os.path.exists(SQLITE_PATH):
+    print("Creating initial database for Railway...")
+    
+    # Create a local temporary database
+    temp_db_path = 'temp_portfolio.db'
+    
+    # Connect to the temporary database
+    temp_conn = sqlite3.connect(temp_db_path)
+    temp_cursor = temp_conn.cursor()
+    
+    # Create tables
+    temp_cursor.execute('''
+    CREATE TABLE IF NOT EXISTS portfolio (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        coin_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        amount REAL NOT NULL,
+        apy REAL DEFAULT 0.0
+    )
+    ''')
+    
+    temp_cursor.execute('''
+    CREATE TABLE IF NOT EXISTS portfolio_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TIMESTAMP NOT NULL,
+        total_value REAL NOT NULL
+    )
+    ''')
+    
+    # Add test data
+    test_data = [
+        ('bitcoin', 'Coinbase', 0.5, 0.0),
+        ('ethereum', 'Binance', 2.5, 4.5),
+        ('solana', 'Kraken', 15.0, 6.2),
+        ('cardano', 'Ledger', 500.0, 3.0),
+        ('polkadot', 'Metamask', 50.0, 8.0),
+        ('avalanche-2', 'Coinbase', 10.0, 9.5)
+    ]
+    
+    for coin in test_data:
+        temp_cursor.execute(
+            "INSERT INTO portfolio (coin_id, source, amount, apy) VALUES (?, ?, ?, ?)",
+            coin
+        )
+    
+    # Add history data
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    history_data = [
+        (now, 5000.0),
+        (now, 5100.0)
+    ]
+    
+    for entry in history_data:
+        temp_cursor.execute(
+            "INSERT INTO portfolio_history (date, total_value) VALUES (?, ?)",
+            entry
+        )
+    
+    # Commit and close
+    temp_conn.commit()
+    temp_conn.close()
+    
+    # Copy the temporary database to the Railway path
+    try:
+        shutil.copy(temp_db_path, SQLITE_PATH)
+        print(f"Successfully copied database to {SQLITE_PATH}")
+        
+        # Verify the copy
+        if os.path.exists(SQLITE_PATH):
+            print(f"Verified database exists at {SQLITE_PATH}")
+            print(f"Database size: {os.path.getsize(SQLITE_PATH)} bytes")
+        else:
+            print(f"ERROR: Database copy failed, {SQLITE_PATH} does not exist")
+    except Exception as e:
+        print(f"Error copying database to Railway path: {e}")
 
 while retry_count < max_retries and not success:
     try:
@@ -134,8 +218,16 @@ while retry_count < max_retries and not success:
         else:
             print("Maximum retries reached. Could not set up database.")
 
+# Final verification
 if success:
     print("Database setup completed successfully")
+    
+    # Verify the database has data
+    with app.app_context():
+        portfolio_count = Portfolio.query.count()
+        history_count = PortfolioHistory.query.count()
+        print(f"Final verification: Database contains {portfolio_count} portfolio entries and {history_count} history entries")
+    
     print("Your application should now be ready to run!")
 else:
     print("Database setup failed after multiple attempts")
