@@ -20,18 +20,6 @@ var/
 *.egg
 .env
 
-# SQLite database files
-*.db
-*.sqlite
-*.sqlite3
-!portfolio.db  # Include this specific file
-portfolio.db-journal
-test.db
-
-# Instance directory database files
-instance/*.db
-instance/*.sqlite
-instance/*.sqlite3
 
 # Local configuration
 instance/
