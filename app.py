@@ -118,37 +118,71 @@ def get_portfolio():
     # Get current prices
     prices = get_coin_prices(coin_ids)
     
-    # Enrich portfolio data with prices
+    # Group portfolio data by coin_id
+    grouped_data = {}
+    total_value = 0
+    
     for item in portfolio_data:
         coin_id = item['coin_id']
+        
+        # Initialize coin data if not exists
+        if coin_id not in grouped_data:
+            grouped_data[coin_id] = {
+                'total_amount': 0,
+                'total_value': 0,
+                'price': 0,
+                'hourly_change': 0,
+                'daily_change': 0,
+                'seven_day_change': 0,
+                'image': f"https://assets.coingecko.com/coins/images/1/small/bitcoin.png"  # Default image
+            }
+        
+        # Add amount to total
+        grouped_data[coin_id]['total_amount'] += item['amount']
+        
+        # Get price data
         if coin_id in prices:
             price_data = prices[coin_id]
-            item['price'] = price_data.get('usd', 0)
-            item['price_change_1h'] = price_data.get('usd_1h_change', 0)
-            item['price_change_24h'] = price_data.get('usd_24h_change', 0)
-            item['price_change_7d'] = price_data.get('usd_7d_change', 0)
-            item['value'] = item['amount'] * item['price']
+            price = price_data.get('usd', 0)
             
-            # Calculate daily yield based on APY
-            if 'apy' in item and item['apy'] > 0:
-                daily_rate = (1 + item['apy'] / 100) ** (1/365) - 1
-                item['daily_yield'] = item['value'] * daily_rate
-            else:
-                item['daily_yield'] = 0
-        else:
-            item['price'] = 0
-            item['price_change_1h'] = 0
-            item['price_change_24h'] = 0
-            item['price_change_7d'] = 0
-            item['value'] = 0
-            item['daily_yield'] = 0
+            # Update price info
+            grouped_data[coin_id]['price'] = price
+            grouped_data[coin_id]['hourly_change'] = price_data.get('usd_1h_change', 0)
+            grouped_data[coin_id]['daily_change'] = price_data.get('usd_24h_change', 0)
+            grouped_data[coin_id]['seven_day_change'] = price_data.get('usd_7d_change', 0)
+            
+            # Calculate value
+            value = item['amount'] * price
+            grouped_data[coin_id]['total_value'] += value
+            total_value += value
+            
+            # Try to get image URL
+            if 'image' in price_data:
+                grouped_data[coin_id]['image'] = price_data['image']
     
-    return jsonify(portfolio_data)
+    # Return formatted data
+    return jsonify({
+        'success': True,
+        'data': grouped_data,
+        'total_value': total_value
+    })
 
 @app.route('/history')
 def get_history():
     history_data = get_history_data()
-    return jsonify(history_data)
+    
+    # Format the data for the frontend
+    formatted_data = []
+    for item in history_data:
+        formatted_data.append({
+            'datetime': item['date'],
+            'total_value': item['total_value']
+        })
+    
+    return jsonify({
+        'success': True,
+        'data': formatted_data
+    })
 
 @app.route('/add_coin', methods=['POST'])
 def add_coin():
