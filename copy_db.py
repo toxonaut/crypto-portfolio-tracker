@@ -2,6 +2,9 @@ import os
 import shutil
 import time
 import sqlite3
+import requests
+import json
+import base64
 
 print("Railway Database Copy Script")
 print("===========================")
@@ -24,6 +27,72 @@ if is_railway:
         print(f"Creating directory: {dest_dir}")
         os.makedirs(dest_dir)
     
+    # Try to get the database from a GitHub Gist if it exists
+    # This is a workaround for Railway's persistent volume limitations
+    try:
+        # Check if we have the GitHub token and gist ID in environment variables
+        github_token = os.environ.get('GITHUB_TOKEN')
+        gist_id = os.environ.get('GIST_ID')
+        
+        if github_token and gist_id:
+            print("Found GitHub token and Gist ID - attempting to retrieve database from Gist")
+            
+            # Get the Gist
+            headers = {
+                'Authorization': f'token {github_token}',
+                'Accept': 'application/vnd.github.v3+json'
+            }
+            response = requests.get(f'https://api.github.com/gists/{gist_id}', headers=headers)
+            
+            if response.status_code == 200:
+                gist_data = response.json()
+                
+                # Check if the database file exists in the Gist
+                if 'railway_portfolio_db.txt' in gist_data['files']:
+                    print("Found database in Gist - retrieving")
+                    
+                    # Get the content of the file
+                    db_content_base64 = gist_data['files']['railway_portfolio_db.txt']['content']
+                    
+                    # Decode the base64 content
+                    db_content = base64.b64decode(db_content_base64)
+                    
+                    # Write the content to the database file
+                    with open(dest_db, 'wb') as f:
+                        f.write(db_content)
+                    
+                    print(f"Successfully restored database from Gist to {dest_db}")
+                    print(f"Database size: {os.path.getsize(dest_db)} bytes")
+                    
+                    # Set environment variable to preserve the database
+                    os.environ['RAILWAY_PRESERVE_DB'] = 'true'
+                    print("Set RAILWAY_PRESERVE_DB=true")
+                    
+                    # Skip the rest of the script
+                    print("Using database from Gist - skipping initial database copy")
+                    
+                    # List the contents of the data directory
+                    print(f"\nFinal contents of {dest_dir}:")
+                    if os.path.exists(dest_dir):
+                        for file in os.listdir(dest_dir):
+                            file_path = os.path.join(dest_dir, file)
+                            file_size = os.path.getsize(file_path)
+                            print(f"  - {file} ({file_size} bytes)")
+                    else:
+                        print(f"  Directory {dest_dir} does not exist")
+                    
+                    print("Script completed")
+                    exit(0)
+                else:
+                    print("Database file not found in Gist - proceeding with normal initialization")
+            else:
+                print(f"Failed to retrieve Gist: {response.status_code} - {response.text}")
+        else:
+            print("GitHub token or Gist ID not found in environment variables")
+    except Exception as e:
+        print(f"Error retrieving database from Gist: {str(e)}")
+    
+    # If we get here, we couldn't retrieve the database from Gist
     # Check if destination database already exists
     if os.path.exists(dest_db):
         print(f"Destination database already exists: {dest_db}")
@@ -51,6 +120,45 @@ if is_railway:
                     with open(marker_file, 'w') as f:
                         f.write(f"Database has {count} records in portfolio table")
                     print(f"Created marker file at {marker_file}")
+                    
+                    # Try to save the database to a GitHub Gist for persistence
+                    try:
+                        # Check if we have the GitHub token and gist ID in environment variables
+                        github_token = os.environ.get('GITHUB_TOKEN')
+                        gist_id = os.environ.get('GIST_ID')
+                        
+                        if github_token and gist_id:
+                            print("Found GitHub token and Gist ID - attempting to save database to Gist")
+                            
+                            # Read the database file
+                            with open(dest_db, 'rb') as f:
+                                db_content = f.read()
+                            
+                            # Encode the content as base64
+                            db_content_base64 = base64.b64encode(db_content).decode('utf-8')
+                            
+                            # Update the Gist
+                            headers = {
+                                'Authorization': f'token {github_token}',
+                                'Accept': 'application/vnd.github.v3+json'
+                            }
+                            data = {
+                                'files': {
+                                    'railway_portfolio_db.txt': {
+                                        'content': db_content_base64
+                                    }
+                                }
+                            }
+                            response = requests.patch(f'https://api.github.com/gists/{gist_id}', headers=headers, json=data)
+                            
+                            if response.status_code == 200:
+                                print("Successfully saved database to Gist")
+                            else:
+                                print(f"Failed to save database to Gist: {response.status_code} - {response.text}")
+                        else:
+                            print("GitHub token or Gist ID not found in environment variables")
+                    except Exception as e:
+                        print(f"Error saving database to Gist: {str(e)}")
                 else:
                     print("Portfolio table exists but has no data")
             else:
