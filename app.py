@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 import os
 import requests
@@ -15,13 +15,26 @@ print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 # Database configuration - separate paths for local and Railway environments
 is_railway = 'RAILWAY_ENVIRONMENT' in os.environ
 if is_railway:
-    # On Railway, use a path in the persistent filesystem
+    # On Railway, use a path in the persistent storage volume
     SQLITE_PATH = '/data/railway_portfolio.db'
     print(f"Running on Railway - using database at {SQLITE_PATH}")
+    
+    # Make sure the directory exists
+    os.makedirs('/data', exist_ok=True)
+    
+    # Set a flag to prevent database initialization on Railway
+    # Only initialize if the database doesn't exist AND we're not preserving it
+    INITIALIZE_DB = not os.environ.get('RAILWAY_PRESERVE_DB') == 'true'
+    
+    # Check if we need to initialize the database
+    if not os.path.exists(SQLITE_PATH):
+        print("Railway database does not exist yet - it will be created")
+        INITIALIZE_DB = True
 else:
     # Locally, use the regular path
     SQLITE_PATH = 'portfolio.db'
     print(f"Running locally - using database at {SQLITE_PATH}")
+    INITIALIZE_DB = True
 
 # Database URL configuration
 DATABASE_URL = os.environ.get('DATABASE_URL', f'sqlite:///{SQLITE_PATH}')
@@ -40,6 +53,7 @@ if DATABASE_URL.startswith('sqlite:///'):
         os.makedirs(db_dir)
     print(f"Using SQLite database at: {db_path}")
 
+# Configure the database
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PORT'] = os.environ.get('PORT', 5000)
@@ -391,5 +405,6 @@ def debug_db():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
+        if INITIALIZE_DB:
+            db.create_all()
     app.run(debug=True)

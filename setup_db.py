@@ -1,4 +1,4 @@
-from app import app, db, Portfolio, PortfolioHistory
+from app import app, db, Portfolio, PortfolioHistory, INITIALIZE_DB
 import os
 import time
 import sqlite3
@@ -18,6 +18,13 @@ if is_railway:
     if not os.path.exists('/data'):
         os.makedirs('/data')
         print("Created /data directory")
+        
+    # On Railway, we don't want to initialize the database if it already exists
+    if os.path.exists(SQLITE_PATH):
+        print(f"Database already exists at {SQLITE_PATH} - skipping initialization")
+        # Exit the script early to prevent any database operations
+        import sys
+        sys.exit(0)
 else:
     # Locally, use the regular path
     SQLITE_PATH = 'portfolio.db'
@@ -164,11 +171,14 @@ while retry_count < max_retries and not success:
         # Create all tables if they don't exist
         with app.app_context():
             print(f"Attempt {retry_count + 1}: Creating database tables if they don't exist...")
-            db.create_all()
-            print("Database tables created or verified successfully")
+            if INITIALIZE_DB:
+                db.create_all()
+                print("Database tables created or verified successfully")
+            else:
+                print("Database initialization skipped - using existing database")
 
             # Only test with a sample entry if we need to verify the schema
-            if not tables_exist:
+            if not tables_exist and INITIALIZE_DB:
                 print("Testing database schema with sample entry...")
                 try:
                     # Check if there's any data in the portfolio table
