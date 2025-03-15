@@ -1,6 +1,7 @@
 import os
 import shutil
 import time
+import sqlite3
 
 print("Railway Database Copy Script")
 print("===========================")
@@ -9,7 +10,7 @@ print("===========================")
 is_railway = 'RAILWAY_ENVIRONMENT' in os.environ
 
 if is_railway:
-    print("Running on Railway - proceeding with database copy")
+    print("Running on Railway - proceeding with database check")
     
     # Source database file (in the project directory)
     source_db = 'initial_data.sqlite.backup'
@@ -27,7 +28,53 @@ if is_railway:
     if os.path.exists(dest_db):
         print(f"Destination database already exists: {dest_db}")
         print(f"Size: {os.path.getsize(dest_db)} bytes")
-        print("Skipping copy to preserve existing data")
+        
+        # Check if the database has user data
+        try:
+            conn = sqlite3.connect(dest_db)
+            cursor = conn.cursor()
+            
+            # Check if the portfolio table exists and has data
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='portfolio'")
+            if cursor.fetchone():
+                cursor.execute("SELECT COUNT(*) FROM portfolio")
+                count = cursor.fetchone()[0]
+                print(f"Found {count} records in portfolio table")
+                
+                if count > 0:
+                    print("Database contains user data - preserving existing data")
+                    # Set environment variable to preserve the database
+                    os.environ['RAILWAY_PRESERVE_DB'] = 'true'
+                    
+                    # Create a marker file to indicate the database has data
+                    marker_file = '/data/db_has_data.marker'
+                    with open(marker_file, 'w') as f:
+                        f.write(f"Database has {count} records in portfolio table")
+                    print(f"Created marker file at {marker_file}")
+                else:
+                    print("Portfolio table exists but has no data")
+            else:
+                print("Portfolio table does not exist in the database")
+                print("Replacing with initial database")
+                # Backup the existing file just in case
+                backup_path = f"{dest_db}.backup.{int(time.time())}"
+                shutil.copy(dest_db, backup_path)
+                print(f"Backed up existing database to {backup_path}")
+                # Copy the initial database
+                shutil.copy(source_db, dest_db)
+                print(f"Copied initial database to {dest_db}")
+            
+            conn.close()
+        except Exception as e:
+            print(f"Error checking database: {str(e)}")
+            print("Database may be corrupted - replacing with initial database")
+            # Backup the existing file just in case
+            backup_path = f"{dest_db}.corrupted.{int(time.time())}"
+            shutil.copy(dest_db, backup_path)
+            print(f"Backed up corrupted database to {backup_path}")
+            # Copy the initial database
+            shutil.copy(source_db, dest_db)
+            print(f"Copied initial database to {dest_db}")
     else:
         # Check if source database exists
         if os.path.exists(source_db):
