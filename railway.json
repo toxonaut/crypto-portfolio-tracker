@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python setup_db.py && gunicorn app:app --timeout 120 --workers 1 --bind 0.0.0.0:$PORT",
+    "startCommand": "python init_railway_db.py && gunicorn app:app --timeout 120 --workers 1 --bind 0.0.0.0:$PORT",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
