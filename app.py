@@ -16,6 +16,14 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 print(f"Connecting to database: {DATABASE_URL}")
 print(f"Environment variables: {[key for key in os.environ.keys() if 'DATABASE' in key]}")
 
+# For SQLite, ensure the database directory exists
+if DATABASE_URL.startswith('sqlite:///'):
+    db_path = DATABASE_URL.replace('sqlite:///', '')
+    db_dir = os.path.dirname(db_path)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir)
+    print(f"Using SQLite database at: {db_path}")
+
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PORT'] = os.environ.get('PORT', 5000)
