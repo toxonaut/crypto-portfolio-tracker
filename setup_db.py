@@ -96,16 +96,33 @@ if is_railway and not os.path.exists(SQLITE_PATH):
     ''')
     
     # Add test data
-    test_data = [
-        ('bitcoin', 'Coinbase', 0.5, 0.0),
-        ('ethereum', 'Binance', 2.5, 4.5),
-        ('solana', 'Kraken', 15.0, 6.2),
-        ('cardano', 'Ledger', 500.0, 3.0),
-        ('polkadot', 'Metamask', 50.0, 8.0),
-        ('avalanche-2', 'Coinbase', 10.0, 9.5)
+    bitcoin_entries = [
+        ("bitcoin", "SolvBTC Arbitrum Avalon", 1, 0),
+        ("bitcoin", "Swell Earn BTC Vault", 1, 0),
+        ("bitcoin", "Ledger", 50, 0),
+        ("bitcoin", "Frankencoin coll", 0.2, 0),
+        ("bitcoin", "cbBTC ZeroLend", 3.0677, 0),
+        ("bitcoin", "SONIC SolvBTC Silo", 1.0049, 0),
+        ("bitcoin", "Aave WBTC", 1.5, 0),
+        ("bitcoin", "WBTC Free", 1.5, 0),
+        ("bitcoin", "Solana Raydium", 3.2845, 0),
+        ("bitcoin", "Nexo", 34.7484, 0),
+        ("bitcoin", "Swell swBTC", 1.049, 0),
+        ("bitcoin", "swapX Sonic", 1.011, 0),
+        ("bitcoin", "LBTC in Lombard vault", 2.9965, 0),
+        ("bitcoin", "cbBTC Base Aave", 2, 0),
+        ("bitcoin", "Gate.io Earn", 5.0054, 0),
+        ("bitcoin", "cbBTC Euler finance", 0.861, 0),
+        ("bitcoin", "WBTC Across", 3.0043, 0),
+        ("bitcoin", "WBTC Strike", 3.0044, 0),
+        ("bitcoin", "BTC Kraken", 5.2453, 0),
+        ("bitcoin", "cbBTC Avalon Base", 0.0868, 0),
+        ("bitcoin", "Zerolend WBTC & LBTC", 4.1316, 0),
+        ("bitcoin", "cbBTC zero base", 0.8, 0),
+        ("bitcoin", "eBTC Zerolend", 1, 0)
     ]
     
-    for coin in test_data:
+    for coin in bitcoin_entries:
         temp_cursor.execute(
             "INSERT INTO portfolio (coin_id, source, amount, apy) VALUES (?, ?, ?, ?)",
             coin
