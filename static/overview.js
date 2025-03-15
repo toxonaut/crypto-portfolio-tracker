@@ -199,6 +199,13 @@ async function updatePortfolio() {
             console.error('Could not find monthlyYield element');
         }
         
+        // Update last updated timestamp
+        const lastUpdatedElement = document.getElementById('lastUpdated');
+        if (lastUpdatedElement) {
+            const now = new Date();
+            lastUpdatedElement.textContent = now.toLocaleString();
+        }
+        
         // Update history chart
         console.log('Updating history chart...');
         await updateHistoryChart();
