@@ -13,6 +13,10 @@ import subprocess
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('railway_start')
 
+# First, run the check_railway_db.py script to check if the database has data
+logger.info("Running check_railway_db.py script")
+subprocess.run(["python", "check_railway_db.py"], check=True)
+
 # Print environment variables for debugging
 logger.info("Environment variables:")
 for key, value in os.environ.items():

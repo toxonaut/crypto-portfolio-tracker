@@ -25,6 +25,13 @@ if is_railway:
     # Make sure the directory exists
     os.makedirs('/data', exist_ok=True)
     
+    # Check for marker file that indicates the database has user data
+    MARKER_FILE = '/data/db_has_data.marker'
+    if os.path.exists(MARKER_FILE):
+        print(f"Found marker file at {MARKER_FILE} - database has user data")
+        os.environ['RAILWAY_PRESERVE_DB'] = 'true'
+        print("Set RAILWAY_PRESERVE_DB=true to preserve database")
+    
     # Set a flag to prevent database initialization on Railway
     # Only initialize if the database doesn't exist AND we're not preserving it
     preserve_db = os.environ.get('RAILWAY_PRESERVE_DB') == 'true'
