@@ -17,7 +17,7 @@ print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 is_railway = 'RAILWAY_ENVIRONMENT' in os.environ
 print(f"Is Railway environment: {is_railway}")
 print(f"RAILWAY_PRESERVE_DB: {os.environ.get('RAILWAY_PRESERVE_DB')}")
-print(f"Testing database preservation - deployment timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"Testing database persistence with Gist - deployment timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
 if is_railway:
     # On Railway, use a path in the persistent storage volume

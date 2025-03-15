@@ -127,6 +127,9 @@ if is_railway:
                         github_token = os.environ.get('GITHUB_TOKEN')
                         gist_id = os.environ.get('GIST_ID')
                         
+                        print(f"GitHub Token available: {'Yes' if github_token else 'No'}")
+                        print(f"Gist ID available: {'Yes' if gist_id else 'No'}")
+                        
                         if github_token and gist_id:
                             print("Found GitHub token and Gist ID - attempting to save database to Gist")
                             
