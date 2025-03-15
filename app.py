@@ -14,6 +14,9 @@ print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 
 # Database configuration - separate paths for local and Railway environments
 is_railway = 'RAILWAY_ENVIRONMENT' in os.environ
+print(f"Is Railway environment: {is_railway}")
+print(f"RAILWAY_PRESERVE_DB: {os.environ.get('RAILWAY_PRESERVE_DB')}")
+
 if is_railway:
     # On Railway, use a path in the persistent storage volume
     SQLITE_PATH = '/data/railway_portfolio.db'
@@ -24,12 +27,21 @@ if is_railway:
     
     # Set a flag to prevent database initialization on Railway
     # Only initialize if the database doesn't exist AND we're not preserving it
-    INITIALIZE_DB = not os.environ.get('RAILWAY_PRESERVE_DB') == 'true'
+    preserve_db = os.environ.get('RAILWAY_PRESERVE_DB') == 'true'
+    INITIALIZE_DB = not preserve_db
+    
+    print(f"RAILWAY_PRESERVE_DB: {preserve_db}, INITIALIZE_DB: {INITIALIZE_DB}")
     
     # Check if we need to initialize the database
     if not os.path.exists(SQLITE_PATH):
-        print("Railway database does not exist yet - it will be created")
+        print(f"Railway database does not exist yet at {SQLITE_PATH} - it will be created")
+        # Even if we're preserving the DB, we need to create it if it doesn't exist
         INITIALIZE_DB = True
+    else:
+        print(f"Railway database exists at {SQLITE_PATH} with size {os.path.getsize(SQLITE_PATH)} bytes")
+        if preserve_db:
+            print("Preserving existing database - will not initialize")
+            INITIALIZE_DB = False
 else:
     # Locally, use the regular path
     SQLITE_PATH = 'portfolio.db'

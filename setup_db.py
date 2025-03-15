@@ -25,6 +25,8 @@ if is_railway:
         # Exit the script early to prevent any database operations
         import sys
         sys.exit(0)
+    else:
+        print(f"Database does not exist at {SQLITE_PATH} - will create minimal structure only")
 else:
     # Locally, use the regular path
     SQLITE_PATH = 'portfolio.db'
@@ -171,14 +173,14 @@ while retry_count < max_retries and not success:
         # Create all tables if they don't exist
         with app.app_context():
             print(f"Attempt {retry_count + 1}: Creating database tables if they don't exist...")
-            if INITIALIZE_DB:
+            if INITIALIZE_DB and not is_railway:
                 db.create_all()
                 print("Database tables created or verified successfully")
             else:
                 print("Database initialization skipped - using existing database")
 
             # Only test with a sample entry if we need to verify the schema
-            if not tables_exist and INITIALIZE_DB:
+            if not tables_exist and INITIALIZE_DB and not is_railway:
                 print("Testing database schema with sample entry...")
                 try:
                     # Check if there's any data in the portfolio table
