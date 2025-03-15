@@ -7,28 +7,25 @@ import datetime
 import logging
 import time
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 app = Flask(__name__)
 
 # Version indicator
 APP_VERSION = "1.3.0"
 print(f"Starting Crypto Portfolio Tracker v{APP_VERSION}")
 
-# Database configuration - use the same database file for local and Railway
-SQLITE_PATH = 'portfolio.db'
-print(f"Using SQLite database at: {SQLITE_PATH}")
-print(f"Current working directory: {os.getcwd()}")
-print(f"Files in current directory: {os.listdir('.')}")
+# Database configuration - use Railway PostgreSQL for both local and Railway environments
+# The DATABASE_URL environment variable is automatically set by Railway in production
+# For local development, you'll need to set this environment variable to your Railway PostgreSQL URL
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@containers-us-west-141.railway.app:7617/railway')
 
-# Check if the database file exists
-if os.path.exists(SQLITE_PATH):
-    print(f"Database file exists at: {SQLITE_PATH}")
-    print(f"Database file size: {os.path.getsize(SQLITE_PATH)} bytes")
-else:
-    print(f"WARNING: Database file does not exist at: {SQLITE_PATH}")
-    print("Will attempt to create it when the application starts")
+# If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
-# Configure the database URI
-DATABASE_URL = f'sqlite:///{SQLITE_PATH}'
+print(f"Using database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'PostgreSQL'}")
 
 # Configure the database
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
