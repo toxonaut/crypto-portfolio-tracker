@@ -190,6 +190,15 @@ async function updatePortfolio() {
             console.error('Could not find totalValue element');
         }
         
+        // Update monthly yield
+        console.log('Updating monthly yield...');
+        const monthlyYieldElement = document.getElementById('monthlyYield');
+        if (monthlyYieldElement) {
+            monthlyYieldElement.textContent = data.total_monthly_yield.toFixed(2);
+        } else {
+            console.error('Could not find monthlyYield element');
+        }
+        
         // Update history chart
         console.log('Updating history chart...');
         await updateHistoryChart();

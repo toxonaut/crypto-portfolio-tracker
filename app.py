@@ -121,6 +121,7 @@ def get_portfolio():
     # Group portfolio data by coin_id
     grouped_data = {}
     total_value = 0
+    total_monthly_yield = 0
     
     # First, group all entries by coin_id
     for item in portfolio_data:
@@ -159,6 +160,7 @@ def get_portfolio():
                 'seven_day_change': seven_day_change,
                 'total_amount': 0,  # Initialize total amount
                 'total_value': 0,   # Initialize total value
+                'monthly_yield': 0,  # Initialize monthly yield
                 'sources': {}
             }
         
@@ -171,25 +173,35 @@ def get_portfolio():
         # Add to the total amount for this coin
         grouped_data[coin_id]['total_amount'] += amount
     
-    # Calculate total values
+    # Calculate total values and monthly yield
     for coin_id, coin_data in grouped_data.items():
         price = coin_data['price']
         coin_total_value = 0
+        coin_monthly_yield = 0
         
         for source, source_data in coin_data['sources'].items():
             amount = source_data['amount']
+            apy = source_data.get('apy', 0)
             value = amount * price
             coin_total_value += value
+            
+            # Calculate monthly yield for this source
+            yearly_yield = value * (apy / 100)
+            monthly_yield = yearly_yield / 12
+            coin_monthly_yield += monthly_yield
         
-        # Set the total value for this coin
+        # Set the total value and monthly yield for this coin
         grouped_data[coin_id]['total_value'] = coin_total_value
+        grouped_data[coin_id]['monthly_yield'] = coin_monthly_yield
         total_value += coin_total_value
+        total_monthly_yield += coin_monthly_yield
     
     # Return formatted data
     return jsonify({
         'success': True,
         'data': grouped_data,
-        'total_value': total_value
+        'total_value': total_value,
+        'total_monthly_yield': total_monthly_yield
     })
 
 @app.route('/history')
