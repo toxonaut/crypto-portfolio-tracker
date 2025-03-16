@@ -102,15 +102,42 @@ def get_coin_prices(coin_ids):
         return {}
     
     try:
-        url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(coin_ids)}&vs_currencies=usd&include_24hr_change=true&include_1h_change=true&include_7d_change=true"
+        # Get data from the markets endpoint which includes more comprehensive information
+        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en"
         response = requests.get(url)
+        
         if response.status_code == 200:
-            return response.json()
+            market_data = response.json()
+            # Create a dictionary mapping coin IDs to their market data
+            coin_data = {}
+            for coin in market_data:
+                if coin['id'] in coin_ids:
+                    coin_data[coin['id']] = {
+                        'usd': coin['current_price'],
+                        'usd_1h_change': coin['price_change_percentage_1h_in_currency'],
+                        'usd_24h_change': coin['price_change_percentage_24h_in_currency'],
+                        'usd_7d_change': coin['price_change_percentage_7d_in_currency'],
+                        'image': coin['image']
+                    }
+            
+            # If any requested coins are missing from the first 100 coins, try to fetch them directly
+            missing_coins = [coin_id for coin_id in coin_ids if coin_id not in coin_data]
+            if missing_coins:
+                logger.info(f"Fetching additional data for coins not in top 100: {missing_coins}")
+                additional_url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(missing_coins)}&vs_currencies=usd&include_24hr_change=true&include_1h_change=true&include_7d_change=true"
+                additional_response = requests.get(additional_url)
+                if additional_response.status_code == 200:
+                    additional_data = additional_response.json()
+                    for coin_id, data in additional_data.items():
+                        if coin_id in missing_coins:
+                            coin_data[coin_id] = data
+            
+            return coin_data
         else:
-            logger.error(f"Error fetching prices: {response.status_code}")
+            logger.error(f"Error fetching market data: {response.status_code}")
             return {}
     except Exception as e:
-        logger.error(f"Exception fetching prices: {e}")
+        logger.error(f"Exception fetching market data: {e}")
         return {}
 
 @app.route('/')
@@ -147,8 +174,12 @@ def get_portfolio():
         
         # Initialize coin data if not exists
         if coin_id not in grouped_data:
-            # Use local image for the coin
+            # Default to local image as fallback
             image_url = url_for('static', filename=f'img/{coin_id.lower()}.png')
+            
+            # If we have data from CoinGecko, use their image URL
+            if coin_id in prices and 'image' in prices[coin_id]:
+                image_url = prices[coin_id]['image']
             
             grouped_data[coin_id] = {
                 'total_amount': 0,
@@ -181,9 +212,9 @@ def get_portfolio():
         if coin_id in prices:
             price_data = prices[coin_id]
             price = price_data.get('usd', 0)
-            hourly_change = price_data.get('usd_1h_change')
-            daily_change = price_data.get('usd_24h_change')
-            seven_day_change = price_data.get('usd_7d_change')
+            hourly_change = price_data.get('usd_1h_change', 0)
+            daily_change = price_data.get('usd_24h_change', 0)
+            seven_day_change = price_data.get('usd_7d_change', 0)
         
         coin_total_value = 0
         coin_monthly_yield = 0
