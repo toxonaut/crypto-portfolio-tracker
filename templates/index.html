@@ -82,13 +82,14 @@
         </div>
     </div>
 
-    <footer class="container mt-4 mb-2 text-muted">
-        <div class="row">
-            <div class="col text-center">
-                <small>Crypto Portfolio Tracker v{{ version }} | Database: {{ db_type }}</small>
-            </div>
-            <div class="col-auto">
-                <button id="initializeBitcoinData" class="btn btn-sm btn-outline-secondary">Initialize Bitcoin Data</button>
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">Crypto Portfolio Tracker v{{ version }} | DB: {{ db_type }}</span>
+                <div>
+                    <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-sm btn-link">Coins</a>
+                    <button id="initializeBitcoinData" class="btn btn-sm btn-outline-secondary">Initialize Bitcoin Data</button>
+                </div>
             </div>
         </div>
     </footer>

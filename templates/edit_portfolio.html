@@ -105,8 +105,15 @@
         </tr>
     </template>
 
-    <footer class="container mt-4 mb-2 text-center text-muted">
-        <small>Crypto Portfolio Tracker v{{ version }} | Database: {{ db_type }}</small>
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">Crypto Portfolio Tracker v{{ version }} | DB: {{ db_type }}</span>
+                <div>
+                    <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-sm btn-link">Coins</a>
+                </div>
+            </div>
+        </div>
     </footer>
 
     <script src="{{ url_for('static', filename='edit.js') }}"></script>
