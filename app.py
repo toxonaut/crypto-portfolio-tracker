@@ -103,7 +103,7 @@ def get_coin_prices(coin_ids):
     
     try:
         # Get data from the markets endpoint which includes more comprehensive information
-        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en"
+        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=180&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en"
         response = requests.get(url)
         
         if response.status_code == 200:
@@ -174,8 +174,8 @@ def get_portfolio():
         
         # Initialize coin data if not exists
         if coin_id not in grouped_data:
-            # Default to local image as fallback
-            image_url = url_for('static', filename=f'img/{coin_id.lower()}.png')
+            # Default image if none is available from CoinGecko
+            image_url = "https://assets.coingecko.com/coins/images/1/small/bitcoin.png"
             
             # If we have data from CoinGecko, use their image URL
             if coin_id in prices and 'image' in prices[coin_id]:
@@ -510,5 +510,5 @@ def initialize_bitcoin_data():
 if __name__ == '__main__':
     # Only run the development server when running locally
     # Railway will use gunicorn to run the application
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=True)
