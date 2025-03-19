@@ -1,0 +1,65 @@
+/* Dark theme styles */
+body {
+    background-color: #121212;
+    color: #e0e0e0;
+}
+
+.navbar {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+}
+
+.navbar .navbar-brand,
+.navbar .nav-link {
+    color: #e0e0e0 !important;
+}
+
+.card {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+
+.table {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+
+.table th {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+
+.table tbody tr {
+    background-color: #2e2e2e;
+}
+
+.table tbody tr:hover {
+    background-color: #3e3e3e;
+}
+
+.table td {
+    background-color: #2e2e2e;
+    color: #e0e0e0;
+}
+
+.form-control {
+    background-color: #2e2e2e;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+.form-control:focus {
+    background-color: #2e2e2e;
+    color: #e0e0e0;
+    border-color: #666;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
