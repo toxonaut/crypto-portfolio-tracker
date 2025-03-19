@@ -17,7 +17,7 @@
     <div class="container mt-5">
         <nav class="navbar navbar-expand-lg navbar-light mb-4" style="background-color: #121726;">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">
+                <a class="navbar-brand" style="font-size: 1.75rem;" href="/">
                     <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="Logo" style="height: 40px;">
                     Crypto Portfolio Tracker
                 </a>
@@ -56,19 +56,19 @@
             </div>
         </div>
 
-        <div class="card mb-4" style="background-color: #1e1e1e; color: #e0e0e0;">
+        <div class="card mb-4">
             <div class="card-body">
                 <h3 class="card-title">Market Charts</h3>
                 <div class="row">
                     <div class="col-md-2">
                         <div class="list-group mb-3" style="background-color: #1e1e1e;">
-                            <button class="list-group-item list-group-item-action active" data-pair="BTCUSD" style="background-color: #2e2e2e; color: #e0e0e0;">BTC/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="ETHUSD" style="background-color: #2e2e2e; color: #e0e0e0;">ETH/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SOLUSD" style="background-color: #2e2e2e; color: #e0e0e0;">SOL/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SUSD" style="background-color: #2e2e2e; color: #e0e0e0;">SUSD/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="ETHBTC" style="background-color: #2e2e2e; color: #e0e0e0;">ETH/BTC</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SOLBTC" style="background-color: #2e2e2e; color: #e0e0e0;">SOL/BTC</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SOLETH" style="background-color: #2e2e2e; color: #e0e0e0;">SOL/ETH</button>
+                            <button class="list-group-item list-group-item-action active" data-pair="BTCUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">BTC/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="ETHUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="SOLUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="SUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SUSD/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="ETHBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/BTC</button>
+                            <button class="list-group-item list-group-item-action" data-pair="SOLBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/BTC</button>
+                            <button class="list-group-item list-group-item-action" data-pair="SOLETH" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/ETH</button>
                         </div>
                     </div>
                     <div class="col-md-10">
@@ -86,7 +86,7 @@
         </div>
     </div>
 
-    <footer class="footer mt-5 py-3 bg-light">
+    <footer class="footer mt-5 py-3 ">
         <div class="container">
             <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted">Crypto Portfolio Tracker v{{ version }} | DB: {{ db_type }}</span>

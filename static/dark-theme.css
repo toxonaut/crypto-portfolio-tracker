@@ -22,28 +22,40 @@ body {
 .table {
     background-color: #1e1e1e;
     color: #e0e0e0;
+    border: 1px solid black;
 }
 
 .table th {
-    background-color: #1e1e1e;
+    background-color: #1c243e;
+    border-color:#060c16;
     color: #e0e0e0;
+    border: 1px solid black;
 }
 
-.table tbody tr {
-    background-color: #2e2e2e;
+.table td {
+    background-color: transparent;
+    color: #e0e0e0;
+    border: 1px solid black;
+}
+
+.table th, .table td {
+    border: 1px solid black;
+}
+
+.table tbody tr:nth-child(odd) {
+    background-color: #060c16;
+}
+
+.table tbody tr:nth-child(even) {
+    background-color: #111927;
 }
 
 .table tbody tr:hover {
     background-color: #3e3e3e;
 }
 
-.table td {
-    background-color: #2e2e2e;
-    color: #e0e0e0;
-}
-
 .form-control {
-    background-color: #2e2e2e;
+    background-color: #050b16;
     color: #e0e0e0;
     border-color: #444;
 }

@@ -224,28 +224,28 @@ async function updatePortfolio() {
                 <tbody id="portfolioTableBody"></tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="4" class="text-end fw-bold">Total Value:</td>
-                        <td id="totalValueCell" class="fw-bold"></td>
-                        <td></td>
-                        <td></td>
+                        <td colspan="4" style="background-color:#121726" class="text-end fw-bold">Total Value:</td>
+                        <td id="totalValueCell" style="background-color:#121726"class="fw-bold"></td>
+                        <td style="background-color:#121726"></td>
+                        <td style="background-color:#121726"></td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="text-end fw-bold">Total Yield:</td>
-                        <td id="totalYieldCell" class="fw-bold"></td>
-                        <td></td>
-                        <td></td>
+                        <td colspan="4" style="background-color:#121726" class="text-end fw-bold">Total Yield:</td>
+                        <td id="totalYieldCell" style="background-color:#121726"class="fw-bold"></td>
+                        <td style="background-color:#121726"></td>
+                        <td style="background-color:#121726"></td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="text-end fw-bold">Monthly Yield:</td>
-                        <td id="monthlyYieldCell" class="fw-bold"></td>
-                        <td></td>
-                        <td></td>
+                        <td colspan="4" style="background-color:#121726" class="text-end fw-bold">Monthly Yield:</td>
+                        <td id="monthlyYieldCell" style="background-color:#121726"class="fw-bold"></td>
+                        <td style="background-color:#121726"></td>
+                        <td style="background-color:#121726"></td>
                     </tr>
                     <tr>
-                        <td colspan="4" class="text-end fw-bold">Daily Yield:</td>
-                        <td id="dailyYieldCell" class="fw-bold"></td>
-                        <td></td>
-                        <td></td>
+                        <td colspan="4" style="background-color:#121726" class="text-end fw-bold">Daily Yield:</td>
+                        <td id="dailyYieldCell" style="background-color:#121726" class="fw-bold"></td>
+                        <td style="background-color:#121726"></td>
+                        <td style="background-color:#121726"></td>
                     </tr>
                 </tfoot>
             </table>
