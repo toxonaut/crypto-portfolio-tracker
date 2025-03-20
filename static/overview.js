@@ -150,11 +150,11 @@ async function updatePortfolio() {
             
             // Total Balance column
             const totalBalanceCell = document.createElement('td');
-            totalBalanceCell.textContent = details.total_amount.toFixed(8);
+            totalBalanceCell.textContent = details.total_amount.toFixed(4);
             
             // Price column
             const priceCell = document.createElement('td');
-            priceCell.textContent = `$${details.price.toFixed(2)}`;
+            priceCell.textContent = `$${details.price.toFixed(4)}`;
             
             // Price change columns
             const hourlyChangeCell = document.createElement('td');
