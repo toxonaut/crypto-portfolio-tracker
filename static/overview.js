@@ -21,7 +21,7 @@ function createTradingViewWidget(symbol) {
         "symbol": `BINANCE:${symbol}`,
         "interval": "D",
         "timezone": "Etc/UTC",
-        "theme": "light",
+        "theme": "dark",
         "style": "1",
         "locale": "en",
         "toolbar_bg": "#f1f3f6",
@@ -271,6 +271,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleButton = document.getElementById('toggleDemoMode');
     if (toggleButton) {
         toggleButton.addEventListener('click', toggleDemoMode);
+    }
+    
+    // Set up add history button
+    const addHistoryButton = document.getElementById('addHistory');
+    if (addHistoryButton) {
+        addHistoryButton.addEventListener('click', async () => {
+            try {
+                const totalValueElement = document.getElementById('totalValue');
+                const totalValue = parseFloat(totalValueElement.textContent.replace('$', ''));
+                const response = await fetch('/add_history', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ total_value: totalValue })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('History added successfully!');
+                } else {
+                    alert('Failed to add history: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error adding history: ' + error.message);
+            }
+        });
     }
     
     // Refresh portfolio data every 60 seconds

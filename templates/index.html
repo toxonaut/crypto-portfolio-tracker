@@ -92,11 +92,11 @@
         <div class="container">
             <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted">Crypto Portfolio Tracker v{{ version }} | DB: {{ db_type }}</span>
-                                            <!-- Demo Mode Toggle Button -->
-        <div class="text-center mt-4 mb-4">
-            <button id="toggleDemoMode" class="btn btn-sm btn-outline-secondary">Toggle</button>
-            <p id="demoModeStatus" class="mt-2 text-muted" style="display: none;">Demo Mode: Active - Values divided by 15</p>
-        </div>
+                <div class="text-center mt-4 mb-4">
+                    <button id="toggleDemoMode" class="btn btn-sm btn-outline-secondary">Toggle Demo Mode</button>
+                    <button id="addHistory" class="btn btn-sm btn-outline-secondary">Add History</button>
+                    <p id="demoModeStatus" class="mt-2 text-muted" style="display: none;">Demo Mode: Active - Values divided by 15</p>
+                </div>
                 <div>
                     <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-sm btn-link">Coins</a>
                     <button id="initializeBitcoinData" class="btn btn-sm btn-outline-secondary">Initialize Bitcoin Data</button>
@@ -139,7 +139,7 @@
             "symbol": "NASDAQ:AAPL",
             "interval": "D",
             "timezone": "Etc/UTC",
-            "theme": "light",
+            "theme": "dark",
             "style": "1",
             "locale": "en",
             "toolbar_bg": "#00ff00",
