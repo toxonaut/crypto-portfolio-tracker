@@ -84,12 +84,19 @@
                 <canvas id="historyChart"></canvas>
             </div>
         </div>
+        
+
     </div>
 
     <footer class="footer mt-5 py-3 ">
         <div class="container">
             <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted">Crypto Portfolio Tracker v{{ version }} | DB: {{ db_type }}</span>
+                                            <!-- Demo Mode Toggle Button -->
+        <div class="text-center mt-4 mb-4">
+            <button id="toggleDemoMode" class="btn btn-sm btn-outline-secondary">Toggle</button>
+            <p id="demoModeStatus" class="mt-2 text-muted" style="display: none;">Demo Mode: Active - Values divided by 15</p>
+        </div>
                 <div>
                     <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-sm btn-link">Coins</a>
                     <button id="initializeBitcoinData" class="btn btn-sm btn-outline-secondary">Initialize Bitcoin Data</button>
@@ -126,7 +133,31 @@
         });
     </script>
     <script>
-        
+        new TradingView.widget({
+            "width": 980,
+            "height": 110,
+            "symbol": "NASDAQ:AAPL",
+            "interval": "D",
+            "timezone": "Etc/UTC",
+            "theme": "light",
+            "style": "1",
+            "locale": "en",
+            "toolbar_bg": "#00ff00",
+            "enable_publishing": false,
+            "allow_symbol_change": true,
+            "studies": [
+                "MASimple@tv-basicstudies"
+            ],
+            "container_id": "tradingview_chart",
+            "library_path": "/charting_library/",
+            "charts_storage_url": "https://saveload.tradingview.com",
+            "charts_storage_api_version": "1.1",
+            "client_id": "tradingview.com",
+            "user_id": "public_user_id",
+            "fullscreen": false,
+            "autosize": true,
+            "studies_overrides": {}
+        });
     </script>
 </body>
 </html>

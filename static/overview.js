@@ -1,4 +1,5 @@
 let historyChart = null;
+let isDemoMode = false; // Track demo mode state
 
 function formatPriceChange(change) {
     const formattedChange = change.toFixed(2);
@@ -62,7 +63,14 @@ async function updateHistoryChart() {
             return date.toLocaleString();
         });
         
-        const values = data.data.map(item => item.total_value);
+        // Apply demo mode division if active
+        const values = data.data.map(item => {
+            let value = item.total_value;
+            if (isDemoMode) {
+                value = value / 15;
+            }
+            return value;
+        });
         
         if (historyChart) {
             historyChart.destroy();
@@ -148,9 +156,13 @@ async function updatePortfolio() {
                 </div>
             `;
             
-            // Total Balance column
+            // Total Balance column - apply demo mode division if active
             const totalBalanceCell = document.createElement('td');
-            totalBalanceCell.textContent = details.total_amount.toFixed(4);
+            let totalAmount = details.total_amount;
+            if (isDemoMode) {
+                totalAmount = totalAmount / 15;
+            }
+            totalBalanceCell.textContent = totalAmount.toFixed(4);
             
             // Price column
             const priceCell = document.createElement('td');
@@ -166,9 +178,13 @@ async function updatePortfolio() {
             const weeklyChangeCell = document.createElement('td');
             weeklyChangeCell.innerHTML = details.seven_day_change ? formatPriceChange(details.seven_day_change) : '-';
             
-            // Value column
+            // Value column - apply demo mode division if active
             const valueCell = document.createElement('td');
-            valueCell.textContent = `$${details.total_value.toFixed(2)}`;
+            let totalValue = details.total_value;
+            if (isDemoMode) {
+                totalValue = totalValue / 15;
+            }
+            valueCell.textContent = `$${totalValue.toFixed(2)}`;
             
             // Add all cells to the row
             row.appendChild(coinCell);
@@ -185,7 +201,12 @@ async function updatePortfolio() {
         console.log('Updating total value...');
         const totalValueElement = document.getElementById('totalValue');
         if (totalValueElement) {
-            totalValueElement.textContent = data.total_value.toFixed(2);
+            // Apply demo mode division if active
+            let totalValue = data.total_value;
+            if (isDemoMode) {
+                totalValue = totalValue / 15;
+            }
+            totalValueElement.textContent = totalValue.toFixed(2);
         } else {
             console.error('Could not find totalValue element');
         }
@@ -194,7 +215,12 @@ async function updatePortfolio() {
         console.log('Updating monthly yield...');
         const monthlyYieldElement = document.getElementById('monthlyYield');
         if (monthlyYieldElement) {
-            monthlyYieldElement.textContent = data.total_monthly_yield.toFixed(2);
+            // Apply demo mode division if active
+            let monthlyYield = data.total_monthly_yield;
+            if (isDemoMode) {
+                monthlyYield = monthlyYield / 15;
+            }
+            monthlyYieldElement.textContent = monthlyYield.toFixed(2);
         } else {
             console.error('Could not find monthlyYield element');
         }
@@ -216,12 +242,36 @@ async function updatePortfolio() {
     }
 }
 
+// Function to toggle demo mode
+function toggleDemoMode() {
+    isDemoMode = !isDemoMode;
+    
+    // Update the status message
+    const statusElement = document.getElementById('demoModeStatus');
+    if (statusElement) {
+        if (isDemoMode) {
+            statusElement.style.display = 'block';
+        } else {
+            statusElement.style.display = 'none';
+        }
+    }
+    
+    // Update the portfolio with the new mode
+    updatePortfolio();
+}
+
 // Initialize TradingView chart with default pair (BTC/USD) and start updates
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Page loaded, initializing...');
     createTradingViewWidget('BTCUSD');
     initializePairSelection();
     updatePortfolio();
+    
+    // Set up demo mode toggle button
+    const toggleButton = document.getElementById('toggleDemoMode');
+    if (toggleButton) {
+        toggleButton.addEventListener('click', toggleDemoMode);
+    }
     
     // Refresh portfolio data every 60 seconds
     setInterval(updatePortfolio, 60000);
