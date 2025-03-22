@@ -6,6 +6,8 @@ import json
 import datetime
 import logging
 from dotenv import load_dotenv
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -139,6 +141,115 @@ def get_coin_prices(coin_ids):
     except Exception as e:
         logger.error(f"Exception fetching market data: {e}")
         return {}
+
+def scheduled_add_history():
+    try:
+        portfolio_data = get_portfolio_data()
+        
+        # Get unique coin IDs
+        coin_ids = list(set(item['coin_id'] for item in portfolio_data))
+        
+        # Get current prices
+        prices = get_coin_prices(coin_ids)
+        
+        # Group portfolio data by coin_id
+        grouped_data = {}
+        total_value = 0
+        
+        # First, group all entries by coin_id
+        for item in portfolio_data:
+            coin_id = item['coin_id']
+            source = item['source']
+            amount = item['amount']
+            apy = item.get('apy', 0)
+            
+            # Initialize coin data if not exists
+            if coin_id not in grouped_data:
+                grouped_data[coin_id] = {
+                    'total_amount': 0,
+                    'sources': {},
+                    'price': 0,
+                    'total_value': 0,
+                    'hourly_change': 0,
+                    'daily_change': 0,
+                    'seven_day_change': 0,
+                    'monthly_yield': 0,
+                    'image': "https://assets.coingecko.com/coins/images/1/small/bitcoin.png"
+                }
+            
+            # Add source data to the coin
+            grouped_data[coin_id]['sources'][source] = {
+                'amount': amount,
+                'apy': apy
+            }
+            
+            # Add to the total amount for this coin
+            grouped_data[coin_id]['total_amount'] += amount
+        
+        # Calculate total values and monthly yield
+        for coin_id, coin_data in grouped_data.items():
+            price = 0
+            hourly_change = None
+            daily_change = None
+            seven_day_change = None
+            
+            if coin_id in prices:
+                price_data = prices[coin_id]
+                price = price_data.get('usd', 0)
+                hourly_change = price_data.get('usd_1h_change', 0)
+                daily_change = price_data.get('usd_24h_change', 0)
+                seven_day_change = price_data.get('usd_7d_change', 0)
+                grouped_data[coin_id]['image'] = price_data.get('image', "https://assets.coingecko.com/coins/images/1/small/bitcoin.png")
+            
+            coin_total_value = 0
+            coin_monthly_yield = 0
+            
+            for source, source_data in coin_data['sources'].items():
+                amount = source_data['amount']
+                apy = source_data.get('apy', 0)
+                value = amount * price
+                coin_total_value += value
+                
+                # Calculate monthly yield for this source
+                yearly_yield = value * (apy / 100)
+                monthly_yield = yearly_yield / 12
+                coin_monthly_yield += monthly_yield
+            
+            # Set the total value and monthly yield for this coin
+            grouped_data[coin_id]['total_value'] = coin_total_value
+            grouped_data[coin_id]['monthly_yield'] = coin_monthly_yield
+            grouped_data[coin_id]['price'] = price
+            grouped_data[coin_id]['hourly_change'] = hourly_change
+            grouped_data[coin_id]['daily_change'] = daily_change
+            grouped_data[coin_id]['seven_day_change'] = seven_day_change
+            total_value += coin_total_value
+        
+        # Create new history entry
+        new_entry = PortfolioHistory(
+            date=datetime.datetime.now(),
+            total_value=total_value
+        )
+        
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        logger.info(f"Scheduled task: Added history entry with total value: {total_value}")
+    except Exception as e:
+        logger.error(f"Error in scheduled task: {e}")
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    func=scheduled_add_history,
+    trigger='interval',
+    hours=1,  # Run every hour
+    id="add_history_job",
+    name="Add history entry every hour"
+)
+scheduler.start()
+
+# Shut down the scheduler when exiting the app
+atexit.register(lambda: scheduler.shutdown())
 
 @app.route('/')
 def index():
