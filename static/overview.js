@@ -120,65 +120,94 @@ async function updateHistoryChart() {
 
 async function updatePortfolio() {
     try {
-        console.log('Starting portfolio update...');
+        console.log('Fetching portfolio data...');
         const response = await fetch('/portfolio');
-        console.log('Portfolio response:', response);
-        
         const data = await response.json();
-        console.log('Portfolio data:', data);
         
         if (!data.success) {
-            console.error('Portfolio data error:', data.error);
+            console.error('Error fetching portfolio data:', data.error);
             return;
         }
         
+        console.log('Portfolio data received:', data);
+        
+        // Update last updated timestamp
+        const lastUpdatedElement = document.getElementById('lastUpdated');
+        if (lastUpdatedElement) {
+            const now = new Date();
+            lastUpdatedElement.textContent = now.toLocaleString();
+        }
+        
+        // Calculate monthly yield
+        let totalMonthlyYield = 0;
+        
+        // Clear the table
         const portfolioTable = document.getElementById('portfolioTableBody');
-        if (!portfolioTable) {
-            console.error('Could not find portfolioTableBody element');
-            return;
-        }
-        
-        console.log('Clearing table...');
         portfolioTable.innerHTML = '';
         
-        console.log('Processing portfolio entries...');
-        for (const [coinId, details] of Object.entries(data.data)) {
-            console.log(`Processing coin: ${coinId}`, details);
+        // Sort coins by value (descending)
+        const sortedCoins = Object.entries(data.data).sort((a, b) => {
+            return b[1].total_value - a[1].total_value;
+        });
+        
+        // Track bitcoin price for BTC value calculation
+        let bitcoinPrice = 0;
+        
+        // Add rows for each coin
+        for (const [coinId, details] of sortedCoins) {
+            // Store Bitcoin price for BTC value calculation
+            if (coinId === 'bitcoin') {
+                bitcoinPrice = details.price;
+            }
             
             const row = document.createElement('tr');
             
-            // Asset column with icon and name
+            // Create coin cell with image and name
             const coinCell = document.createElement('td');
-            coinCell.innerHTML = `
-                <div class="d-flex align-items-center">
-                    <img src="${details.image || ''}" alt="${coinId}" class="coin-logo me-2" style="width: 24px; height: 24px;">
-                    <span class="text-capitalize">${coinId.replace('-', ' ')}</span>
-                </div>
-            `;
+            const coinImage = document.createElement('img');
+            coinImage.src = details.image;
+            coinImage.alt = coinId;
+            coinImage.className = 'coin-icon me-2';
+            coinImage.style.width = '24px';
+            coinImage.style.height = '24px';
+            coinCell.appendChild(coinImage);
+            coinCell.appendChild(document.createTextNode(coinId));
             
-            // Total Balance column - apply demo mode division if active
+            // Create other cells
             const totalBalanceCell = document.createElement('td');
             let totalAmount = details.total_amount;
             if (isDemoMode) {
                 totalAmount = totalAmount / 15;
             }
-            totalBalanceCell.textContent = totalAmount.toFixed(4);
+            totalBalanceCell.textContent = totalAmount.toFixed(8);
             
-            // Price column
             const priceCell = document.createElement('td');
-            priceCell.textContent = `$${details.price.toFixed(4)}`;
+            priceCell.textContent = `$${details.price.toFixed(2)}`;
             
-            // Price change columns
             const hourlyChangeCell = document.createElement('td');
-            hourlyChangeCell.innerHTML = details.hourly_change ? formatPriceChange(details.hourly_change) : '-';
+            hourlyChangeCell.textContent = details.hourly_change ? `${details.hourly_change.toFixed(2)}%` : 'N/A';
+            if (details.hourly_change > 0) {
+                hourlyChangeCell.className = 'text-success';
+            } else if (details.hourly_change < 0) {
+                hourlyChangeCell.className = 'text-danger';
+            }
             
             const dailyChangeCell = document.createElement('td');
-            dailyChangeCell.innerHTML = details.daily_change ? formatPriceChange(details.daily_change) : '-';
+            dailyChangeCell.textContent = details.daily_change ? `${details.daily_change.toFixed(2)}%` : 'N/A';
+            if (details.daily_change > 0) {
+                dailyChangeCell.className = 'text-success';
+            } else if (details.daily_change < 0) {
+                dailyChangeCell.className = 'text-danger';
+            }
             
             const weeklyChangeCell = document.createElement('td');
-            weeklyChangeCell.innerHTML = details.seven_day_change ? formatPriceChange(details.seven_day_change) : '-';
+            weeklyChangeCell.textContent = details.seven_day_change ? `${details.seven_day_change.toFixed(2)}%` : 'N/A';
+            if (details.seven_day_change > 0) {
+                weeklyChangeCell.className = 'text-success';
+            } else if (details.seven_day_change < 0) {
+                weeklyChangeCell.className = 'text-danger';
+            }
             
-            // Value column - apply demo mode division if active
             const valueCell = document.createElement('td');
             let totalValue = details.total_value;
             if (isDemoMode) {
@@ -196,6 +225,9 @@ async function updatePortfolio() {
             row.appendChild(valueCell);
             
             portfolioTable.appendChild(row);
+            
+            // Add to monthly yield
+            totalMonthlyYield += details.monthly_yield || 0;
         }
         
         console.log('Updating total value...');
@@ -206,30 +238,30 @@ async function updatePortfolio() {
             if (isDemoMode) {
                 totalValue = totalValue / 15;
             }
-            totalValueElement.textContent = totalValue.toFixed(2);
+            totalValueElement.textContent = totalValue.toFixed(0);
+            
+            // Update BTC value
+            const btcValueElement = document.getElementById('btcValue');
+            if (btcValueElement && bitcoinPrice > 0) {
+                const btcValue = totalValue / bitcoinPrice;
+                btcValueElement.textContent = btcValue.toFixed(8);
+            } else if (btcValueElement) {
+                btcValueElement.textContent = "N/A";
+            }
         } else {
             console.error('Could not find totalValue element');
         }
         
-        // Update monthly yield
         console.log('Updating monthly yield...');
         const monthlyYieldElement = document.getElementById('monthlyYield');
         if (monthlyYieldElement) {
             // Apply demo mode division if active
-            let monthlyYield = data.total_monthly_yield;
             if (isDemoMode) {
-                monthlyYield = monthlyYield / 15;
+                totalMonthlyYield = totalMonthlyYield / 15;
             }
-            monthlyYieldElement.textContent = monthlyYield.toFixed(2);
+            monthlyYieldElement.textContent = totalMonthlyYield.toFixed(2);
         } else {
             console.error('Could not find monthlyYield element');
-        }
-        
-        // Update last updated timestamp
-        const lastUpdatedElement = document.getElementById('lastUpdated');
-        if (lastUpdatedElement) {
-            const now = new Date();
-            lastUpdatedElement.textContent = now.toLocaleString();
         }
         
         // Update history chart
