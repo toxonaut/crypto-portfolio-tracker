@@ -8,6 +8,7 @@ import logging
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
+import traceback
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -633,6 +634,63 @@ def initialize_bitcoin_data():
             'success': False,
             'error': str(e)
         })
+
+@app.route('/debug_worker', methods=['GET'])
+def debug_worker():
+    """
+    Debug endpoint to check worker status and manually trigger history addition
+    """
+    try:
+        # Get the current portfolio data
+        portfolio_data = get_portfolio_data()
+        
+        # Get unique coin IDs
+        coin_ids = list(set(item['coin_id'] for item in portfolio_data))
+        
+        # Get current prices
+        prices = get_coin_prices(coin_ids)
+        
+        # Calculate total value
+        total_value = 0
+        for item in portfolio_data:
+            coin_id = item['coin_id']
+            amount = item['amount']
+            
+            if coin_id in prices:
+                price = prices[coin_id].get('usd', 0)
+                item_value = amount * price
+                total_value += item_value
+        
+        # Add a new history entry
+        new_entry = PortfolioHistory(
+            date=datetime.datetime.now(),
+            total_value=total_value
+        )
+        
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        # Get the most recent history entries
+        recent_entries = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).limit(10).all()
+        recent_entries_data = [entry.to_dict() for entry in recent_entries]
+        
+        return jsonify({
+            'success': True,
+            'message': f'Added new history entry with value: {total_value}',
+            'recent_entries': recent_entries_data,
+            'worker_info': {
+                'environment': os.environ.get('RAILWAY_ENVIRONMENT', 'local'),
+                'server_time': datetime.datetime.now().isoformat(),
+                'database_url': app.config['SQLALCHEMY_DATABASE_URI'].split('@')[1] if '@' in app.config['SQLALCHEMY_DATABASE_URI'] else 'hidden'
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error in debug_worker: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 if __name__ == '__main__':
     # Only run the development server when running locally

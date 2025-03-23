@@ -1,2 +1,2 @@
 web: bash startup.sh
-worker: python worker.py
+worker: bash worker_start.sh
