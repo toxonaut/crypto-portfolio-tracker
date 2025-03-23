@@ -244,7 +244,7 @@ async function updatePortfolio() {
             const btcValueElement = document.getElementById('btcValue');
             if (btcValueElement && bitcoinPrice > 0) {
                 const btcValue = totalValue / bitcoinPrice;
-                btcValueElement.textContent = btcValue.toFixed(8);
+                btcValueElement.textContent = btcValue.toFixed(2);
             } else if (btcValueElement) {
                 btcValueElement.textContent = "N/A";
             }
@@ -292,41 +292,136 @@ function toggleDemoMode() {
     updatePortfolio();
 }
 
-// Initialize TradingView chart with default pair (BTC/USD) and start updates
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Page loaded, initializing...');
+// Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing...');
+    
+    // Initialize with default pair
     createTradingViewWidget('BTCUSD');
-    initializePairSelection();
+    
+    // Set up event listeners for trading pairs
+    const pairButtons = document.querySelectorAll('.list-group-item');
+    pairButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Remove active class from all buttons
+            pairButtons.forEach(btn => btn.classList.remove('active'));
+            
+            // Add active class to clicked button
+            this.classList.add('active');
+            
+            // Get the pair from data attribute
+            const pair = this.getAttribute('data-pair');
+            
+            // Create new widget with selected pair
+            createTradingViewWidget(pair);
+        });
+    });
+    
+    // Initial portfolio update
     updatePortfolio();
     
-    // Set up demo mode toggle button
-    const toggleButton = document.getElementById('toggleDemoMode');
-    if (toggleButton) {
-        toggleButton.addEventListener('click', toggleDemoMode);
+    // Set up demo mode toggle
+    const toggleDemoButton = document.getElementById('toggleDemoButton');
+    if (toggleDemoButton) {
+        toggleDemoButton.addEventListener('click', function() {
+            toggleDemoMode();
+        });
     }
     
     // Set up add history button
-    const addHistoryButton = document.getElementById('addHistory');
+    const addHistoryButton = document.getElementById('addHistoryButton');
     if (addHistoryButton) {
-        addHistoryButton.addEventListener('click', async () => {
+        addHistoryButton.addEventListener('click', async function() {
             try {
-                const totalValueElement = document.getElementById('totalValue');
-                const totalValue = parseFloat(totalValueElement.textContent.replace('$', ''));
-                const response = await fetch('/add_history', {
+                const response = await fetch('/portfolio');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    alert('Failed to get portfolio data');
+                    return;
+                }
+                
+                let totalValue = data.total_value;
+                
+                // Apply demo mode division if active
+                if (isDemoMode) {
+                    totalValue = totalValue / 15;
+                }
+                
+                const response2 = await fetch('/add_history', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ total_value: totalValue })
                 });
-                const result = await response.json();
+                const result = await response2.json();
                 if (result.success) {
                     alert('History added successfully!');
+                    // Update history chart
+                    updateHistoryChart();
                 } else {
                     alert('Failed to add history: ' + result.error);
                 }
             } catch (error) {
                 alert('Error adding history: ' + error.message);
+            }
+        });
+    }
+    
+    // Set up check history status button
+    const checkHistoryButton = document.getElementById('checkHistoryButton');
+    if (checkHistoryButton) {
+        checkHistoryButton.addEventListener('click', async function() {
+            try {
+                const historyStatusElement = document.getElementById('historyStatus');
+                historyStatusElement.style.display = 'block';
+                historyStatusElement.textContent = 'Checking history status...';
+                
+                // Fetch history data
+                const response = await fetch('/history');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    historyStatusElement.textContent = 'Failed to get history data: ' + data.error;
+                    return;
+                }
+                
+                // Get the most recent entries
+                const entries = data.data;
+                
+                if (entries.length === 0) {
+                    historyStatusElement.textContent = 'No history entries found in the database.';
+                    return;
+                }
+                
+                // Sort entries by date (newest first)
+                entries.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+                
+                // Get the most recent entry
+                const latestEntry = entries[0];
+                const latestDate = new Date(latestEntry.datetime);
+                const now = new Date();
+                const hoursSinceLatest = (now - latestDate) / (1000 * 60 * 60);
+                
+                // Format the status message
+                let statusMessage = `Latest entry: ${latestDate.toLocaleString()} (${hoursSinceLatest.toFixed(1)} hours ago)\n`;
+                statusMessage += `Total entries: ${entries.length}\n`;
+                
+                if (hoursSinceLatest > 1.5) {
+                    statusMessage += `WARNING: No recent entries in the last hour. The scheduler may not be working properly.`;
+                } else {
+                    statusMessage += `Status: History tracking appears to be working correctly.`;
+                }
+                
+                historyStatusElement.innerHTML = statusMessage.replace(/\n/g, '<br>');
+                
+                // Update the history chart
+                updateHistoryChart();
+            } catch (error) {
+                const historyStatusElement = document.getElementById('historyStatus');
+                historyStatusElement.style.display = 'block';
+                historyStatusElement.textContent = 'Error checking history status: ' + error.message;
             }
         });
     }

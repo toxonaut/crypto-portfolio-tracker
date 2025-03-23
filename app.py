@@ -261,6 +261,31 @@ if not os.environ.get('WERKZEUG_RUN_MAIN') and 'gunicorn' not in os.environ.get(
     # Shut down the scheduler when exiting the app
     atexit.register(lambda: scheduler.shutdown())
 
+# Add a scheduler that runs on every request to ensure history is added
+# This is a fallback mechanism in case the background scheduler fails
+last_history_check = datetime.datetime.now() - datetime.timedelta(hours=2)  # Start in the past to trigger immediately
+
+@app.before_request
+def check_history_interval():
+    global last_history_check
+    now = datetime.datetime.now()
+    
+    # Only check once per hour maximum
+    if (now - last_history_check).total_seconds() >= 3600:  # 1 hour in seconds
+        try:
+            # Get the most recent history entry
+            latest_entry = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).first()
+            
+            # If no entry exists or the latest entry is more than 1 hour old, add a new one
+            if not latest_entry or (now - latest_entry.date).total_seconds() >= 3600:
+                logger.info("Adding history entry via request-based check")
+                scheduled_add_history()
+                
+            # Update the last check time
+            last_history_check = now
+        except Exception as e:
+            logger.error(f"Error in request-based history check: {str(e)}", exc_info=True)
+
 @app.route('/')
 def index():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
