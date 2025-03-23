@@ -144,6 +144,7 @@ def get_coin_prices(coin_ids):
 
 def scheduled_add_history():
     try:
+        logger.info("Starting scheduled add_history task")
         portfolio_data = get_portfolio_data()
         
         # Get unique coin IDs
@@ -224,6 +225,8 @@ def scheduled_add_history():
             grouped_data[coin_id]['seven_day_change'] = seven_day_change
             total_value += coin_total_value
         
+        logger.info(f"Calculated total portfolio value: {total_value}")
+        
         # Create new history entry
         new_entry = PortfolioHistory(
             date=datetime.datetime.now(),
@@ -233,23 +236,29 @@ def scheduled_add_history():
         db.session.add(new_entry)
         db.session.commit()
         
-        logger.info(f"Scheduled task: Added history entry with total value: {total_value}")
+        logger.info(f"Successfully added history entry with total value: {total_value}")
     except Exception as e:
-        logger.error(f"Error in scheduled task: {e}")
+        logger.error(f"Error in scheduled task: {str(e)}", exc_info=True)
 
-# Initialize scheduler
-scheduler = BackgroundScheduler()
-scheduler.add_job(
-    func=scheduled_add_history,
-    trigger='interval',
-    hours=1,  # Run every hour
-    id="add_history_job",
-    name="Add history entry every hour"
-)
-scheduler.start()
+# Only initialize the scheduler in the main process
+# This prevents multiple schedulers when using Gunicorn
+if not os.environ.get('WERKZEUG_RUN_MAIN') and 'gunicorn' not in os.environ.get('SERVER_SOFTWARE', ''):
+    logger.info("Initializing background scheduler")
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=scheduled_add_history,
+        trigger='interval',
+        hours=1,  # Run every hour
+        id="add_history_job",
+        name="Add history entry every hour",
+        # Run immediately after startup too
+        next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=30)
+    )
+    scheduler.start()
+    logger.info("Background scheduler started")
 
-# Shut down the scheduler when exiting the app
-atexit.register(lambda: scheduler.shutdown())
+    # Shut down the scheduler when exiting the app
+    atexit.register(lambda: scheduler.shutdown())
 
 @app.route('/')
 def index():
@@ -505,7 +514,12 @@ def delete_coin(coin_id):
 @app.route('/add_history', methods=['POST'])
 def add_history():
     try:
-        data = request.json
+        data = request.get_json()
+        logger.info(f"Received add_history request with data: {data}")
+        
+        if not data or 'total_value' not in data:
+            logger.error("Invalid data received in add_history request")
+            return jsonify({'success': False, 'error': 'Invalid data'}), 400
         
         new_entry = PortfolioHistory(
             date=datetime.datetime.now(),
@@ -515,10 +529,12 @@ def add_history():
         db.session.add(new_entry)
         db.session.commit()
         
-        return jsonify({'success': True, 'id': new_entry.id})
+        logger.info(f"Manually added history entry with total value: {data['total_value']}")
+        
+        return jsonify({'success': True})
     except Exception as e:
-        logger.error(f"Error adding history: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+        logger.error(f"Error in add_history: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/debug_db')
 def debug_db():
