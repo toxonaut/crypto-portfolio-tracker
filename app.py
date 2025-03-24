@@ -1,14 +1,12 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 import os
-import requests
-import json
 import datetime
+import json
 import logging
+import requests
+import time
 from dotenv import load_dotenv
-from apscheduler.schedulers.background import BackgroundScheduler
-import atexit
-import traceback
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -240,26 +238,6 @@ def scheduled_add_history():
         logger.info(f"Successfully added history entry with total value: {total_value}")
     except Exception as e:
         logger.error(f"Error in scheduled task: {str(e)}", exc_info=True)
-
-# Only initialize the scheduler in the main process
-# This prevents multiple schedulers when using Gunicorn
-if not os.environ.get('WERKZEUG_RUN_MAIN') and 'gunicorn' not in os.environ.get('SERVER_SOFTWARE', ''):
-    logger.info("Initializing background scheduler")
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        func=scheduled_add_history,
-        trigger='interval',
-        hours=1,  # Run every hour
-        id="add_history_job",
-        name="Add history entry every hour",
-        # Run immediately after startup too
-        next_run_time=datetime.datetime.now() + datetime.timedelta(seconds=30)
-    )
-    scheduler.start()
-    logger.info("Background scheduler started")
-
-    # Shut down the scheduler when exiting the app
-    atexit.register(lambda: scheduler.shutdown())
 
 # Add a scheduler that runs on every request to ensure history is added
 # This is a fallback mechanism in case the background scheduler fails
