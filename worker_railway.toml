@@ -4,3 +4,4 @@ builder = "nixpacks"
 [deploy]
 startCommand = "python worker.py"
 restartPolicyType = "on_failure"
+healthcheckPath = "/"
