@@ -57,11 +57,31 @@ def add_history_entry():
         total_value = portfolio_data.get('total_value', 0)
         logger.info(f"Current portfolio total value: {total_value}")
         
+        # Extract Bitcoin price and actual Bitcoin amount
+        bitcoin_price = 0
+        actual_bitcoin_amount = 0
+        
+        if 'bitcoin' in portfolio_data.get('data', {}):
+            bitcoin_data = portfolio_data['data']['bitcoin']
+            bitcoin_price = bitcoin_data.get('price', 0)
+            actual_bitcoin_amount = bitcoin_data.get('total_amount', 0)
+        
+        # Calculate total value in BTC
+        btc_value = 0
+        if bitcoin_price > 0:
+            btc_value = total_value / bitcoin_price
+            
+        logger.info(f"Bitcoin price: {bitcoin_price}, BTC value: {btc_value}, Actual BTC: {actual_bitcoin_amount}")
+        
         # Now send the add_history request
         logger.info(f"Worker: Sending request to {base_url}/add_history with total_value={total_value}")
         response = requests.post(
             f"{base_url}/add_history", 
-            json={"total_value": total_value},
+            json={
+                "total_value": total_value,
+                "btc_value": btc_value,
+                "actual_btc": actual_bitcoin_amount
+            },
             headers={"Content-Type": "application/json"},
             timeout=30
         )

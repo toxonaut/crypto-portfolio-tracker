@@ -74,12 +74,16 @@ class PortfolioHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.DateTime, nullable=False)
     total_value = db.Column(db.Float, nullable=False)
+    btc = db.Column(db.Float, nullable=True)  # Total value divided by Bitcoin price
+    actual_btc = db.Column(db.Float, nullable=True)  # Actual Bitcoin amount in portfolio
     
     def to_dict(self):
         return {
             'id': self.id,
             'date': self.date.strftime('%Y-%m-%d'),
-            'total_value': self.total_value
+            'total_value': self.total_value,
+            'btc': self.btc if self.btc is not None else 0,
+            'actual_btc': self.actual_btc if self.actual_btc is not None else 0
         }
 
 def get_portfolio_data():
@@ -226,10 +230,27 @@ def scheduled_add_history():
         
         logger.info(f"Calculated total portfolio value: {total_value}")
         
+        # Get Bitcoin price and actual Bitcoin amount in portfolio
+        bitcoin_price = 0
+        actual_bitcoin_amount = 0
+        
+        if 'bitcoin' in grouped_data:
+            bitcoin_price = grouped_data['bitcoin']['price']
+            actual_bitcoin_amount = grouped_data['bitcoin']['total_amount']
+        
+        # Calculate total value in BTC
+        btc_value = 0
+        if bitcoin_price > 0:
+            btc_value = total_value / bitcoin_price
+            
+        logger.info(f"Bitcoin price: {bitcoin_price}, BTC value: {btc_value}, Actual BTC: {actual_bitcoin_amount}")
+        
         # Create new history entry
         new_entry = PortfolioHistory(
             date=datetime.datetime.now(),
-            total_value=total_value
+            total_value=total_value,
+            btc=btc_value,
+            actual_btc=actual_bitcoin_amount
         )
         
         db.session.add(new_entry)
@@ -382,7 +403,9 @@ def get_history():
     for item in history_data:
         formatted_data.append({
             'datetime': item['date'],
-            'total_value': item['total_value']
+            'total_value': item['total_value'],
+            'btc': item['btc'],
+            'actual_btc': item['actual_btc']
         })
     
     return jsonify({
@@ -526,15 +549,51 @@ def add_history():
             logger.error("Invalid data received in add_history request")
             return jsonify({'success': False, 'error': 'Invalid data'}), 400
         
+        # Check if BTC values were provided in the request
+        btc_value = data.get('btc_value', 0)
+        actual_btc = data.get('actual_btc', 0)
+        
+        # If BTC values were not provided, calculate them
+        if btc_value == 0 or actual_btc == 0:
+            # Get portfolio data to calculate Bitcoin price and amount
+            portfolio_data = get_portfolio_data()
+            coin_ids = list(set(item['coin_id'] for item in portfolio_data))
+            prices = get_coin_prices(coin_ids)
+            
+            # Initialize variables
+            bitcoin_price = 0
+            actual_bitcoin_amount = 0
+            
+            # Find Bitcoin in the portfolio
+            for item in portfolio_data:
+                if item['coin_id'] == 'bitcoin':
+                    actual_bitcoin_amount += item['amount']
+            
+            # Get Bitcoin price
+            if 'bitcoin' in prices:
+                bitcoin_price = prices['bitcoin'].get('usd', 0)
+            
+            # Calculate total value in BTC
+            if bitcoin_price > 0:
+                btc_value = float(data['total_value']) / bitcoin_price
+                
+            actual_btc = actual_bitcoin_amount
+                
+            logger.info(f"Calculated Bitcoin price: {bitcoin_price}, BTC value: {btc_value}, Actual BTC: {actual_btc}")
+        else:
+            logger.info(f"Using provided BTC value: {btc_value}, Actual BTC: {actual_btc}")
+        
         new_entry = PortfolioHistory(
             date=datetime.datetime.now(),
-            total_value=float(data['total_value'])
+            total_value=float(data['total_value']),
+            btc=btc_value,
+            actual_btc=actual_btc
         )
         
         db.session.add(new_entry)
         db.session.commit()
         
-        logger.info(f"Manually added history entry with total value: {data['total_value']}")
+        logger.info(f"Manually added history entry with total value: {data['total_value']}, BTC value: {btc_value}")
         
         return jsonify({'success': True})
     except Exception as e:
