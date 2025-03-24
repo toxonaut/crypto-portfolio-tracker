@@ -1,7 +1,7 @@
 let historyChart = null;
 let isDemoMode = false; // Track demo mode state
 let isLogScale = false; // Track logarithmic scale state
-let currentDateRange = '365'; // Default to 1 year
+let currentDateRange = '180'; // Default to 6 months
 let historyData = []; // Store the full history data
 
 function formatPriceChange(change) {
@@ -149,7 +149,7 @@ async function updateHistoryChart() {
                         beginAtZero: !isLogScale, // Only begin at zero for linear scale
                         ticks: {
                             callback: function(value) {
-                                return '$' + value.toFixed(2);
+                                return '$' + Math.round(value);
                             }
                         },
                         title: {
@@ -166,7 +166,7 @@ async function updateHistoryChart() {
                         },
                         ticks: {
                             callback: function(value) {
-                                return value.toFixed(4) + ' BTC';
+                                return Math.round(value * 10000) / 10000 + ' BTC';
                             }
                         },
                         title: {
