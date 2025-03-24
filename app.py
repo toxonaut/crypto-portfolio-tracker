@@ -243,26 +243,27 @@ def scheduled_add_history():
 # This is a fallback mechanism in case the background scheduler fails
 last_history_check = datetime.datetime.now() - datetime.timedelta(hours=2)  # Start in the past to trigger immediately
 
-@app.before_request
-def check_history_interval():
-    global last_history_check
-    now = datetime.datetime.now()
-    
-    # Only check once per hour maximum
-    if (now - last_history_check).total_seconds() >= 3600:  # 1 hour in seconds
-        try:
-            # Get the most recent history entry
-            latest_entry = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).first()
-            
-            # If no entry exists or the latest entry is more than 1 hour old, add a new one
-            if not latest_entry or (now - latest_entry.date).total_seconds() >= 3600:
-                logger.info("Adding history entry via request-based check")
-                scheduled_add_history()
+if 1==2:  # Disable request-based history checking to rely solely on worker process
+    @app.before_request
+    def check_history_interval():
+        global last_history_check
+        now = datetime.datetime.now()
+        
+        # Only check once per hour maximum
+        if (now - last_history_check).total_seconds() >= 3600:  # 1 hour in seconds
+            try:
+                # Get the most recent history entry
+                latest_entry = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).first()
                 
-            # Update the last check time
-            last_history_check = now
-        except Exception as e:
-            logger.error(f"Error in request-based history check: {str(e)}", exc_info=True)
+                # If no entry exists or the latest entry is more than 1 hour old, add a new one
+                if not latest_entry or (now - latest_entry.date).total_seconds() >= 3600:
+                    logger.info("Adding history entry via request-based check")
+                    scheduled_add_history()
+                    
+                # Update the last check time
+                last_history_check = now
+            except Exception as e:
+                logger.error(f"Error in request-based history check: {str(e)}", exc_info=True)
 
 @app.route('/')
 def index():
