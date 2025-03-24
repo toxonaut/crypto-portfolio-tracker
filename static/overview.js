@@ -1,5 +1,8 @@
 let historyChart = null;
 let isDemoMode = false; // Track demo mode state
+let isLogScale = false; // Track logarithmic scale state
+let currentDateRange = '365'; // Default to 1 year
+let historyData = []; // Store the full history data
 
 function formatPriceChange(change) {
     const formattedChange = change.toFixed(2);
@@ -58,14 +61,39 @@ async function updateHistoryChart() {
             return;
         }
         
-        const labels = data.data.map(item => {
+        // Store the full history data
+        historyData = data.data;
+        
+        // Filter data based on selected date range
+        let filteredData = historyData;
+        if (currentDateRange !== 'all') {
+            const daysToShow = parseInt(currentDateRange);
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - daysToShow);
+            
+            filteredData = historyData.filter(item => {
+                const itemDate = new Date(item.datetime);
+                return itemDate >= cutoffDate;
+            });
+        }
+        
+        const labels = filteredData.map(item => {
             const date = new Date(item.datetime);
             return date.toLocaleString();
         });
         
         // Apply demo mode division if active
-        const values = data.data.map(item => {
+        const values = filteredData.map(item => {
             let value = item.total_value;
+            if (isDemoMode) {
+                value = value / 15;
+            }
+            return value;
+        });
+        
+        // Get BTC values for a secondary dataset
+        const btcValues = filteredData.map(item => {
+            let value = item.btc || 0;
             if (isDemoMode) {
                 value = value / 15;
             }
@@ -81,14 +109,27 @@ async function updateHistoryChart() {
             type: 'line',
             data: {
                 labels: labels,
-                datasets: [{
-                    label: 'Portfolio Value (USD)',
-                    data: values,
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
+                datasets: [
+                    {
+                        label: 'Portfolio Value (USD)',
+                        data: values,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Portfolio Value (BTC)',
+                        data: btcValues,
+                        borderColor: '#f7931a',
+                        backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                        fill: false,
+                        tension: 0.4,
+                        yAxisID: 'y1',
+                        hidden: true // Hidden by default
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -103,11 +144,34 @@ async function updateHistoryChart() {
                 },
                 scales: {
                     y: {
-                        beginAtZero: true,
+                        type: isLogScale ? 'logarithmic' : 'linear',
+                        position: 'left',
+                        beginAtZero: !isLogScale, // Only begin at zero for linear scale
                         ticks: {
                             callback: function(value) {
                                 return '$' + value.toFixed(2);
                             }
+                        },
+                        title: {
+                            display: true,
+                            text: 'USD Value'
+                        }
+                    },
+                    y1: {
+                        type: isLogScale ? 'logarithmic' : 'linear',
+                        position: 'right',
+                        beginAtZero: !isLogScale,
+                        grid: {
+                            drawOnChartArea: false // Only show grid lines for the primary y-axis
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(4) + ' BTC';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'BTC Value'
                         }
                     }
                 }
@@ -298,74 +362,71 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize with default pair
     createTradingViewWidget('BTCUSD');
-    
-    // Set up event listeners for trading pairs
-    const pairButtons = document.querySelectorAll('.list-group-item');
-    pairButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            // Remove active class from all buttons
-            pairButtons.forEach(btn => btn.classList.remove('active'));
-            
-            // Add active class to clicked button
-            this.classList.add('active');
-            
-            // Get the pair from data attribute
-            const pair = this.getAttribute('data-pair');
-            
-            // Create new widget with selected pair
-            createTradingViewWidget(pair);
-        });
-    });
+    initializePairSelection();
     
     // Initial portfolio update
     updatePortfolio();
     
-    // Set up demo mode toggle
+    // Set up auto-refresh
+    setInterval(updatePortfolio, 60000); // Refresh every minute
+    
+    // Add event listener for demo mode toggle
     const toggleDemoButton = document.getElementById('toggleDemoButton');
     if (toggleDemoButton) {
-        toggleDemoButton.addEventListener('click', function() {
-            toggleDemoMode();
-        });
+        toggleDemoButton.addEventListener('click', toggleDemoMode);
     }
     
-    // Set up add history button
+    // Add event listener for add history button
     const addHistoryButton = document.getElementById('addHistoryButton');
     if (addHistoryButton) {
         addHistoryButton.addEventListener('click', async function() {
             try {
-                const response = await fetch('/portfolio');
-                const data = await response.json();
-                
-                if (!data.success) {
-                    alert('Failed to get portfolio data');
-                    return;
-                }
-                
-                let totalValue = data.total_value;
-                
-                // Apply demo mode division if active
-                if (isDemoMode) {
-                    totalValue = totalValue / 15;
-                }
-                
-                const response2 = await fetch('/add_history', {
+                const response = await fetch('/add_history', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ total_value: totalValue })
+                    body: JSON.stringify({
+                        total_value: parseFloat(document.getElementById('totalValue').innerText)
+                    })
                 });
-                const result = await response2.json();
-                if (result.success) {
-                    alert('History added successfully!');
-                    // Update history chart
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('History entry added successfully!');
                     updateHistoryChart();
                 } else {
-                    alert('Failed to add history: ' + result.error);
+                    alert('Failed to add history entry: ' + data.error);
                 }
             } catch (error) {
+                console.error('Error adding history:', error);
                 alert('Error adding history: ' + error.message);
             }
+        });
+    }
+    
+    // Add event listener for logarithmic scale toggle
+    const logScaleToggle = document.getElementById('logScaleToggle');
+    if (logScaleToggle) {
+        logScaleToggle.addEventListener('change', function() {
+            isLogScale = this.checked;
+            updateHistoryChart();
+        });
+    }
+    
+    // Add event listeners for date range buttons
+    const dateRangeButtons = document.querySelectorAll('.date-range-btn');
+    if (dateRangeButtons.length > 0) {
+        dateRangeButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                dateRangeButtons.forEach(btn => btn.classList.remove('active'));
+                // Add active class to clicked button
+                this.classList.add('active');
+                // Update date range and refresh chart
+                currentDateRange = this.dataset.range;
+                updateHistoryChart();
+            });
         });
     }
     
@@ -425,7 +486,4 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
-    // Refresh portfolio data every 60 seconds
-    setInterval(updatePortfolio, 60000);
 });

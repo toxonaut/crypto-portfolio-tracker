@@ -82,6 +82,26 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="card-title">Portfolio History</h3>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="logScaleToggle">
+                            <label class="form-check-label" for="logScaleToggle">Logarithmic Scale</label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-end">
+                            <div class="btn-group" role="group" aria-label="Date range">
+                                <button type="button" class="btn btn-outline-primary date-range-btn" data-range="7">7d</button>
+                                <button type="button" class="btn btn-outline-primary date-range-btn" data-range="30">1m</button>
+                                <button type="button" class="btn btn-outline-primary date-range-btn" data-range="90">3m</button>
+                                <button type="button" class="btn btn-outline-primary date-range-btn" data-range="180">6m</button>
+                                <button type="button" class="btn btn-outline-primary date-range-btn active" data-range="365">1y</button>
+                                <button type="button" class="btn btn-outline-primary date-range-btn" data-range="all">All</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <canvas id="historyChart"></canvas>
             </div>
         </div>
