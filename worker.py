@@ -25,7 +25,7 @@ logger = logging.getLogger("portfolio_worker")
 if 'RAILWAY_ENVIRONMENT' in os.environ:
     # We're on Railway, use internal connection
     logger.info("Running on Railway - using internal service connection")
-    base_url = "http://crypto-portfolio-tracker.up.railway.app"
+    base_url = "https://web-production-03de.up.railway.app/"
 else:
     # We're running locally
     logger.info("Running locally - using localhost connection")
