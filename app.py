@@ -71,7 +71,7 @@ class Portfolio(db.Model):
 
 class PortfolioHistory(db.Model):
     __tablename__ = 'portfolio_history'  # Explicitly set lowercase table name
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     date = db.Column(db.DateTime, nullable=False)
     total_value = db.Column(db.Float, nullable=False)
     btc = db.Column(db.Float, nullable=True)  # Total value divided by Bitcoin price
@@ -754,6 +754,34 @@ def debug_worker():
             'error': str(e),
             'traceback': traceback.format_exc()
         }), 500
+
+@app.route('/fix_sequence', methods=['GET'])
+def fix_sequence():
+    try:
+        # Use SQLAlchemy's connection to execute raw SQL
+        with db.engine.connect() as connection:
+            # Find the maximum ID in the portfolio_history table
+            result = connection.execute(db.text("SELECT MAX(id) FROM portfolio_history"))
+            max_id = result.scalar()
+            
+            if max_id is None:
+                logger.info("No entries found in portfolio_history table")
+                return jsonify({'success': True, 'message': 'No entries found, nothing to fix'})
+            
+            logger.info(f"Maximum ID in portfolio_history table: {max_id}")
+            
+            # Reset the sequence to start from max_id + 1
+            connection.execute(db.text(f"SELECT setval('portfolio_history_id_seq', {max_id}, true)"))
+            
+            # Commit the changes
+            connection.commit()
+            
+            logger.info(f"Successfully reset sequence to {max_id + 1}")
+            return jsonify({'success': True, 'message': f'Sequence reset to {max_id + 1}'})
+        
+    except Exception as e:
+        logger.error(f"Error fixing sequence: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Only run the development server when running locally
