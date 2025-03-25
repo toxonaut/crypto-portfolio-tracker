@@ -79,7 +79,7 @@ async function updateHistoryChart() {
         
         const labels = filteredData.map(item => {
             const date = new Date(item.datetime);
-            return date.toLocaleString();
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
         });
         
         // Apply demo mode division if active
@@ -117,6 +117,7 @@ async function updateHistoryChart() {
                         backgroundColor: 'rgba(13, 110, 253, 0.1)',
                         fill: true,
                         tension: 0.4,
+                        pointRadius: 1,
                         yAxisID: 'y'
                     },
                     {
@@ -127,6 +128,7 @@ async function updateHistoryChart() {
                         fill: false,
                         tension: 0.4,
                         yAxisID: 'y1',
+                        pointRadius: 1,
                         hidden: true // Hidden by default
                     }
                 ]
@@ -143,6 +145,12 @@ async function updateHistoryChart() {
                     }
                 },
                 scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    },
                     y: {
                         type: isLogScale ? 'logarithmic' : 'linear',
                         position: 'left',
