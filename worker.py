@@ -57,6 +57,11 @@ def add_history_entry():
         total_value = portfolio_data.get('total_value', 0)
         logger.info(f"Current portfolio total value: {total_value}")
         
+        # Validate total_value
+        if total_value <= 0:
+            logger.error(f"Invalid total_value: {total_value}. Skipping history entry.")
+            return False
+            
         # Extract Bitcoin price and actual Bitcoin amount
         bitcoin_price = 0
         actual_bitcoin_amount = 0
@@ -70,8 +75,15 @@ def add_history_entry():
         btc_value = 0
         if bitcoin_price > 0:
             btc_value = total_value / bitcoin_price
+        else:
+            logger.warning(f"Bitcoin price is invalid: {bitcoin_price}. BTC value will be set to 0.")
             
         logger.info(f"Bitcoin price: {bitcoin_price}, BTC value: {btc_value}, Actual BTC: {actual_bitcoin_amount}")
+        
+        # Ensure we have valid data before proceeding
+        if bitcoin_price <= 0:
+            logger.error("Cannot add history entry with invalid Bitcoin price")
+            return False
         
         # Now send the add_history request
         logger.info(f"Worker: Sending request to {base_url}/add_history with total_value={total_value}")

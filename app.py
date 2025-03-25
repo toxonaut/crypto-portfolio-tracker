@@ -549,6 +549,12 @@ def add_history():
             logger.error("Invalid data received in add_history request")
             return jsonify({'success': False, 'error': 'Invalid data'}), 400
         
+        # Validate total_value
+        total_value = float(data['total_value'])
+        if total_value <= 0:
+            logger.error(f"Invalid total_value: {total_value}")
+            return jsonify({'success': False, 'error': 'Total value must be greater than 0'}), 400
+            
         # Check if BTC values were provided in the request
         btc_value = data.get('btc_value', 0)
         actual_btc = data.get('actual_btc', 0)
@@ -575,17 +581,25 @@ def add_history():
             
             # Calculate total value in BTC
             if bitcoin_price > 0:
-                btc_value = float(data['total_value']) / bitcoin_price
+                btc_value = total_value / bitcoin_price
+            else:
+                logger.error("Cannot calculate BTC value: Bitcoin price is 0")
+                return jsonify({'success': False, 'error': 'Bitcoin price is 0'}), 400
                 
             actual_btc = actual_bitcoin_amount
                 
             logger.info(f"Calculated Bitcoin price: {bitcoin_price}, BTC value: {btc_value}, Actual BTC: {actual_btc}")
         else:
+            # Validate provided BTC values
+            if btc_value <= 0:
+                logger.error(f"Invalid btc_value: {btc_value}")
+                return jsonify({'success': False, 'error': 'BTC value must be greater than 0'}), 400
+                
             logger.info(f"Using provided BTC value: {btc_value}, Actual BTC: {actual_btc}")
         
         new_entry = PortfolioHistory(
             date=datetime.datetime.now(),
-            total_value=float(data['total_value']),
+            total_value=total_value,
             btc=btc_value,
             actual_btc=actual_btc
         )
