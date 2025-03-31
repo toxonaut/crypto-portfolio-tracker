@@ -71,13 +71,13 @@
                 <div class="row">
                     <div class="col-md-2">
                         <div class="list-group mb-3" style="background-color: #1e1e1e;">
-                            <button class="list-group-item list-group-item-action active" data-pair="BTCUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">BTC/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="ETHUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SOLUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SUSD/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="ETHBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/BTC</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SOLBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/BTC</button>
-                            <button class="list-group-item list-group-item-action" data-pair="SOLETH" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/ETH</button>
+                            <button class="list-group-item list-group-item-action active" data-pair="BINANCE:BTCUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">BTC/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="BINANCE:ETHUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="BINANCE:SOLUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="BINANCE:SUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SUSD/USD</button>
+                            <button class="list-group-item list-group-item-action" data-pair="BINANCE:ETHBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/BTC</button>
+                            <button class="list-group-item list-group-item-action" data-pair="BINANCE:SOLBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/BTC</button>
+                            <button class="list-group-item list-group-item-action" data-pair="BINANCE:SOLETH" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/ETH</button>
                             <button class="list-group-item list-group-item-action" data-pair="SPY" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SPY</button>
                         </div>
                     </div>
@@ -133,40 +133,13 @@
                     <div id="historyStatus" class="alert alert-info mt-2" style="display: none;"></div>
                 </div>
                 <div>
-                    <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-sm btn-link">Coins</a>
-                    <button id="initializeBitcoinData" class="btn btn-sm btn-outline-secondary">Initialize Bitcoin Data</button>
+                    <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-sm btn-primary">Coins</a>
                 </div>
             </div>
         </div>
     </footer>
 
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
-    <script>
-        // Add event listener for the Initialize Bitcoin Data button
-        document.getElementById('initializeBitcoinData').addEventListener('click', function() {
-            if (confirm('This will clear all existing data and initialize the database with Bitcoin data. Are you sure?')) {
-                fetch('/initialize_bitcoin_data', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Database initialized with Bitcoin data. Total Bitcoin: ' + data.total_bitcoin + ', Total Value: $' + data.total_value.toLocaleString());
-                        // Reload the page to show the new data
-                        window.location.reload();
-                    } else {
-                        alert('Error initializing database: ' + data.error);
-                    }
-                })
-                .catch(error => {
-                    alert('Error initializing database: ' + error);
-                });
-            }
-        });
-    </script>
     <script>
         new TradingView.widget({
             "width": 980,
