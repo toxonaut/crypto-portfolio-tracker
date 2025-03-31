@@ -347,6 +347,9 @@ function toggleDemoMode() {
     
     // Update the portfolio with the new mode
     updatePortfolio();
+    
+    // Update the historical changes
+    updateHistoricalChanges();
 }
 
 // Calculate historical changes based on history data
@@ -365,7 +368,7 @@ function calculateHistoricalChanges() {
     });
 
     // Get current value (most recent entry)
-    const currentValue = sortedData[0].total_value;
+    let currentValue = sortedData[0].total_value;
     
     // Find values from 24h ago, 7d ago, and 30d ago
     const now = new Date();
@@ -412,10 +415,21 @@ function calculateHistoricalChanges() {
     const dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
     const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
     
+    // Apply demo mode scaling to dollar values if needed
+    let scaledDollarChange24h = dollarChange24h;
+    let scaledDollarChange7d = dollarChange7d;
+    let scaledDollarChange30d = dollarChange30d;
+    
+    if (isDemoMode) {
+        scaledDollarChange24h = dollarChange24h / 15;
+        scaledDollarChange7d = dollarChange7d / 15;
+        scaledDollarChange30d = dollarChange30d / 15;
+    }
+    
     return {
-        change24h: { value: dollarChange24h, percent: percentChange24h },
-        change7d: { value: dollarChange7d, percent: percentChange7d },
-        change30d: { value: dollarChange30d, percent: percentChange30d }
+        change24h: { value: scaledDollarChange24h, percent: percentChange24h },
+        change7d: { value: scaledDollarChange7d, percent: percentChange7d },
+        change30d: { value: scaledDollarChange30d, percent: percentChange30d }
     };
 }
 
