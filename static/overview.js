@@ -210,8 +210,8 @@ async function updatePortfolio() {
             lastUpdatedElement.textContent = now.toLocaleString();
         }
         
-        // Calculate monthly yield
-        let totalMonthlyYield = 0;
+        // Get the total monthly yield from the API response
+        let totalMonthlyYield = data.total_monthly_yield || 0;
         
         // Clear the table
         const portfolioTable = document.getElementById('portfolioTableBody');
@@ -271,12 +271,6 @@ async function updatePortfolio() {
                 value = value / 15;
             }
             valueCell.textContent = '$' + value.toFixed(2);
-            
-            // Add monthly yield calculation
-            if (details.apy) {
-                const monthlyYield = (details.total_value * details.apy / 100) / 12;
-                totalMonthlyYield += monthlyYield;
-            }
             
             // Append all cells to the row
             row.appendChild(coinCell);
