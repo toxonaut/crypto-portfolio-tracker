@@ -11,6 +11,15 @@ function formatPriceChange(change) {
     return `<span class="${className}">${sign}${formattedChange}%</span>`;
 }
 
+function formatValueChange(dollarChange, percentChange) {
+    const formattedDollar = Math.abs(dollarChange) < 1 ? dollarChange.toFixed(2) : Math.round(dollarChange);
+    const formattedPercent = percentChange.toFixed(2);
+    const className = dollarChange >= 0 ? 'price-change-positive' : 'price-change-negative';
+    const sign = dollarChange >= 0 ? '+' : '';
+    
+    return `<span class="${className}">$${sign}${formattedDollar} (${sign}${formattedPercent}%)</span>`;
+}
+
 let tradingViewWidget = null;
 
 function createTradingViewWidget(symbol) {
@@ -344,9 +353,9 @@ function toggleDemoMode() {
 function calculateHistoricalChanges() {
     if (!historyData || historyData.length === 0) {
         return {
-            change24h: 0,
-            change7d: 0,
-            change30d: 0
+            change24h: { value: 0, percent: 0 },
+            change7d: { value: 0, percent: 0 },
+            change30d: { value: 0, percent: 0 }
         };
     }
 
@@ -393,15 +402,20 @@ function calculateHistoricalChanges() {
         }
     }
     
-    // Calculate percentage changes
-    const change24h = value24hAgo ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
-    const change7d = value7dAgo ? ((currentValue - value7dAgo) / value7dAgo) * 100 : 0;
-    const change30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
+    // Calculate dollar and percentage changes
+    const dollarChange24h = value24hAgo ? (currentValue - value24hAgo) : 0;
+    const percentChange24h = value24hAgo ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
+    
+    const dollarChange7d = value7dAgo ? (currentValue - value7dAgo) : 0;
+    const percentChange7d = value7dAgo ? ((currentValue - value7dAgo) / value7dAgo) * 100 : 0;
+    
+    const dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
+    const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
     
     return {
-        change24h,
-        change7d,
-        change30d
+        change24h: { value: dollarChange24h, percent: percentChange24h },
+        change7d: { value: dollarChange7d, percent: percentChange7d },
+        change30d: { value: dollarChange30d, percent: percentChange30d }
     };
 }
 
@@ -410,9 +424,9 @@ function updateHistoricalChanges() {
     const changes = calculateHistoricalChanges();
     
     // Update the UI
-    document.getElementById('change24h').innerHTML = formatPriceChange(changes.change24h);
-    document.getElementById('change7d').innerHTML = formatPriceChange(changes.change7d);
-    document.getElementById('change30d').innerHTML = formatPriceChange(changes.change30d);
+    document.getElementById('change24h').innerHTML = formatValueChange(changes.change24h.value, changes.change24h.percent);
+    document.getElementById('change7d').innerHTML = formatValueChange(changes.change7d.value, changes.change7d.percent);
+    document.getElementById('change30d').innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent);
 }
 
 // Wait for DOM to be fully loaded
