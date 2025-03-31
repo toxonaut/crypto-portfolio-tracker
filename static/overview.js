@@ -13,12 +13,12 @@ function formatPriceChange(change) {
 
 function formatValueChange(dollarChange, percentChange) {
     const formattedDollar = Math.abs(dollarChange) < 1 ? Math.abs(dollarChange).toFixed(2) : Math.round(Math.abs(dollarChange));
-    const formattedPercent = percentChange.toFixed(2);
+    const formattedPercent = Math.abs(percentChange).toFixed(2);
     const className = dollarChange >= 0 ? 'price-change-positive' : 'price-change-negative';
-    const sign = dollarChange >= 0 ? '+' : '-';
     const dollarSign = dollarChange >= 0 ? '$' : '-$';
+    const percentSign = percentChange >= 0 ? '+' : '-';
     
-    return `<span class="${className}">${dollarSign}${formattedDollar} (${sign}${formattedPercent}%)</span>`;
+    return `<span class="${className}">${dollarSign}${formattedDollar} (${percentSign}${formattedPercent}%)</span>`;
 }
 
 let tradingViewWidget = null;
