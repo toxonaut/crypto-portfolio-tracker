@@ -12,12 +12,13 @@ function formatPriceChange(change) {
 }
 
 function formatValueChange(dollarChange, percentChange) {
-    const formattedDollar = Math.abs(dollarChange) < 1 ? dollarChange.toFixed(2) : Math.round(dollarChange);
+    const formattedDollar = Math.abs(dollarChange) < 1 ? Math.abs(dollarChange).toFixed(2) : Math.round(Math.abs(dollarChange));
     const formattedPercent = percentChange.toFixed(2);
     const className = dollarChange >= 0 ? 'price-change-positive' : 'price-change-negative';
-    const sign = dollarChange >= 0 ? '+' : '';
+    const sign = dollarChange >= 0 ? '+' : '-';
+    const dollarSign = dollarChange >= 0 ? '$' : '-$';
     
-    return `<span class="${className}">$${sign}${formattedDollar} (${sign}${formattedPercent}%)</span>`;
+    return `<span class="${className}">${dollarSign}${formattedDollar} (${sign}${formattedPercent}%)</span>`;
 }
 
 let tradingViewWidget = null;
@@ -30,7 +31,7 @@ function createTradingViewWidget(symbol) {
     tradingViewWidget = new TradingView.widget({
         "width": "100%",
         "height": 500,
-        "symbol": `BINANCE:${symbol}`,
+        "symbol": `${symbol}`,
         "interval": "D",
         "timezone": "Etc/UTC",
         "theme": "dark",

@@ -126,14 +126,12 @@
                 <div class="mt-3 text-center">
                     <button id="toggleDemoButton" class="btn btn-secondary me-2">Toggle Demo Mode</button>
                     <button id="addHistoryButton" class="btn btn-primary me-2">Add History</button>
-                    <button id="checkHistoryButton" class="btn btn-info">Check History Status</button>
+                    <button id="checkHistoryButton" class="btn btn-info me-2">Check History Status</button>
+                    <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-primary">Coins</a>
                     <div id="demoModeStatus" class="alert alert-warning mt-2" style="display: none;">
                         Demo Mode Active: All values are divided by 15
                     </div>
                     <div id="historyStatus" class="alert alert-info mt-2" style="display: none;"></div>
-                </div>
-                <div>
-                    <a href="https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en" target="_blank" class="btn btn-sm btn-primary">Coins</a>
                 </div>
             </div>
         </div>
