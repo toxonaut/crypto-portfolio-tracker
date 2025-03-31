@@ -192,12 +192,12 @@ async function updateHistoryChart() {
 
 async function updatePortfolio() {
     try {
-        console.log('Fetching portfolio data...');
+        console.log('Updating portfolio...');
         const response = await fetch('/portfolio');
         const data = await response.json();
         
         if (!data.success) {
-            console.error('Error fetching portfolio data:', data.error);
+            console.error('Portfolio data error:', data.error);
             return;
         }
         
@@ -254,40 +254,31 @@ async function updatePortfolio() {
             totalBalanceCell.textContent = totalAmount.toFixed(8);
             
             const priceCell = document.createElement('td');
-            priceCell.textContent = `$${details.price.toFixed(2)}`;
+            priceCell.textContent = '$' + details.price.toFixed(2);
             
             const hourlyChangeCell = document.createElement('td');
-            hourlyChangeCell.textContent = details.hourly_change ? `${details.hourly_change.toFixed(2)}%` : 'N/A';
-            if (details.hourly_change > 0) {
-                hourlyChangeCell.className = 'text-success';
-            } else if (details.hourly_change < 0) {
-                hourlyChangeCell.className = 'text-danger';
-            }
+            hourlyChangeCell.innerHTML = formatPriceChange(details.hourly_change);
             
             const dailyChangeCell = document.createElement('td');
-            dailyChangeCell.textContent = details.daily_change ? `${details.daily_change.toFixed(2)}%` : 'N/A';
-            if (details.daily_change > 0) {
-                dailyChangeCell.className = 'text-success';
-            } else if (details.daily_change < 0) {
-                dailyChangeCell.className = 'text-danger';
-            }
+            dailyChangeCell.innerHTML = formatPriceChange(details.daily_change);
             
             const weeklyChangeCell = document.createElement('td');
-            weeklyChangeCell.textContent = details.seven_day_change ? `${details.seven_day_change.toFixed(2)}%` : 'N/A';
-            if (details.seven_day_change > 0) {
-                weeklyChangeCell.className = 'text-success';
-            } else if (details.seven_day_change < 0) {
-                weeklyChangeCell.className = 'text-danger';
-            }
+            weeklyChangeCell.innerHTML = formatPriceChange(details.seven_day_change);
             
             const valueCell = document.createElement('td');
-            let totalValue = details.total_value;
+            let value = details.total_value;
             if (isDemoMode) {
-                totalValue = totalValue / 15;
+                value = value / 15;
             }
-            valueCell.textContent = `$${totalValue.toFixed(2)}`;
+            valueCell.textContent = '$' + value.toFixed(2);
             
-            // Add all cells to the row
+            // Add monthly yield calculation
+            if (details.apy) {
+                const monthlyYield = (details.total_value * details.apy / 100) / 12;
+                totalMonthlyYield += monthlyYield;
+            }
+            
+            // Append all cells to the row
             row.appendChild(coinCell);
             row.appendChild(totalBalanceCell);
             row.appendChild(priceCell);
@@ -296,49 +287,40 @@ async function updatePortfolio() {
             row.appendChild(weeklyChangeCell);
             row.appendChild(valueCell);
             
+            // Add the row to the table
             portfolioTable.appendChild(row);
-            
-            // Add to monthly yield
-            totalMonthlyYield += details.monthly_yield || 0;
         }
         
-        console.log('Updating total value...');
+        // Update total value
         const totalValueElement = document.getElementById('totalValue');
-        if (totalValueElement) {
-            // Apply demo mode division if active
-            let totalValue = data.total_value;
-            if (isDemoMode) {
-                totalValue = totalValue / 15;
-            }
-            totalValueElement.textContent = totalValue.toFixed(0);
-            
-            // Update BTC value
-            const btcValueElement = document.getElementById('btcValue');
-            if (btcValueElement && bitcoinPrice > 0) {
-                const btcValue = totalValue / bitcoinPrice;
-                btcValueElement.textContent = btcValue.toFixed(2);
-            } else if (btcValueElement) {
-                btcValueElement.textContent = "N/A";
-            }
+        let totalValue = data.total_value;
+        if (isDemoMode) {
+            totalValue = totalValue / 15;
+        }
+        totalValueElement.textContent = totalValue.toFixed(2);
+        
+        // Update BTC value
+        const btcValueElement = document.getElementById('btcValue');
+        if (bitcoinPrice > 0) {
+            const btcValue = totalValue / bitcoinPrice;
+            btcValueElement.textContent = btcValue.toFixed(8);
         } else {
-            console.error('Could not find totalValue element');
+            btcValueElement.textContent = '0.00';
         }
         
-        console.log('Updating monthly yield...');
+        // Update monthly yield
         const monthlyYieldElement = document.getElementById('monthlyYield');
-        if (monthlyYieldElement) {
-            // Apply demo mode division if active
-            if (isDemoMode) {
-                totalMonthlyYield = totalMonthlyYield / 15;
-            }
-            monthlyYieldElement.textContent = totalMonthlyYield.toFixed(2);
-        } else {
-            console.error('Could not find monthlyYield element');
+        if (isDemoMode) {
+            totalMonthlyYield = totalMonthlyYield / 15;
         }
+        monthlyYieldElement.textContent = totalMonthlyYield.toFixed(2);
         
         // Update history chart
         console.log('Updating history chart...');
         await updateHistoryChart();
+        
+        // Update historical changes
+        updateHistoricalChanges();
         
         console.log('Portfolio update complete');
     } catch (error) {
@@ -362,6 +344,81 @@ function toggleDemoMode() {
     
     // Update the portfolio with the new mode
     updatePortfolio();
+}
+
+// Calculate historical changes based on history data
+function calculateHistoricalChanges() {
+    if (!historyData || historyData.length === 0) {
+        return {
+            change24h: 0,
+            change7d: 0,
+            change30d: 0
+        };
+    }
+
+    // Sort history data by date (newest first)
+    const sortedData = [...historyData].sort((a, b) => {
+        return new Date(b.datetime) - new Date(a.datetime);
+    });
+
+    // Get current value (most recent entry)
+    const currentValue = sortedData[0].total_value;
+    
+    // Find values from 24h ago, 7d ago, and 30d ago
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    let value24hAgo = null;
+    let value7dAgo = null;
+    let value30dAgo = null;
+    
+    // Find the closest data points to our target times
+    for (const entry of sortedData) {
+        const entryDate = new Date(entry.datetime);
+        
+        // For 24h
+        if (value24hAgo === null && entryDate <= oneDayAgo) {
+            value24hAgo = entry.total_value;
+        }
+        
+        // For 7d
+        if (value7dAgo === null && entryDate <= sevenDaysAgo) {
+            value7dAgo = entry.total_value;
+        }
+        
+        // For 30d
+        if (value30dAgo === null && entryDate <= thirtyDaysAgo) {
+            value30dAgo = entry.total_value;
+        }
+        
+        // If we found all values, we can stop
+        if (value24hAgo !== null && value7dAgo !== null && value30dAgo !== null) {
+            break;
+        }
+    }
+    
+    // Calculate percentage changes
+    const change24h = value24hAgo ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
+    const change7d = value7dAgo ? ((currentValue - value7dAgo) / value7dAgo) * 100 : 0;
+    const change30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
+    
+    return {
+        change24h,
+        change7d,
+        change30d
+    };
+}
+
+// Update the historical changes display
+function updateHistoricalChanges() {
+    const changes = calculateHistoricalChanges();
+    
+    // Update the UI
+    document.getElementById('change24h').innerHTML = formatPriceChange(changes.change24h);
+    document.getElementById('change7d').innerHTML = formatPriceChange(changes.change7d);
+    document.getElementById('change30d').innerHTML = formatPriceChange(changes.change30d);
 }
 
 // Wait for DOM to be fully loaded
