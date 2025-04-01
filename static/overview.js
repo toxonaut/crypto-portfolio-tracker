@@ -74,6 +74,9 @@ async function updateHistoryChart() {
         // Store the full history data
         historyData = data.data;
         
+        // Update historical changes immediately after getting new data
+        updateHistoricalChanges();
+        
         // Filter data based on selected date range
         let filteredData = historyData;
         if (currentDateRange !== 'all') {
@@ -406,6 +409,19 @@ function calculateHistoricalChanges() {
         }
     }
     
+    // If we couldn't find historical values, use the oldest available data point
+    if (value24hAgo === null && sortedData.length > 1) {
+        value24hAgo = sortedData[sortedData.length - 1].total_value;
+    }
+    
+    if (value7dAgo === null && sortedData.length > 1) {
+        value7dAgo = sortedData[sortedData.length - 1].total_value;
+    }
+    
+    if (value30dAgo === null && sortedData.length > 1) {
+        value30dAgo = sortedData[sortedData.length - 1].total_value;
+    }
+    
     // Calculate dollar and percentage changes
     const dollarChange24h = value24hAgo ? (currentValue - value24hAgo) : 0;
     const percentChange24h = value24hAgo ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
@@ -415,6 +431,12 @@ function calculateHistoricalChanges() {
     
     const dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
     const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
+    
+    console.log('Historical changes calculation:');
+    console.log('Current value:', currentValue);
+    console.log('24h ago:', value24hAgo, 'Change:', dollarChange24h, 'Percent:', percentChange24h);
+    console.log('7d ago:', value7dAgo, 'Change:', dollarChange7d, 'Percent:', percentChange7d);
+    console.log('30d ago:', value30dAgo, 'Change:', dollarChange30d, 'Percent:', percentChange30d);
     
     // Apply demo mode scaling to dollar values if needed
     let scaledDollarChange24h = dollarChange24h;
