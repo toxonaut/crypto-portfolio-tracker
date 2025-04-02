@@ -11,14 +11,16 @@ function formatPriceChange(change) {
     return `<span class="${className}">${sign}${formattedChange}%</span>`;
 }
 
-function formatValueChange(dollarChange, percentChange) {
+function formatValueChange(dollarChange, percentChange, historicalValue) {
     const formattedDollar = Math.abs(dollarChange) < 1 ? Math.abs(dollarChange).toFixed(2) : Math.round(Math.abs(dollarChange));
     const formattedPercent = Math.abs(percentChange).toFixed(2);
+    const formattedHistorical = historicalValue ? Math.round(historicalValue) : 0;
+    
     const className = dollarChange >= 0 ? 'price-change-positive' : 'price-change-negative';
     const dollarSign = dollarChange >= 0 ? '$' : '-$';
     const percentSign = percentChange >= 0 ? '+' : '-';
     
-    return `<span class="${className}">${dollarSign}${formattedDollar} (${percentSign}${formattedPercent}%)</span>`;
+    return `<span class="${className}">${dollarSign}${formattedDollar} (${percentSign}${formattedPercent}%) [from $${formattedHistorical}]</span>`;
 }
 
 let tradingViewWidget = null;
@@ -456,9 +458,9 @@ function calculateHistoricalChanges() {
     console.log('30d ago:', value30dAgo, 'Change:', dollarChange30d, 'Percent:', percentChange30d);
     
     return {
-        change24h: { value: dollarChange24h, percent: percentChange24h },
-        change7d: { value: dollarChange7d, percent: percentChange7d },
-        change30d: { value: dollarChange30d, percent: percentChange30d }
+        change24h: { value: dollarChange24h, percent: percentChange24h, historicalValue: value24hAgo },
+        change7d: { value: dollarChange7d, percent: percentChange7d, historicalValue: value7dAgo },
+        change30d: { value: dollarChange30d, percent: percentChange30d, historicalValue: value30dAgo }
     };
 }
 
@@ -467,9 +469,9 @@ function updateHistoricalChanges() {
     const changes = calculateHistoricalChanges();
     
     // Update the UI
-    document.getElementById('change24h').innerHTML = formatValueChange(changes.change24h.value, changes.change24h.percent);
-    document.getElementById('change7d').innerHTML = formatValueChange(changes.change7d.value, changes.change7d.percent);
-    document.getElementById('change30d').innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent);
+    document.getElementById('change24h').innerHTML = formatValueChange(changes.change24h.value, changes.change24h.percent, changes.change24h.historicalValue);
+    document.getElementById('change7d').innerHTML = formatValueChange(changes.change7d.value, changes.change7d.percent, changes.change7d.historicalValue);
+    document.getElementById('change30d').innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent, changes.change30d.historicalValue);
 }
 
 // Wait for DOM to be fully loaded
