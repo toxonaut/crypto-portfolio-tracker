@@ -366,13 +366,23 @@ function calculateHistoricalChanges() {
         };
     }
 
+    // Get current portfolio value from the UI
+    const totalValueElement = document.getElementById('totalValue');
+    const currentValue = parseFloat(totalValueElement.textContent);
+    
+    if (isNaN(currentValue)) {
+        console.error('Current portfolio value is not a valid number');
+        return {
+            change24h: { value: 0, percent: 0 },
+            change7d: { value: 0, percent: 0 },
+            change30d: { value: 0, percent: 0 }
+        };
+    }
+
     // Sort history data by date (newest first)
     const sortedData = [...historyData].sort((a, b) => {
         return new Date(b.datetime) - new Date(a.datetime);
     });
-
-    // Get current value (most recent entry)
-    let currentValue = sortedData[0].total_value;
     
     // Find values from 24h ago, 7d ago, and 30d ago
     const now = new Date();
@@ -422,6 +432,13 @@ function calculateHistoricalChanges() {
         value30dAgo = sortedData[sortedData.length - 1].total_value;
     }
     
+    // Apply demo mode scaling to historical values if needed
+    if (isDemoMode) {
+        if (value24hAgo !== null) value24hAgo = value24hAgo / 15;
+        if (value7dAgo !== null) value7dAgo = value7dAgo / 15;
+        if (value30dAgo !== null) value30dAgo = value30dAgo / 15;
+    }
+    
     // Calculate dollar and percentage changes
     const dollarChange24h = value24hAgo ? (currentValue - value24hAgo) : 0;
     const percentChange24h = value24hAgo ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
@@ -433,26 +450,15 @@ function calculateHistoricalChanges() {
     const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
     
     console.log('Historical changes calculation:');
-    console.log('Current value:', currentValue);
+    console.log('Current value from UI:', currentValue);
     console.log('24h ago:', value24hAgo, 'Change:', dollarChange24h, 'Percent:', percentChange24h);
     console.log('7d ago:', value7dAgo, 'Change:', dollarChange7d, 'Percent:', percentChange7d);
     console.log('30d ago:', value30dAgo, 'Change:', dollarChange30d, 'Percent:', percentChange30d);
     
-    // Apply demo mode scaling to dollar values if needed
-    let scaledDollarChange24h = dollarChange24h;
-    let scaledDollarChange7d = dollarChange7d;
-    let scaledDollarChange30d = dollarChange30d;
-    
-    if (isDemoMode) {
-        scaledDollarChange24h = dollarChange24h / 15;
-        scaledDollarChange7d = dollarChange7d / 15;
-        scaledDollarChange30d = dollarChange30d / 15;
-    }
-    
     return {
-        change24h: { value: scaledDollarChange24h, percent: percentChange24h },
-        change7d: { value: scaledDollarChange7d, percent: percentChange7d },
-        change30d: { value: scaledDollarChange30d, percent: percentChange30d }
+        change24h: { value: dollarChange24h, percent: percentChange24h },
+        change7d: { value: dollarChange7d, percent: percentChange7d },
+        change30d: { value: dollarChange30d, percent: percentChange30d }
     };
 }
 
