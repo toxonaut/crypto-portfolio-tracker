@@ -173,9 +173,20 @@ async function updateHistoryChart() {
                                 const date = rawDates[index];
                                 const day = date.getDate();
                                 const month = date.toLocaleString('en-US', { month: 'short' });
+                                const year = date.getFullYear();
                                 
-                                // Show month name for the 1st day of the month
-                                if (day === 1) {
+                                // Check if this is the first entry for this month in our dataset
+                                let isFirstOfMonth = false;
+                                if (index === 0) {
+                                    isFirstOfMonth = true;
+                                } else {
+                                    const prevDate = rawDates[index - 1];
+                                    isFirstOfMonth = (prevDate.getMonth() !== date.getMonth() || 
+                                                     prevDate.getFullYear() !== date.getFullYear());
+                                }
+                                
+                                // Show month name if this is the first entry for this month
+                                if (isFirstOfMonth) {
                                     return month;
                                 }
                                 
