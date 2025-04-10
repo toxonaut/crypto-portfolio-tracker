@@ -91,6 +91,10 @@ async function updateHistoryChart() {
             });
         }
         
+        // Store raw dates for chart formatting
+        const rawDates = filteredData.map(item => new Date(item.datetime));
+        
+        // Format labels for display
         const labels = filteredData.map(item => {
             const date = new Date(item.datetime);
             return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -163,8 +167,10 @@ async function updateHistoryChart() {
                         ticks: {
                             maxRotation: 45,
                             minRotation: 45,
-                            callback: function(value, index, ticks) {
-                                const date = new Date(filteredData[index].datetime);
+                            callback: function(value, index) {
+                                if (index >= rawDates.length) return '';
+                                
+                                const date = rawDates[index];
                                 const day = date.getDate();
                                 const month = date.toLocaleString('en-US', { month: 'short' });
                                 
@@ -173,11 +179,13 @@ async function updateHistoryChart() {
                                     return month;
                                 }
                                 
-                                // Show day numbers at regular intervals, more frequent for shorter ranges
-                                if (filteredData.length <= 14) {
+                                // Show day numbers at regular intervals based on data density
+                                const totalDays = filteredData.length;
+                                
+                                if (totalDays <= 14) {
                                     // For short ranges (2 weeks or less), show every other day
                                     return day % 2 === 0 ? day : '';
-                                } else if (filteredData.length <= 31) {
+                                } else if (totalDays <= 31) {
                                     // For medium ranges (month), show every 5th day
                                     return day % 5 === 0 ? day : '';
                                 } else {
