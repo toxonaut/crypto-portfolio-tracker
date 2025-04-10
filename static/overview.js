@@ -162,7 +162,29 @@ async function updateHistoryChart() {
                     x: {
                         ticks: {
                             maxRotation: 45,
-                            minRotation: 45
+                            minRotation: 45,
+                            callback: function(value, index, ticks) {
+                                const date = new Date(filteredData[index].datetime);
+                                const day = date.getDate();
+                                const month = date.toLocaleString('en-US', { month: 'short' });
+                                
+                                // Show month name for the 1st day of the month
+                                if (day === 1) {
+                                    return month;
+                                }
+                                
+                                // Show day numbers at regular intervals, more frequent for shorter ranges
+                                if (filteredData.length <= 14) {
+                                    // For short ranges (2 weeks or less), show every other day
+                                    return day % 2 === 0 ? day : '';
+                                } else if (filteredData.length <= 31) {
+                                    // For medium ranges (month), show every 5th day
+                                    return day % 5 === 0 ? day : '';
+                                } else {
+                                    // For longer ranges, show every 10th day
+                                    return day % 10 === 0 ? day : '';
+                                }
+                            }
                         }
                     },
                     y: {
