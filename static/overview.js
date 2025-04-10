@@ -173,36 +173,23 @@ async function updateHistoryChart() {
                                 const date = rawDates[index];
                                 const day = date.getDate();
                                 const month = date.toLocaleString('en-US', { month: 'short' });
-                                const year = date.getFullYear();
                                 
-                                // Check if this is the first entry for this month in our dataset
-                                let isFirstOfMonth = false;
-                                if (index === 0) {
-                                    isFirstOfMonth = true;
-                                } else {
-                                    const prevDate = rawDates[index - 1];
-                                    isFirstOfMonth = (prevDate.getMonth() !== date.getMonth() || 
-                                                     prevDate.getFullYear() !== date.getFullYear());
-                                }
-                                
-                                // Show month name if this is the first entry for this month
-                                if (isFirstOfMonth) {
+                                // Show month name at the start of each month (day 1)
+                                if (day === 1) {
                                     return month;
                                 }
                                 
-                                // Show day numbers at regular intervals based on data density
-                                const totalDays = filteredData.length;
-                                
-                                if (totalDays <= 14) {
-                                    // For short ranges (2 weeks or less), show every other day
-                                    return day % 2 === 0 ? day : '';
-                                } else if (totalDays <= 31) {
-                                    // For medium ranges (month), show every 5th day
-                                    return day % 5 === 0 ? day : '';
-                                } else {
-                                    // For longer ranges, show every 10th day
-                                    return day % 10 === 0 ? day : '';
+                                // Show 10th and 20th of each month
+                                if (day === 10 || day === 20) {
+                                    return day;
                                 }
+                                
+                                // For shorter ranges, also show 5th, 15th, 25th
+                                if (filteredData.length <= 60 && (day === 5 || day === 15 || day === 25)) {
+                                    return day;
+                                }
+                                
+                                return '';
                             }
                         }
                     },
