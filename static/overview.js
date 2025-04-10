@@ -167,6 +167,7 @@ async function updateHistoryChart() {
                         ticks: {
                             maxRotation: 45,
                             minRotation: 45,
+                            autoSkip: false, // Prevent Chart.js from automatically skipping labels
                             callback: function(value, index) {
                                 if (index >= rawDates.length) return '';
                                 
