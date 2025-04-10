@@ -173,27 +173,56 @@ async function updateHistoryChart() {
                                 
                                 const date = rawDates[index];
                                 const day = date.getDate();
-                                const month = date.toLocaleString('en-US', { month: 'short' });
+                                const month = date.getMonth();
+                                const year = date.getFullYear();
+                                const monthName = date.toLocaleString('en-US', { month: 'short' });
                                 
                                 // Show month name for the first entry of each month
                                 if (index === 0) {
-                                    return month;
+                                    return monthName;
                                 } else {
                                     const prevDate = rawDates[index - 1];
-                                    if (prevDate.getMonth() !== date.getMonth() || 
-                                        prevDate.getFullYear() !== date.getFullYear()) {
-                                        return month;
+                                    if (prevDate.getMonth() !== month || 
+                                        prevDate.getFullYear() !== year) {
+                                        return monthName;
                                     }
                                 }
                                 
-                                // Show 10th and 20th of each month
+                                // For day numbers, check if this is the first occurrence of this day in this month
                                 if (day === 10 || day === 20) {
-                                    return day;
+                                    // Check previous entries in this month to see if we've already shown this day number
+                                    let isFirstOccurrence = true;
+                                    for (let i = 0; i < index; i++) {
+                                        const prevDate = rawDates[i];
+                                        if (prevDate.getDate() === day && 
+                                            prevDate.getMonth() === month && 
+                                            prevDate.getFullYear() === year) {
+                                            isFirstOccurrence = false;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (isFirstOccurrence) {
+                                        return day;
+                                    }
                                 }
                                 
-                                // For shorter ranges, also show 5th, 15th, 25th
+                                // For shorter ranges, also show 5th, 15th, 25th (with same first-occurrence check)
                                 if (filteredData.length <= 60 && (day === 5 || day === 15 || day === 25)) {
-                                    return day;
+                                    let isFirstOccurrence = true;
+                                    for (let i = 0; i < index; i++) {
+                                        const prevDate = rawDates[i];
+                                        if (prevDate.getDate() === day && 
+                                            prevDate.getMonth() === month && 
+                                            prevDate.getFullYear() === year) {
+                                            isFirstOccurrence = false;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (isFirstOccurrence) {
+                                        return day;
+                                    }
                                 }
                                 
                                 return '';
