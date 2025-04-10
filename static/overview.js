@@ -174,9 +174,15 @@ async function updateHistoryChart() {
                                 const day = date.getDate();
                                 const month = date.toLocaleString('en-US', { month: 'short' });
                                 
-                                // Show month name at the start of each month (day 1)
-                                if (day === 1) {
+                                // Show month name for the first entry of each month
+                                if (index === 0) {
                                     return month;
+                                } else {
+                                    const prevDate = rawDates[index - 1];
+                                    if (prevDate.getMonth() !== date.getMonth() || 
+                                        prevDate.getFullYear() !== date.getFullYear()) {
+                                        return month;
+                                    }
                                 }
                                 
                                 // Show 10th and 20th of each month
