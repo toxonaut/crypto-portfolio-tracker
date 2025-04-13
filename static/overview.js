@@ -1,13 +1,17 @@
+// Global variables
+let historyData = [];
 let historyChart = null;
-let isDemoMode = false; // Track demo mode state
-let isLogScale = false; // Track logarithmic scale state
-let currentDateRange = '180'; // Default to 6 months
-let historyData = []; // Store the full history data
+let tradingViewWidget = null;
+let currentDateRange = '90'; // Default to 3 months
+let isLogScale = false;
+let isDemoMode = false;
 
+// Format price change percentage
 function formatPriceChange(change) {
-    const formattedChange = change.toFixed(2);
+    const formattedChange = Math.abs(change).toFixed(2);
+    const sign = change >= 0 ? '+' : '-';
     const className = change >= 0 ? 'price-change-positive' : 'price-change-negative';
-    const sign = change >= 0 ? '+' : '';
+    
     return `<span class="${className}">${sign}${formattedChange}%</span>`;
 }
 
@@ -21,8 +25,6 @@ function formatValueChange(dollarChange, percentChange, historicalValue) {
     
     return `<span class="${className}">${dollarSign}${formattedDollar} (${percentSign}${formattedPercent}%)</span>`;
 }
-
-let tradingViewWidget = null;
 
 function createTradingViewWidget(symbol) {
     if (tradingViewWidget) {
@@ -75,11 +77,14 @@ async function updateHistoryChart() {
         // Store the full history data
         historyData = data.data;
         console.log('History data stored:', historyData.length, 'entries');
+        
+        if (historyData.length === 0) {
+            console.warn('No history data available');
+            return;
+        }
+        
         console.log('First entry:', historyData[0]);
         console.log('Last entry:', historyData[historyData.length - 1]);
-        
-        // Update historical changes immediately after getting new data
-        updateHistoricalChanges();
         
         // Filter data based on selected date range
         let filteredData = historyData;
@@ -121,11 +126,18 @@ async function updateHistoryChart() {
             return value;
         });
         
+        // Check if the chart canvas exists
+        const chartCanvas = document.getElementById('historyChart');
+        if (!chartCanvas) {
+            console.warn('History chart canvas not found');
+            return;
+        }
+        
         if (historyChart) {
             historyChart.destroy();
         }
         
-        const ctx = document.getElementById('historyChart').getContext('2d');
+        const ctx = chartCanvas.getContext('2d');
         historyChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -266,8 +278,14 @@ async function updateHistoryChart() {
                 }
             }
         });
+        
+        // Update historical changes after chart is updated
+        updateHistoricalChanges();
+        
+        return true;
     } catch (error) {
         console.error('Error updating history chart:', error);
+        return false;
     }
 }
 
@@ -427,7 +445,6 @@ function toggleDemoMode() {
 // Calculate historical changes based on history data
 function calculateHistoricalChanges() {
     console.log('Calculating historical changes...');
-    console.log('History data available:', historyData ? historyData.length : 0, 'entries');
     
     if (!historyData || historyData.length === 0) {
         console.error('No history data available for calculating changes');
@@ -437,26 +454,37 @@ function calculateHistoricalChanges() {
             change30d: { value: 0, percent: 0 }
         };
     }
-
-    // Get the current value from the UI
-    const totalValueElement = document.getElementById('totalValue');
-    let currentValue = parseFloat(totalValueElement.textContent || totalValueElement.innerText);
     
-    console.log('Current value from UI:', currentValue);
-    if (isNaN(currentValue) || currentValue === 0) {
-        console.error('Invalid current value:', totalValueElement.innerText);
+    console.log('History data available:', historyData.length, 'entries');
+    
+    // Get the current value from the portfolio data
+    let currentValue = 0;
+    
+    // Try to get current value from UI
+    const totalValueElement = document.getElementById('totalValue');
+    if (totalValueElement) {
+        const uiValue = parseFloat(totalValueElement.textContent || totalValueElement.innerText);
+        if (!isNaN(uiValue) && uiValue > 0) {
+            currentValue = uiValue;
+            console.log('Using current value from UI:', currentValue);
+        }
+    }
+    
+    // If we couldn't get a valid value from the UI, use the most recent history entry
+    if (currentValue === 0) {
+        // Sort by date (newest first)
+        const sortedForValue = [...historyData].sort((a, b) => {
+            return new Date(b.datetime) - new Date(a.datetime);
+        });
         
-        // Fallback: If we can't get the value from the UI, use the most recent history entry
-        if (historyData.length > 0) {
-            const sortedForValue = [...historyData].sort((a, b) => {
-                return new Date(b.datetime) - new Date(a.datetime);
-            });
+        if (sortedForValue.length > 0) {
             currentValue = sortedForValue[0].total_value;
             if (isDemoMode) {
                 currentValue = currentValue / 15;
             }
-            console.log('Using fallback current value from history:', currentValue);
+            console.log('Using current value from history:', currentValue);
         } else {
+            console.error('No valid current value available');
             return {
                 change24h: { value: 0, percent: 0 },
                 change7d: { value: 0, percent: 0 },
@@ -464,7 +492,7 @@ function calculateHistoricalChanges() {
             };
         }
     }
-    
+
     // Sort history data by date (newest first)
     const sortedData = [...historyData].sort((a, b) => {
         return new Date(b.datetime) - new Date(a.datetime);
@@ -536,7 +564,7 @@ function calculateHistoricalChanges() {
     const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
     
     console.log('Historical changes calculation:');
-    console.log('Current value from UI:', currentValue);
+    console.log('Current value:', currentValue);
     console.log('24h ago:', value24hAgo, 'Change:', dollarChange24h, 'Percent:', percentChange24h);
     console.log('7d ago:', value7dAgo, 'Change:', dollarChange7d, 'Percent:', percentChange7d);
     console.log('30d ago:', value30dAgo, 'Change:', dollarChange30d, 'Percent:', percentChange30d);
@@ -552,10 +580,23 @@ function calculateHistoricalChanges() {
 function updateHistoricalChanges() {
     const changes = calculateHistoricalChanges();
     
-    // Update the UI
-    document.getElementById('change24h').innerHTML = formatValueChange(changes.change24h.value, changes.change24h.percent);
-    document.getElementById('change7d').innerHTML = formatValueChange(changes.change7d.value, changes.change7d.percent);
-    document.getElementById('change30d').innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent);
+    // Find all elements that need to be updated
+    const change24hElements = document.querySelectorAll('#change24h');
+    const change7dElements = document.querySelectorAll('#change7d');
+    const change30dElements = document.querySelectorAll('#change30d');
+    
+    // Update all instances of each element
+    change24hElements.forEach(element => {
+        element.innerHTML = formatValueChange(changes.change24h.value, changes.change24h.percent);
+    });
+    
+    change7dElements.forEach(element => {
+        element.innerHTML = formatValueChange(changes.change7d.value, changes.change7d.percent);
+    });
+    
+    change30dElements.forEach(element => {
+        element.innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent);
+    });
 }
 
 // Wait for DOM to be fully loaded
@@ -566,149 +607,144 @@ document.addEventListener('DOMContentLoaded', async function() {
     const isStatisticsPage = window.location.pathname === '/statistics';
     console.log('Current page:', isStatisticsPage ? 'Statistics' : 'Overview');
     
-    // Initialize with default pair (only on overview page)
-    if (!isStatisticsPage) {
-        createTradingViewWidget('BTCUSD');
-        initializePairSelection();
-    }
-    
-    // Initial portfolio update
-    console.log('Loading portfolio data...');
-    await updatePortfolio();
-    console.log('Portfolio data loaded');
-    
-    // Ensure history data is loaded for historical changes
-    console.log('Checking history data...');
-    if (!historyData || historyData.length === 0) {
-        console.log('No history data found, loading now...');
-        await updateHistoryChart();
-        console.log('History data loaded:', historyData ? historyData.length : 0, 'entries');
-    } else {
-        console.log('History data already loaded:', historyData.length, 'entries');
-    }
-    
-    // Update historical changes
-    console.log('Updating historical changes...');
-    updateHistoricalChanges();
-    console.log('Initialization complete');
-    
-    // Set up auto-refresh
-    setInterval(updatePortfolio, 60000); // Refresh every minute
-    
-    // Add event listener for demo mode toggle
-    const toggleDemoButton = document.getElementById('toggleDemoButton');
-    if (toggleDemoButton) {
-        toggleDemoButton.addEventListener('click', toggleDemoMode);
-    }
-    
-    // Add event listener for add history button
-    const addHistoryButton = document.getElementById('addHistoryButton');
-    if (addHistoryButton) {
-        addHistoryButton.addEventListener('click', async function() {
-            try {
-                const response = await fetch('/add_history', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        total_value: parseFloat(document.getElementById('totalValue').innerText)
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    alert('History entry added successfully!');
+    try {
+        // Initialize TradingView widget only on the main page
+        if (!isStatisticsPage) {
+            createTradingViewWidget('BTCUSD');
+            initializePairSelection();
+        }
+        
+        // First, load the history data
+        console.log('Loading history data first...');
+        const historyLoaded = await updateHistoryChart();
+        console.log('History data loaded:', historyLoaded);
+        
+        // Then, load the portfolio data
+        console.log('Loading portfolio data...');
+        await updatePortfolio();
+        console.log('Portfolio data loaded');
+        
+        // Update historical changes explicitly
+        console.log('Explicitly updating historical changes...');
+        updateHistoricalChanges();
+        
+        console.log('Initialization complete');
+        
+        // Set up event listeners for date range buttons
+        const dateRangeButtons = document.querySelectorAll('[data-range]');
+        if (dateRangeButtons.length > 0) {
+            dateRangeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons
+                    dateRangeButtons.forEach(btn => btn.classList.remove('active'));
+                    // Add active class to clicked button
+                    this.classList.add('active');
+                    // Update date range and refresh chart
+                    currentDateRange = this.dataset.range;
                     updateHistoryChart();
-                } else {
-                    alert('Failed to add history entry: ' + data.error);
-                }
-            } catch (error) {
-                console.error('Error adding history:', error);
-                alert('Error adding history: ' + error.message);
-            }
-        });
-    }
-    
-    // Add event listener for logarithmic scale toggle
-    const logScaleToggle = document.getElementById('logScaleToggle');
-    if (logScaleToggle) {
-        logScaleToggle.addEventListener('change', function() {
-            isLogScale = this.checked;
-            updateHistoryChart();
-        });
-    }
-    
-    // Add event listeners for date range buttons
-    const dateRangeButtons = document.querySelectorAll('.date-range-btn');
-    if (dateRangeButtons.length > 0) {
-        dateRangeButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                // Remove active class from all buttons
-                dateRangeButtons.forEach(btn => btn.classList.remove('active'));
-                // Add active class to clicked button
-                this.classList.add('active');
-                // Update date range and refresh chart
-                currentDateRange = this.dataset.range;
+                });
+            });
+        }
+        
+        // Set up log scale switch
+        const logScaleSwitch = document.getElementById('logScaleSwitch');
+        if (logScaleSwitch) {
+            logScaleSwitch.addEventListener('change', function() {
+                isLogScale = this.checked;
                 updateHistoryChart();
             });
-        });
-    }
-    
-    // Set up check history status button
-    const checkHistoryButton = document.getElementById('checkHistoryButton');
-    if (checkHistoryButton) {
-        checkHistoryButton.addEventListener('click', async function() {
-            try {
-                const historyStatusElement = document.getElementById('historyStatus');
-                historyStatusElement.style.display = 'block';
-                historyStatusElement.textContent = 'Checking history status...';
-                
-                // Fetch history data
-                const response = await fetch('/history');
-                const data = await response.json();
-                
-                if (!data.success) {
-                    historyStatusElement.textContent = 'Failed to get history data: ' + data.error;
-                    return;
+        }
+        
+        // Add event listener for demo mode toggle
+        const toggleDemoModeBtn = document.getElementById('toggleDemoModeBtn');
+        if (toggleDemoModeBtn) {
+            toggleDemoModeBtn.addEventListener('click', toggleDemoMode);
+        }
+        
+        // Add event listener for add history button
+        const addHistoryBtn = document.getElementById('addHistoryBtn');
+        if (addHistoryBtn) {
+            addHistoryBtn.addEventListener('click', async function() {
+                try {
+                    const response = await fetch('/add_history', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            total_value: parseFloat(document.getElementById('totalValue').innerText)
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        alert('History entry added successfully!');
+                        updateHistoryChart();
+                    } else {
+                        alert('Failed to add history entry: ' + data.error);
+                    }
+                } catch (error) {
+                    console.error('Error adding history:', error);
+                    alert('Error adding history: ' + error.message);
                 }
-                
-                // Get the most recent entries
-                const entries = data.data;
-                
-                if (entries.length === 0) {
-                    historyStatusElement.textContent = 'No history entries found in the database.';
-                    return;
+            });
+        }
+        
+        // Add event listener for check history button
+        const checkHistoryBtn = document.getElementById('checkHistoryBtn');
+        if (checkHistoryBtn) {
+            checkHistoryBtn.addEventListener('click', async function() {
+                try {
+                    // Fetch history data
+                    const response = await fetch('/history');
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        alert('Failed to get history data: ' + data.error);
+                        return;
+                    }
+                    
+                    // Get the most recent entries
+                    const entries = data.data;
+                    
+                    if (entries.length === 0) {
+                        alert('No history entries found in the database.');
+                        return;
+                    }
+                    
+                    // Sort entries by date (newest first)
+                    entries.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+                    
+                    // Get the most recent entry
+                    const latestEntry = entries[0];
+                    const latestDate = new Date(latestEntry.datetime);
+                    const now = new Date();
+                    const hoursSinceLatest = (now - latestDate) / (1000 * 60 * 60);
+                    
+                    // Format the status message
+                    let statusMessage = `Latest entry: ${latestDate.toLocaleString()} (${hoursSinceLatest.toFixed(1)} hours ago)\n`;
+                    statusMessage += `Total entries: ${entries.length}\n`;
+                    
+                    if (hoursSinceLatest > 1.5) {
+                        statusMessage += `WARNING: No recent entries in the last hour. The scheduler may not be working properly.`;
+                    } else {
+                        statusMessage += `Status: History tracking appears to be working correctly.`;
+                    }
+                    
+                    alert(statusMessage);
+                    
+                    // Update the history chart
+                    updateHistoryChart();
+                } catch (error) {
+                    console.error('Error checking history status:', error);
+                    alert('Error checking history status: ' + error.message);
                 }
-                
-                // Sort entries by date (newest first)
-                entries.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
-                
-                // Get the most recent entry
-                const latestEntry = entries[0];
-                const latestDate = new Date(latestEntry.datetime);
-                const now = new Date();
-                const hoursSinceLatest = (now - latestDate) / (1000 * 60 * 60);
-                
-                // Format the status message
-                let statusMessage = `Latest entry: ${latestDate.toLocaleString()} (${hoursSinceLatest.toFixed(1)} hours ago)\n`;
-                statusMessage += `Total entries: ${entries.length}\n`;
-                
-                if (hoursSinceLatest > 1.5) {
-                    statusMessage += `WARNING: No recent entries in the last hour. The scheduler may not be working properly.`;
-                } else {
-                    statusMessage += `Status: History tracking appears to be working correctly.`;
-                }
-                
-                historyStatusElement.innerHTML = statusMessage.replace(/\n/g, '<br>');
-                
-                // Update the history chart
-                updateHistoryChart();
-            } catch (error) {
-                const historyStatusElement = document.getElementById('historyStatus');
-                historyStatusElement.style.display = 'block';
-                historyStatusElement.textContent = 'Error checking history status: ' + error.message;
-            }
-        });
+            });
+        }
+        
+        // Set up auto-refresh
+        setInterval(updatePortfolio, 60000); // Refresh every minute
+    } catch (error) {
+        console.error('Error during initialization:', error);
     }
 });
