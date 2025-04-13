@@ -538,7 +538,7 @@ function updateHistoricalChanges() {
 }
 
 // Wait for DOM to be fully loaded
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM loaded, initializing...');
     
     // Initialize with default pair
@@ -546,7 +546,15 @@ document.addEventListener('DOMContentLoaded', function() {
     initializePairSelection();
     
     // Initial portfolio update
-    updatePortfolio();
+    await updatePortfolio();
+    
+    // Ensure history data is loaded for historical changes
+    if (!historyData || historyData.length === 0) {
+        await updateHistoryChart();
+    }
+    
+    // Update historical changes
+    updateHistoricalChanges();
     
     // Set up auto-refresh
     setInterval(updatePortfolio, 60000); // Refresh every minute
