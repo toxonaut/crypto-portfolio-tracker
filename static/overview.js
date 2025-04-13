@@ -65,7 +65,7 @@ async function updateHistoryChart() {
         console.log('Fetching history data...');
         const response = await fetch('/history');
         const data = await response.json();
-        console.log('History data:', data);
+        console.log('History API response:', data);
         
         if (!data.success) {
             console.error('History data error:', data.error);
@@ -74,6 +74,9 @@ async function updateHistoryChart() {
         
         // Store the full history data
         historyData = data.data;
+        console.log('History data stored:', historyData.length, 'entries');
+        console.log('First entry:', historyData[0]);
+        console.log('Last entry:', historyData[historyData.length - 1]);
         
         // Update historical changes immediately after getting new data
         updateHistoricalChanges();
@@ -423,20 +426,11 @@ function toggleDemoMode() {
 
 // Calculate historical changes based on history data
 function calculateHistoricalChanges() {
-    if (!historyData || historyData.length === 0) {
-        return {
-            change24h: { value: 0, percent: 0 },
-            change7d: { value: 0, percent: 0 },
-            change30d: { value: 0, percent: 0 }
-        };
-    }
-
-    // Get current portfolio value from the UI
-    const totalValueElement = document.getElementById('totalValue');
-    const currentValue = parseFloat(totalValueElement.textContent);
+    console.log('Calculating historical changes...');
+    console.log('History data available:', historyData ? historyData.length : 0, 'entries');
     
-    if (isNaN(currentValue)) {
-        console.error('Current portfolio value is not a valid number');
+    if (!historyData || historyData.length === 0) {
+        console.error('No history data available for calculating changes');
         return {
             change24h: { value: 0, percent: 0 },
             change7d: { value: 0, percent: 0 },
@@ -444,6 +438,20 @@ function calculateHistoricalChanges() {
         };
     }
 
+    // Get the current value from the UI
+    const totalValueElement = document.getElementById('totalValue');
+    let currentValue = parseFloat(totalValueElement.innerText);
+    
+    console.log('Current value from UI:', currentValue);
+    if (isNaN(currentValue) || currentValue === 0) {
+        console.error('Invalid current value:', totalValueElement.innerText);
+        return {
+            change24h: { value: 0, percent: 0 },
+            change7d: { value: 0, percent: 0 },
+            change30d: { value: 0, percent: 0 }
+        };
+    }
+    
     // Sort history data by date (newest first)
     const sortedData = [...historyData].sort((a, b) => {
         return new Date(b.datetime) - new Date(a.datetime);
@@ -546,15 +554,24 @@ document.addEventListener('DOMContentLoaded', async function() {
     initializePairSelection();
     
     // Initial portfolio update
+    console.log('Loading portfolio data...');
     await updatePortfolio();
+    console.log('Portfolio data loaded');
     
     // Ensure history data is loaded for historical changes
+    console.log('Checking history data...');
     if (!historyData || historyData.length === 0) {
+        console.log('No history data found, loading now...');
         await updateHistoryChart();
+        console.log('History data loaded:', historyData ? historyData.length : 0, 'entries');
+    } else {
+        console.log('History data already loaded:', historyData.length, 'entries');
     }
     
     // Update historical changes
+    console.log('Updating historical changes...');
     updateHistoricalChanges();
+    console.log('Initialization complete');
     
     // Set up auto-refresh
     setInterval(updatePortfolio, 60000); // Refresh every minute
