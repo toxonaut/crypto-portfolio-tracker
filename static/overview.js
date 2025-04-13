@@ -440,16 +440,29 @@ function calculateHistoricalChanges() {
 
     // Get the current value from the UI
     const totalValueElement = document.getElementById('totalValue');
-    let currentValue = parseFloat(totalValueElement.innerText);
+    let currentValue = parseFloat(totalValueElement.textContent || totalValueElement.innerText);
     
     console.log('Current value from UI:', currentValue);
     if (isNaN(currentValue) || currentValue === 0) {
         console.error('Invalid current value:', totalValueElement.innerText);
-        return {
-            change24h: { value: 0, percent: 0 },
-            change7d: { value: 0, percent: 0 },
-            change30d: { value: 0, percent: 0 }
-        };
+        
+        // Fallback: If we can't get the value from the UI, use the most recent history entry
+        if (historyData.length > 0) {
+            const sortedForValue = [...historyData].sort((a, b) => {
+                return new Date(b.datetime) - new Date(a.datetime);
+            });
+            currentValue = sortedForValue[0].total_value;
+            if (isDemoMode) {
+                currentValue = currentValue / 15;
+            }
+            console.log('Using fallback current value from history:', currentValue);
+        } else {
+            return {
+                change24h: { value: 0, percent: 0 },
+                change7d: { value: 0, percent: 0 },
+                change30d: { value: 0, percent: 0 }
+            };
+        }
     }
     
     // Sort history data by date (newest first)
@@ -549,9 +562,15 @@ function updateHistoricalChanges() {
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM loaded, initializing...');
     
-    // Initialize with default pair
-    createTradingViewWidget('BTCUSD');
-    initializePairSelection();
+    // Check if we're on the statistics page
+    const isStatisticsPage = window.location.pathname === '/statistics';
+    console.log('Current page:', isStatisticsPage ? 'Statistics' : 'Overview');
+    
+    // Initialize with default pair (only on overview page)
+    if (!isStatisticsPage) {
+        createTradingViewWidget('BTCUSD');
+        initializePairSelection();
+    }
     
     // Initial portfolio update
     console.log('Loading portfolio data...');
