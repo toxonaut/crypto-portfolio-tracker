@@ -291,6 +291,10 @@ def index():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
     return render_template('index.html', version="1.3.0", db_type=db_type)
 
+@app.route('/statistics')
+def statistics():
+    return render_template('statistics.html')
+
 @app.route('/edit_portfolio')
 def edit_portfolio():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"

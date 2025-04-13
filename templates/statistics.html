@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Portfolio Tracker - Statistics</title>
+    <meta name="description" content="Track your cryptocurrency portfolio with real-time price updates">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dark-theme.css') }}">
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <nav class="navbar navbar-expand-lg navbar-light mb-4" style="background-color: #121726;">
+            <div class="container-fluid">
+                <a class="navbar-brand" style="font-size: 1.75rem;" href="/">
+                    <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="Logo" style="height: 40px;">
+                    Crypto Portfolio Tracker
+                </a>
+                <div class="navbar-nav">
+                    <a class="nav-link" href="/">Overview</a>
+                    <a class="nav-link active" href="/statistics">Statistics</a>
+                    <a class="nav-link" href="/edit_portfolio">Edit Portfolio</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h3 class="card-title">Statistics</h3>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4 class="card-title">Historical Changes</h4>
+                                <h4>24h Change: <span id="change24h">$0.00 (0.00%)</span></h4>
+                                <h5>7d Change: <span id="change7d">$0.00 (0.00%)</span></h5>
+                                <h5>1m Change: <span id="change30d">$0.00 (0.00%)</span></h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4 class="card-title">Portfolio History</h4>
+                                <div class="btn-group mb-3" role="group" aria-label="Date range">
+                                    <button type="button" class="btn btn-outline-primary" data-range="7">7d</button>
+                                    <button type="button" class="btn btn-outline-primary" data-range="30">1m</button>
+                                    <button type="button" class="btn btn-outline-primary active" data-range="90">3m</button>
+                                    <button type="button" class="btn btn-outline-primary" data-range="180">6m</button>
+                                    <button type="button" class="btn btn-outline-primary" data-range="365">1y</button>
+                                    <button type="button" class="btn btn-outline-primary" data-range="all">All</button>
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="logScaleSwitch">
+                                    <label class="form-check-label" for="logScaleSwitch">Logarithmic Scale</label>
+                                </div>
+                                <canvas id="historyChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h3 class="card-title">Portfolio Summary</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Total Value: $<span id="totalValue">0.00</span></h4>
+                        <h5>Value in BTC: <span id="btcValue">0.00</span> BTC</h5>
+                        <h5>Monthly Yield: $<span id="monthlyYield">0.00</span></h5>
+                        <p class="text-muted small">Last updated: <span id="lastUpdated"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer mt-auto py-3">
+        <div class="container text-center">
+            <div class="btn-group">
+                <button id="addHistoryBtn" class="btn btn-sm btn-outline-secondary">Add History</button>
+                <button id="checkHistoryBtn" class="btn btn-sm btn-outline-secondary">Check History Status</button>
+                <button id="toggleDemoModeBtn" class="btn btn-sm btn-outline-secondary">Toggle Demo Mode</button>
+            </div>
+            <p class="text-muted mt-2">© 2025 Crypto Portfolio Tracker</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='overview.js') }}"></script>
+</body>
+</html>
