@@ -452,8 +452,10 @@ function calculateHistoricalChanges() {
             change24h: { value: 0, percent: 0 },
             change7d: { value: 0, percent: 0 },
             change30d: { value: 0, percent: 0 },
-            largestPositiveChange: { value: 0, percent: 0 },
-            largestNegativeChange: { value: 0, percent: 0 }
+            largestPercentGain: { value: 0, percent: 0, date: '' },
+            largestDollarGain: { value: 0, percent: 0, date: '' },
+            largestPercentLoss: { value: 0, percent: 0, date: '' },
+            largestDollarLoss: { value: 0, percent: 0, date: '' }
         };
     }
     
@@ -491,8 +493,10 @@ function calculateHistoricalChanges() {
                 change24h: { value: 0, percent: 0 },
                 change7d: { value: 0, percent: 0 },
                 change30d: { value: 0, percent: 0 },
-                largestPositiveChange: { value: 0, percent: 0 },
-                largestNegativeChange: { value: 0, percent: 0 }
+                largestPercentGain: { value: 0, percent: 0, date: '' },
+                largestDollarGain: { value: 0, percent: 0, date: '' },
+                largestPercentLoss: { value: 0, percent: 0, date: '' },
+                largestDollarLoss: { value: 0, percent: 0, date: '' }
             };
         }
     }
@@ -567,9 +571,11 @@ function calculateHistoricalChanges() {
     const dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
     const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
     
-    // Calculate largest 24h positive and negative changes
-    let largestPositiveChange = { value: 0, percent: 0 };
-    let largestNegativeChange = { value: 0, percent: 0 };
+    // Initialize largest changes
+    let largestPercentGain = { value: 0, percent: 0, date: '' };
+    let largestDollarGain = { value: 0, percent: 0, date: '' };
+    let largestPercentLoss = { value: 0, percent: 0, date: '' };
+    let largestDollarLoss = { value: 0, percent: 0, date: '' };
     
     // We need at least 2 data points to calculate changes
     if (sortedData.length >= 2) {
@@ -592,22 +598,41 @@ function calculateHistoricalChanges() {
                 
                 const dollarChange = laterValue - earlierValue;
                 const percentChange = ((laterValue - earlierValue) / earlierValue) * 100;
+                const dateStr = laterDate.toISOString().split('T')[0]; // Just the date part
                 
-                // Update largest positive change
-                if (percentChange > largestPositiveChange.percent) {
-                    largestPositiveChange = {
+                // Update largest percentage gain
+                if (percentChange > 0 && percentChange > largestPercentGain.percent) {
+                    largestPercentGain = {
                         value: dollarChange,
                         percent: percentChange,
-                        date: laterDate.toISOString().split('T')[0] // Just the date part
+                        date: dateStr
                     };
                 }
                 
-                // Update largest negative change (note: we're comparing absolute values but keeping the sign negative)
-                if (percentChange < 0 && Math.abs(percentChange) > Math.abs(largestNegativeChange.percent)) {
-                    largestNegativeChange = {
+                // Update largest dollar gain
+                if (dollarChange > 0 && dollarChange > largestDollarGain.value) {
+                    largestDollarGain = {
                         value: dollarChange,
                         percent: percentChange,
-                        date: laterDate.toISOString().split('T')[0] // Just the date part
+                        date: dateStr
+                    };
+                }
+                
+                // Update largest percentage loss (note: percentChange will be negative)
+                if (percentChange < 0 && percentChange < largestPercentLoss.percent) {
+                    largestPercentLoss = {
+                        value: dollarChange,
+                        percent: percentChange,
+                        date: dateStr
+                    };
+                }
+                
+                // Update largest dollar loss (note: dollarChange will be negative)
+                if (dollarChange < 0 && dollarChange < largestDollarLoss.value) {
+                    largestDollarLoss = {
+                        value: dollarChange,
+                        percent: percentChange,
+                        date: dateStr
                     };
                 }
             }
@@ -619,16 +644,38 @@ function calculateHistoricalChanges() {
     console.log('24h ago:', value24hAgo, 'Change:', dollarChange24h, 'Percent:', percentChange24h);
     console.log('7d ago:', value7dAgo, 'Change:', dollarChange7d, 'Percent:', percentChange7d);
     console.log('30d ago:', value30dAgo, 'Change:', dollarChange30d, 'Percent:', percentChange30d);
-    console.log('Largest positive change:', largestPositiveChange);
-    console.log('Largest negative change:', largestNegativeChange);
+    console.log('Largest percent gain:', largestPercentGain);
+    console.log('Largest dollar gain:', largestDollarGain);
+    console.log('Largest percent loss:', largestPercentLoss);
+    console.log('Largest dollar loss:', largestDollarLoss);
     
     return {
         change24h: { value: dollarChange24h, percent: percentChange24h },
         change7d: { value: dollarChange7d, percent: percentChange7d },
         change30d: { value: dollarChange30d, percent: percentChange30d },
-        largestPositiveChange: largestPositiveChange,
-        largestNegativeChange: largestNegativeChange
+        largestPercentGain: largestPercentGain,
+        largestDollarGain: largestDollarGain,
+        largestPercentLoss: largestPercentLoss,
+        largestDollarLoss: largestDollarLoss
     };
+}
+
+// Format just a percentage value with sign and color
+function formatPercentOnly(percent) {
+    const formattedPercent = Math.abs(percent).toFixed(2);
+    const sign = percent >= 0 ? '+' : '-';
+    const className = percent >= 0 ? 'price-change-positive' : 'price-change-negative';
+    
+    return `<span class="${className}">${sign}${formattedPercent}%</span>`;
+}
+
+// Format just a dollar value with sign and color
+function formatDollarOnly(value) {
+    const formattedValue = Math.abs(value) < 1 ? Math.abs(value).toFixed(2) : Math.round(Math.abs(value));
+    const sign = value >= 0 ? '+' : '-';
+    const className = value >= 0 ? 'price-change-positive' : 'price-change-negative';
+    
+    return `<span class="${className}">${sign}$${formattedValue}</span>`;
 }
 
 // Update the historical changes display
@@ -639,8 +686,12 @@ function updateHistoricalChanges() {
     const change24hElements = document.querySelectorAll('#change24h');
     const change7dElements = document.querySelectorAll('#change7d');
     const change30dElements = document.querySelectorAll('#change30d');
-    const largestPositiveChangeElement = document.getElementById('largestPositiveChange');
-    const largestNegativeChangeElement = document.getElementById('largestNegativeChange');
+    
+    // Find the extreme change elements
+    const largestPercentGainElement = document.getElementById('largestPercentGain');
+    const largestDollarGainElement = document.getElementById('largestDollarGain');
+    const largestPercentLossElement = document.getElementById('largestPercentLoss');
+    const largestDollarLossElement = document.getElementById('largestDollarLoss');
     
     // Update all instances of each element
     change24hElements.forEach(element => {
@@ -655,21 +706,40 @@ function updateHistoricalChanges() {
         element.innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent);
     });
     
-    // Update largest positive and negative changes if the elements exist
-    if (largestPositiveChangeElement) {
-        let formattedChange = formatValueChange(changes.largestPositiveChange.value, changes.largestPositiveChange.percent);
-        if (changes.largestPositiveChange.date) {
-            formattedChange += ` <span class="text-muted">(${changes.largestPositiveChange.date})</span>`;
+    // Update largest percentage gain
+    if (largestPercentGainElement) {
+        let formattedChange = formatPercentOnly(changes.largestPercentGain.percent);
+        if (changes.largestPercentGain.date) {
+            formattedChange += ` <span class="text-muted">(${changes.largestPercentGain.date})</span>`;
         }
-        largestPositiveChangeElement.innerHTML = formattedChange;
+        largestPercentGainElement.innerHTML = formattedChange;
     }
     
-    if (largestNegativeChangeElement) {
-        let formattedChange = formatValueChange(changes.largestNegativeChange.value, changes.largestNegativeChange.percent);
-        if (changes.largestNegativeChange.date) {
-            formattedChange += ` <span class="text-muted">(${changes.largestNegativeChange.date})</span>`;
+    // Update largest dollar gain
+    if (largestDollarGainElement) {
+        let formattedChange = formatDollarOnly(changes.largestDollarGain.value);
+        if (changes.largestDollarGain.date) {
+            formattedChange += ` <span class="text-muted">(${changes.largestDollarGain.date})</span>`;
         }
-        largestNegativeChangeElement.innerHTML = formattedChange;
+        largestDollarGainElement.innerHTML = formattedChange;
+    }
+    
+    // Update largest percentage loss
+    if (largestPercentLossElement) {
+        let formattedChange = formatPercentOnly(changes.largestPercentLoss.percent);
+        if (changes.largestPercentLoss.date) {
+            formattedChange += ` <span class="text-muted">(${changes.largestPercentLoss.date})</span>`;
+        }
+        largestPercentLossElement.innerHTML = formattedChange;
+    }
+    
+    // Update largest dollar loss
+    if (largestDollarLossElement) {
+        let formattedChange = formatDollarOnly(changes.largestDollarLoss.value);
+        if (changes.largestDollarLoss.date) {
+            formattedChange += ` <span class="text-muted">(${changes.largestDollarLoss.date})</span>`;
+        }
+        largestDollarLossElement.innerHTML = formattedChange;
     }
 }
 
