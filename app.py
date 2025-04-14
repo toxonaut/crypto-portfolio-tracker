@@ -117,11 +117,21 @@ def get_coin_prices(coin_ids):
             coin_data = {}
             for coin in market_data:
                 if coin['id'] in coin_ids:
+                    # Check if the price change percentages exist and are not None
+                    price_1h = coin.get('price_change_percentage_1h_in_currency', 0)
+                    price_24h = coin.get('price_change_percentage_24h', 0)  
+                    price_7d = coin.get('price_change_percentage_7d_in_currency', 0)
+                    
+                    # Ensure we have valid numbers, not None
+                    if price_1h is None: price_1h = 0
+                    if price_24h is None: price_24h = 0
+                    if price_7d is None: price_7d = 0
+                    
                     coin_data[coin['id']] = {
                         'usd': coin['current_price'],
-                        'usd_1h_change': coin['price_change_percentage_1h_in_currency'],
-                        'usd_24h_change': coin['price_change_percentage_24h_in_currency'],
-                        'usd_7d_change': coin['price_change_percentage_7d_in_currency'],
+                        'usd_1h_change': price_1h,
+                        'usd_24h_change': price_24h,
+                        'usd_7d_change': price_7d,
                         'image': coin['image']
                     }
             
