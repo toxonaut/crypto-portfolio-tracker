@@ -451,7 +451,9 @@ function calculateHistoricalChanges() {
         return {
             change24h: { value: 0, percent: 0 },
             change7d: { value: 0, percent: 0 },
-            change30d: { value: 0, percent: 0 }
+            change30d: { value: 0, percent: 0 },
+            largestPositiveChange: { value: 0, percent: 0 },
+            largestNegativeChange: { value: 0, percent: 0 }
         };
     }
     
@@ -488,7 +490,9 @@ function calculateHistoricalChanges() {
             return {
                 change24h: { value: 0, percent: 0 },
                 change7d: { value: 0, percent: 0 },
-                change30d: { value: 0, percent: 0 }
+                change30d: { value: 0, percent: 0 },
+                largestPositiveChange: { value: 0, percent: 0 },
+                largestNegativeChange: { value: 0, percent: 0 }
             };
         }
     }
@@ -563,16 +567,67 @@ function calculateHistoricalChanges() {
     const dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
     const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
     
+    // Calculate largest 24h positive and negative changes
+    let largestPositiveChange = { value: 0, percent: 0 };
+    let largestNegativeChange = { value: 0, percent: 0 };
+    
+    // We need at least 2 data points to calculate changes
+    if (sortedData.length >= 2) {
+        // Calculate all 24h changes between consecutive data points
+        for (let i = 0; i < sortedData.length - 1; i++) {
+            const laterDate = new Date(sortedData[i].datetime);
+            const earlierDate = new Date(sortedData[i + 1].datetime);
+            
+            // Check if these entries are roughly 24h apart (between 20-28 hours to account for some variance)
+            const hoursDiff = (laterDate - earlierDate) / (1000 * 60 * 60);
+            if (hoursDiff >= 20 && hoursDiff <= 28) {
+                let laterValue = sortedData[i].total_value;
+                let earlierValue = sortedData[i + 1].total_value;
+                
+                // Apply demo mode scaling if needed
+                if (isDemoMode) {
+                    laterValue = laterValue / 15;
+                    earlierValue = earlierValue / 15;
+                }
+                
+                const dollarChange = laterValue - earlierValue;
+                const percentChange = ((laterValue - earlierValue) / earlierValue) * 100;
+                
+                // Update largest positive change
+                if (percentChange > largestPositiveChange.percent) {
+                    largestPositiveChange = {
+                        value: dollarChange,
+                        percent: percentChange,
+                        date: laterDate.toISOString().split('T')[0] // Just the date part
+                    };
+                }
+                
+                // Update largest negative change (note: we're comparing absolute values but keeping the sign negative)
+                if (percentChange < 0 && Math.abs(percentChange) > Math.abs(largestNegativeChange.percent)) {
+                    largestNegativeChange = {
+                        value: dollarChange,
+                        percent: percentChange,
+                        date: laterDate.toISOString().split('T')[0] // Just the date part
+                    };
+                }
+            }
+        }
+    }
+    
     console.log('Historical changes calculation:');
     console.log('Current value:', currentValue);
     console.log('24h ago:', value24hAgo, 'Change:', dollarChange24h, 'Percent:', percentChange24h);
     console.log('7d ago:', value7dAgo, 'Change:', dollarChange7d, 'Percent:', percentChange7d);
     console.log('30d ago:', value30dAgo, 'Change:', dollarChange30d, 'Percent:', percentChange30d);
+    console.log('Largest positive change:', largestPositiveChange);
+    console.log('Largest negative change:', largestNegativeChange);
     
     return {
         change24h: { value: dollarChange24h, percent: percentChange24h },
         change7d: { value: dollarChange7d, percent: percentChange7d },
-        change30d: { value: dollarChange30d, percent: percentChange30d }
+        change30d: { value: dollarChange30d, percent: percentChange30d },
+        largestPositiveChange: largestPositiveChange,
+        largestNegativeChange: largestNegativeChange
     };
 }
 
@@ -584,6 +639,8 @@ function updateHistoricalChanges() {
     const change24hElements = document.querySelectorAll('#change24h');
     const change7dElements = document.querySelectorAll('#change7d');
     const change30dElements = document.querySelectorAll('#change30d');
+    const largestPositiveChangeElement = document.getElementById('largestPositiveChange');
+    const largestNegativeChangeElement = document.getElementById('largestNegativeChange');
     
     // Update all instances of each element
     change24hElements.forEach(element => {
@@ -597,6 +654,23 @@ function updateHistoricalChanges() {
     change30dElements.forEach(element => {
         element.innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent);
     });
+    
+    // Update largest positive and negative changes if the elements exist
+    if (largestPositiveChangeElement) {
+        let formattedChange = formatValueChange(changes.largestPositiveChange.value, changes.largestPositiveChange.percent);
+        if (changes.largestPositiveChange.date) {
+            formattedChange += ` <span class="text-muted">(${changes.largestPositiveChange.date})</span>`;
+        }
+        largestPositiveChangeElement.innerHTML = formattedChange;
+    }
+    
+    if (largestNegativeChangeElement) {
+        let formattedChange = formatValueChange(changes.largestNegativeChange.value, changes.largestNegativeChange.percent);
+        if (changes.largestNegativeChange.date) {
+            formattedChange += ` <span class="text-muted">(${changes.largestNegativeChange.date})</span>`;
+        }
+        largestNegativeChangeElement.innerHTML = formattedChange;
+    }
 }
 
 // Wait for DOM to be fully loaded
