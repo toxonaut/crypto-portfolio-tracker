@@ -182,39 +182,66 @@ def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
     2. Partial ID match (some IDs might have different formats)
     3. Search in nested structures
     """
+    # Log the target_id we're looking for
+    logger.info(f"Searching for Zerion ID: {target_id}")
+    
     # Case 1 – dict: check id, then recurse into values
     if isinstance(blob, dict):
         # Check if this is the target object with exact ID match
-        if blob.get("id") == target_id:
+        blob_id = blob.get("id")
+        if blob_id == target_id:
+            logger.info(f"Found exact ID match: {blob_id}")
             try:
                 return blob["attributes"]["quantity"]["numeric"]
             except (KeyError, TypeError):
+                logger.info("Found ID but couldn't extract quantity.numeric")
                 return None
         
         # Check for partial ID match (Zerion IDs might have different formats)
-        if "id" in blob and isinstance(blob["id"], str) and target_id in blob["id"]:
-            logger.info(f"Found partial ID match: {blob['id']} contains {target_id}")
+        if blob_id and isinstance(blob_id, str) and target_id in blob_id:
+            logger.info(f"Found partial ID match: {blob_id} contains {target_id}")
             try:
                 return blob["attributes"]["quantity"]["numeric"]
             except (KeyError, TypeError):
+                logger.info("Found partial ID match but couldn't extract quantity.numeric")
                 pass
                 
         # Special case for the Zerion API response structure
         if "data" in blob and isinstance(blob["data"], list):
-            for item in blob["data"]:
+            logger.info(f"Checking data array with {len(blob['data'])} items")
+            for i, item in enumerate(blob["data"]):
                 # Try exact match first
-                if item.get("id") == target_id:
+                item_id = item.get("id")
+                if item_id == target_id:
+                    logger.info(f"Found exact ID match in data[{i}]: {item_id}")
                     try:
-                        return item["attributes"]["quantity"]["numeric"]
-                    except (KeyError, TypeError):
+                        numeric = item["attributes"]["quantity"]["numeric"]
+                        logger.info(f"Extracted quantity.numeric: {numeric}")
+                        return numeric
+                    except (KeyError, TypeError) as e:
+                        logger.info(f"Found ID but couldn't extract quantity.numeric: {e}")
                         pass
                 
                 # Try partial match
-                if "id" in item and isinstance(item["id"], str) and target_id in item["id"]:
-                    logger.info(f"Found partial ID match in data array: {item['id']} contains {target_id}")
+                if item_id and isinstance(item_id, str) and target_id in item_id:
+                    logger.info(f"Found partial ID match in data[{i}]: {item_id} contains {target_id}")
                     try:
-                        return item["attributes"]["quantity"]["numeric"]
-                    except (KeyError, TypeError):
+                        numeric = item["attributes"]["quantity"]["numeric"]
+                        logger.info(f"Extracted quantity.numeric: {numeric}")
+                        return numeric
+                    except (KeyError, TypeError) as e:
+                        logger.info(f"Found partial ID match but couldn't extract quantity.numeric: {e}")
+                        pass
+                
+                # Also check if target_id contains item_id (reverse partial match)
+                if item_id and isinstance(item_id, str) and item_id in target_id:
+                    logger.info(f"Found reverse partial ID match in data[{i}]: {target_id} contains {item_id}")
+                    try:
+                        numeric = item["attributes"]["quantity"]["numeric"]
+                        logger.info(f"Extracted quantity.numeric: {numeric}")
+                        return numeric
+                    except (KeyError, TypeError) as e:
+                        logger.info(f"Found reverse partial ID match but couldn't extract quantity.numeric: {e}")
                         pass
                 
                 # Recursive search
