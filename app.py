@@ -51,6 +51,21 @@ db = SQLAlchemy(app)
 # Create the database tables if they don't exist
 with app.app_context():
     db.create_all()
+    
+    # Add zerion_id column if it doesn't exist
+    try:
+        # Check if the column already exists
+        inspector = db.inspect(db.engine)
+        columns = [column['name'] for column in inspector.get_columns('portfolio')]
+        
+        if 'zerion_id' not in columns:
+            logger.info("Adding zerion_id column to portfolio table")
+            with db.engine.connect() as connection:
+                connection.execute(db.text("ALTER TABLE portfolio ADD COLUMN zerion_id VARCHAR(100)"))
+                connection.commit()
+                logger.info("Successfully added zerion_id column to portfolio table")
+    except Exception as e:
+        logger.error(f"Error adding zerion_id column: {e}")
 
 class Portfolio(db.Model):
     __tablename__ = 'portfolio'  # Explicitly set lowercase table name
