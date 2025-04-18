@@ -494,7 +494,16 @@ document.getElementById('updateZerionDataBtn').addEventListener('click', async (
         
         // Show result message
         if (data.success) {
-            alert('Zerion data fetched successfully!');
+            if (data.updated_entries && data.updated_entries.length > 0) {
+                const updatedCount = data.updated_entries.length;
+                const message = `Successfully updated ${updatedCount} portfolio entries with Zerion data.`;
+                alert(message);
+                
+                // Refresh the portfolio display to show updated amounts
+                updatePortfolio();
+            } else {
+                alert(data.message || 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.');
+            }
         } else {
             alert(`Error: ${data.message || data.error || 'Unknown error'}`);
         }

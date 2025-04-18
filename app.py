@@ -7,6 +7,7 @@ import logging
 import requests
 import time
 from dotenv import load_dotenv
+from typing import Any, Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -171,6 +172,28 @@ def get_coin_prices(coin_ids):
     except Exception as e:
         logger.error(f"Exception fetching market data: {e}")
         return {}
+
+def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
+    # Case 1 – dict: check id, then recurse into values
+    if isinstance(blob, dict):
+        if blob.get("id") == target_id:
+            try:
+                return blob["attributes"]["quantity"]["numeric"]
+            except (KeyError, TypeError):
+                return None
+        # Search all children
+        for value in blob.values():
+            result = get_quantity_numeric(value, target_id)
+            if result is not None:
+                return result
+    # Case 2 – list: iterate and recurse
+    elif isinstance(blob, list):
+        for item in blob:
+            result = get_quantity_numeric(item, target_id)
+            if result is not None:
+                return result
+    # Case 3 – primitives: nothing to do
+    return None
 
 def scheduled_add_history():
     try:
@@ -846,11 +869,48 @@ def update_zerion_data():
         
         response = requests.get(url, headers=headers)
         
-        # For now, we're just making the request without processing the response
-        if response.status_code == 200:
-            return jsonify({'success': True, 'message': 'Zerion data fetched successfully'})
-        else:
+        if response.status_code != 200:
             return jsonify({'success': False, 'message': f'Failed to fetch Zerion data: {response.status_code}'})
+        
+        # Process the response
+        data = json.loads(response.text)
+        
+        # Get all portfolio entries
+        portfolio_entries = Portfolio.query.all()
+        updated_entries = []
+        
+        # Process each entry
+        for entry in portfolio_entries:
+            if entry.zerion_id:
+                # Get quantity from Zerion data
+                quantity = get_quantity_numeric(data, entry.zerion_id)
+                if quantity is not None:
+                    # Update the amount
+                    try:
+                        new_amount = float(quantity)
+                        entry.amount = new_amount
+                        updated_entries.append({
+                            'coin_id': entry.coin_id,
+                            'source': entry.source,
+                            'old_amount': entry.amount,
+                            'new_amount': new_amount
+                        })
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Error converting quantity to float for {entry.coin_id}: {e}")
+        
+        # Commit changes if any entries were updated
+        if updated_entries:
+            db.session.commit()
+            return jsonify({
+                'success': True, 
+                'message': f'Updated {len(updated_entries)} entries with Zerion data',
+                'updated_entries': updated_entries
+            })
+        else:
+            return jsonify({
+                'success': True, 
+                'message': 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.'
+            })
     
     except Exception as e:
         logger.error(f"Error fetching Zerion data: {e}")
