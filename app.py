@@ -834,6 +834,28 @@ def fix_sequence():
         logger.error(f"Error fixing sequence: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/update_zerion_data', methods=['POST'])
+def update_zerion_data():
+    try:
+        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_simple&currency=usd&filter[trash]=only_non_trash&sort=value"
+        
+        headers = {
+            "accept": "application/json",
+            "authorization": "Basic emtfZGV2XzQ5MDU4MDM1NjA1MjQwNzA5NWYzYjc5ODc3Mjg5M2MwOg=="
+        }
+        
+        response = requests.get(url, headers=headers)
+        
+        # For now, we're just making the request without processing the response
+        if response.status_code == 200:
+            return jsonify({'success': True, 'message': 'Zerion data fetched successfully'})
+        else:
+            return jsonify({'success': False, 'message': f'Failed to fetch Zerion data: {response.status_code}'})
+    
+    except Exception as e:
+        logger.error(f"Error fetching Zerion data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 if __name__ == '__main__':
     # Only run the development server when running locally
     # Railway will use gunicorn to run the application

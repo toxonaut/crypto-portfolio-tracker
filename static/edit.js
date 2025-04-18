@@ -473,5 +473,46 @@ async function loadCoinsList() {
 // Load coins list when page loads
 loadCoinsList();
 
+// Add event listener for Update Zerion Data button
+document.getElementById('updateZerionDataBtn').addEventListener('click', async () => {
+    try {
+        // Show loading state
+        const button = document.getElementById('updateZerionDataBtn');
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Updating...';
+        
+        // Make API request to fetch Zerion data
+        const response = await fetch('/api/update_zerion_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        // Show result message
+        if (data.success) {
+            alert('Zerion data fetched successfully!');
+        } else {
+            alert(`Error: ${data.message || data.error || 'Unknown error'}`);
+        }
+        
+        // Reset button state
+        button.disabled = false;
+        button.textContent = originalText;
+        
+    } catch (error) {
+        console.error('Error updating Zerion data:', error);
+        alert('Error updating Zerion data. See console for details.');
+        
+        // Reset button state
+        const button = document.getElementById('updateZerionDataBtn');
+        button.disabled = false;
+        button.textContent = 'Update Zerion Data';
+    }
+});
+
 // Initial load
 updatePortfolio();
