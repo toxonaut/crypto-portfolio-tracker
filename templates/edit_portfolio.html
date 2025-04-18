@@ -65,6 +65,27 @@
             color: #e74c3c;
             margin-bottom: 15px;
         }
+        
+        /* Column width styles */
+        .portfolio-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+        .portfolio-table th.location-col {
+            width: 20%;
+        }
+        .portfolio-table th.amount-col {
+            width: 15%;
+        }
+        .portfolio-table th.apy-col {
+            width: 30%;
+        }
+        .portfolio-table th.zerion-col {
+            width: 25%;
+        }
+        .portfolio-table th.actions-col {
+            width: 10%;
+        }
     </style>
 </head>
 <body>
@@ -122,14 +143,14 @@
         <div class="coin-section mb-4">
             <h4 class="coin-name mb-3"></h4>
             <div class="table-responsive">
-                <table class="table">
+                <table class="portfolio-table table">
                     <thead>
                         <tr>
-                            <th>Location</th>
-                            <th>Amount</th>
-                            <th style="width: 30%;">APY Yield (%)</th>
-                            <th style="width: 25%;">Zerion Id</th>
-                            <th>Actions</th>
+                            <th class="location-col">Location</th>
+                            <th class="amount-col">Amount</th>
+                            <th class="apy-col" style="width: 30%;">APY Yield (%)</th>
+                            <th class="zerion-col" style="width: 25%;">Zerion Id</th>
+                            <th class="actions-col">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
