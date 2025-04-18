@@ -587,7 +587,7 @@ document.getElementById('updateZerionDataBtn').addEventListener('click', async (
         jsonSection.style.marginTop = '20px';
         
         const jsonTitle = document.createElement('h4');
-        jsonTitle.textContent = 'Zerion API Response Preview (First 100 lines)';
+        jsonTitle.textContent = 'Zerion API Response (Full JSON)';
         jsonTitle.style.marginBottom = '10px';
         
         const jsonContent = document.createElement('pre');

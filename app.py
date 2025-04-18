@@ -948,10 +948,8 @@ def update_zerion_data():
         logger.info("Parsing Zerion response...")
         data = json.loads(response.text)
         
-        # Extract the first 100 lines of the JSON response for debugging
+        # Format the full JSON response for debugging
         json_preview = json.dumps(data, indent=2)
-        json_lines = json_preview.split('\n')
-        json_preview = '\n'.join(json_lines[:100]) + '\n...' if len(json_lines) > 100 else json_preview
         
         # Get all portfolio entries
         portfolio_entries = Portfolio.query.all()
