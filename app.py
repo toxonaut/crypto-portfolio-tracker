@@ -1099,14 +1099,39 @@ def debug_zerion_full():
 @app.route('/api/migrate_zerion_id', methods=['GET'])
 def migrate_zerion_id_endpoint():
     try:
-        # Execute the migration
+        # Check if the column exists and get its current type
         with db.engine.connect() as connection:
-            logger.info("Altering zerion_id column to VARCHAR(255)")
-            connection.execute(db.text("ALTER TABLE portfolio ALTER COLUMN zerion_id TYPE VARCHAR(255)"))
-            connection.commit()
-            logger.info("Successfully altered zerion_id column to VARCHAR(255)")
-        
-        return jsonify({'success': True, 'message': 'Successfully migrated zerion_id column to VARCHAR(255)'})
+            # Check PostgreSQL column type
+            result = connection.execute(db.text(
+                "SELECT character_maximum_length FROM information_schema.columns "
+                "WHERE table_name = 'portfolio' AND column_name = 'zerion_id'"
+            ))
+            column_info = result.fetchone()
+            
+            if column_info:
+                current_length = column_info[0]
+                logger.info(f"Current zerion_id column length: {current_length}")
+                
+                if current_length < 255:
+                    # Execute the migration to increase column length
+                    logger.info("Altering zerion_id column to VARCHAR(255)")
+                    connection.execute(db.text("ALTER TABLE portfolio ALTER COLUMN zerion_id TYPE VARCHAR(255)"))
+                    connection.commit()
+                    logger.info("Successfully altered zerion_id column to VARCHAR(255)")
+                    return jsonify({
+                        'success': True, 
+                        'message': f'Successfully migrated zerion_id column from VARCHAR({current_length}) to VARCHAR(255)'
+                    })
+                else:
+                    return jsonify({
+                        'success': True, 
+                        'message': f'No migration needed. zerion_id column is already VARCHAR({current_length})'
+                    })
+            else:
+                return jsonify({
+                    'success': False, 
+                    'message': 'zerion_id column not found in portfolio table'
+                })
     
     except Exception as e:
         logger.error(f"Error during migration: {e}")
