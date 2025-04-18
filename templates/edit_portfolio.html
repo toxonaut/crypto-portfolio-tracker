@@ -103,7 +103,6 @@
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">Add Entry</button>
                         <button type="button" id="updateZerionDataBtn" class="btn btn-secondary ms-2">Update Zerion Data</button>
-                        <button type="button" id="migrateZerionIdBtn" class="btn btn-info ms-2">Migrate Zerion ID Field</button>
                     </div>
                 </form>
             </div>
@@ -128,8 +127,8 @@
                         <tr>
                             <th>Location</th>
                             <th>Amount</th>
-                            <th>APY Yield (%)</th>
-                            <th>Zerion Id</th>
+                            <th style="width: 15%;">APY Yield (%)</th>
+                            <th style="width: 25%;">Zerion Id</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -184,43 +183,5 @@
     </footer>
 
     <script src="{{ url_for('static', filename='edit.js') }}"></script>
-    <script>
-        // Add event listener for Migrate Zerion ID Field button
-        document.getElementById('migrateZerionIdBtn').addEventListener('click', async () => {
-            try {
-                // Show loading state
-                const button = document.getElementById('migrateZerionIdBtn');
-                const originalText = button.textContent;
-                button.disabled = true;
-                button.textContent = 'Migrating...';
-                
-                // Make API request to migrate Zerion ID field
-                const response = await fetch('/api/migrate_zerion_id', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                const data = await response.json();
-                
-                // Show result
-                alert(data.message || data.error || 'Migration completed');
-                
-                // Reset button state
-                button.disabled = false;
-                button.textContent = originalText;
-                
-            } catch (error) {
-                console.error('Error migrating Zerion ID field:', error);
-                alert('Error migrating Zerion ID field. See console for details.');
-                
-                // Reset button state
-                const button = document.getElementById('migrateZerionIdBtn');
-                button.disabled = false;
-                button.textContent = 'Migrate Zerion ID Field';
-            }
-        });
-    </script>
 </body>
 </html>
