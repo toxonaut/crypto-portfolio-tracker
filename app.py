@@ -176,11 +176,20 @@ def get_coin_prices(coin_ids):
 def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
     # Case 1 – dict: check id, then recurse into values
     if isinstance(blob, dict):
+        # Check if this is the target object
         if blob.get("id") == target_id:
             try:
                 return blob["attributes"]["quantity"]["numeric"]
             except (KeyError, TypeError):
                 return None
+                
+        # Special case for the Zerion API response structure
+        if "data" in blob and isinstance(blob["data"], list):
+            for item in blob["data"]:
+                result = get_quantity_numeric(item, target_id)
+                if result is not None:
+                    return result
+                    
         # Search all children
         for value in blob.values():
             result = get_quantity_numeric(value, target_id)
@@ -867,32 +876,42 @@ def update_zerion_data():
             "authorization": "Basic emtfZGV2XzQ5MDU4MDM1NjA1MjQwNzA5NWYzYjc5ODc3Mjg5M2MwOg=="
         }
         
+        logger.info("Fetching Zerion data...")
         response = requests.get(url, headers=headers)
         
         if response.status_code != 200:
+            logger.error(f"Failed to fetch Zerion data: {response.status_code}")
             return jsonify({'success': False, 'message': f'Failed to fetch Zerion data: {response.status_code}'})
         
         # Process the response
+        logger.info("Parsing Zerion response...")
         data = json.loads(response.text)
         
         # Get all portfolio entries
         portfolio_entries = Portfolio.query.all()
+        logger.info(f"Found {len(portfolio_entries)} portfolio entries to check")
         updated_entries = []
         
         # Process each entry
         for entry in portfolio_entries:
+            logger.info(f"Checking entry: {entry.coin_id}, {entry.source}, zerion_id: {entry.zerion_id}")
             if entry.zerion_id:
                 # Get quantity from Zerion data
                 quantity = get_quantity_numeric(data, entry.zerion_id)
+                logger.info(f"Zerion ID {entry.zerion_id} - Quantity found: {quantity}")
+                
                 if quantity is not None:
                     # Update the amount
                     try:
                         new_amount = float(quantity)
+                        old_amount = entry.amount
                         entry.amount = new_amount
+                        logger.info(f"Updating {entry.coin_id} from {old_amount} to {new_amount}")
+                        
                         updated_entries.append({
                             'coin_id': entry.coin_id,
                             'source': entry.source,
-                            'old_amount': entry.amount,
+                            'old_amount': old_amount,
                             'new_amount': new_amount
                         })
                     except (ValueError, TypeError) as e:
@@ -900,6 +919,7 @@ def update_zerion_data():
         
         # Commit changes if any entries were updated
         if updated_entries:
+            logger.info(f"Committing updates for {len(updated_entries)} entries")
             db.session.commit()
             return jsonify({
                 'success': True, 
@@ -907,6 +927,7 @@ def update_zerion_data():
                 'updated_entries': updated_entries
             })
         else:
+            logger.info("No entries were updated")
             return jsonify({
                 'success': True, 
                 'message': 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.'
@@ -914,6 +935,58 @@ def update_zerion_data():
     
     except Exception as e:
         logger.error(f"Error fetching Zerion data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/debug_zerion', methods=['GET'])
+def debug_zerion():
+    try:
+        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_simple&currency=usd&filter[trash]=only_non_trash&sort=value"
+        
+        headers = {
+            "accept": "application/json",
+            "authorization": "Basic emtfZGV2XzQ5MDU4MDM1NjA1MjQwNzA5NWYzYjc5ODc3Mjg5M2MwOg=="
+        }
+        
+        logger.info("Fetching Zerion data for debugging...")
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code != 200:
+            return jsonify({'success': False, 'message': f'Failed to fetch Zerion data: {response.status_code}'})
+        
+        # Parse the response
+        logger.info("Parsing Zerion response...")
+        data = json.loads(response.text)
+        
+        # Get all portfolio entries with zerion_id
+        portfolio_entries = Portfolio.query.filter(Portfolio.zerion_id.isnot(None)).all()
+        
+        # Test results for each zerion_id
+        test_results = []
+        for entry in portfolio_entries:
+            if entry.zerion_id:
+                quantity = get_quantity_numeric(data, entry.zerion_id)
+                test_results.append({
+                    'coin_id': entry.coin_id,
+                    'source': entry.source,
+                    'zerion_id': entry.zerion_id,
+                    'current_amount': entry.amount,
+                    'zerion_quantity': quantity
+                })
+        
+        # Return debug information
+        return jsonify({
+            'success': True,
+            'test_results': test_results,
+            'data_structure': {
+                'keys': list(data.keys()) if isinstance(data, dict) else None,
+                'data_type': str(type(data)),
+                'has_data': 'data' in data if isinstance(data, dict) else False,
+                'data_length': len(data.get('data', [])) if isinstance(data, dict) and 'data' in data else 0
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"Error debugging Zerion data: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
