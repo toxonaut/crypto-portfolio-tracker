@@ -1096,6 +1096,22 @@ def debug_zerion_full():
         logger.error(f"Error debugging Zerion data: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/migrate_zerion_id', methods=['GET'])
+def migrate_zerion_id_endpoint():
+    try:
+        # Execute the migration
+        with db.engine.connect() as connection:
+            logger.info("Altering zerion_id column to VARCHAR(255)")
+            connection.execute(db.text("ALTER TABLE portfolio ALTER COLUMN zerion_id TYPE VARCHAR(255)"))
+            connection.commit()
+            logger.info("Successfully altered zerion_id column to VARCHAR(255)")
+        
+        return jsonify({'success': True, 'message': 'Successfully migrated zerion_id column to VARCHAR(255)'})
+    
+    except Exception as e:
+        logger.error(f"Error during migration: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 if __name__ == '__main__':
     # Only run the development server when running locally
     # Railway will use gunicorn to run the application
