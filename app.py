@@ -62,7 +62,7 @@ with app.app_context():
         if 'zerion_id' not in columns:
             logger.info("Adding zerion_id column to portfolio table")
             with db.engine.connect() as connection:
-                connection.execute(db.text("ALTER TABLE portfolio ADD COLUMN zerion_id VARCHAR(100)"))
+                connection.execute(db.text("ALTER TABLE portfolio ADD COLUMN zerion_id VARCHAR(255)"))
                 connection.commit()
                 logger.info("Successfully added zerion_id column to portfolio table")
     except Exception as e:
@@ -75,7 +75,7 @@ class Portfolio(db.Model):
     source = db.Column(db.String(50), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     apy = db.Column(db.Float, default=0.0)
-    zerion_id = db.Column(db.String(100), nullable=True)
+    zerion_id = db.Column(db.String(255), nullable=True)
     
     def to_dict(self):
         return {
@@ -930,7 +930,7 @@ def fix_sequence():
 @app.route('/api/update_zerion_data', methods=['POST'])
 def update_zerion_data():
     try:
-        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_simple&currency=usd&filter[trash]=only_non_trash&sort=value"
+        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_complex&currency=usd&filter[trash]=only_non_trash&sort=value"
         
         headers = {
             "accept": "application/json",
@@ -1024,7 +1024,7 @@ def update_zerion_data():
 @app.route('/api/debug_zerion', methods=['GET'])
 def debug_zerion():
     try:
-        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_simple&currency=usd&filter[trash]=only_non_trash&sort=value"
+        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_complex&currency=usd&filter[trash]=only_non_trash&sort=value"
         
         headers = {
             "accept": "application/json",
@@ -1076,7 +1076,7 @@ def debug_zerion():
 @app.route('/api/debug_zerion_full', methods=['GET'])
 def debug_zerion_full():
     try:
-        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_simple&currency=usd&filter[trash]=only_non_trash&sort=value"
+        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_complex&currency=usd&filter[trash]=only_non_trash&sort=value"
         
         headers = {
             "accept": "application/json",
