@@ -174,33 +174,67 @@ def get_coin_prices(coin_ids):
         return {}
 
 def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
+    """
+    Recursively search for a target_id in the blob and return its quantity.numeric value.
+    
+    For Zerion API, we need to handle these cases:
+    1. Direct ID match in data items
+    2. Partial ID match (some IDs might have different formats)
+    3. Search in nested structures
+    """
     # Case 1 – dict: check id, then recurse into values
     if isinstance(blob, dict):
-        # Check if this is the target object
+        # Check if this is the target object with exact ID match
         if blob.get("id") == target_id:
             try:
                 return blob["attributes"]["quantity"]["numeric"]
             except (KeyError, TypeError):
                 return None
+        
+        # Check for partial ID match (Zerion IDs might have different formats)
+        if "id" in blob and isinstance(blob["id"], str) and target_id in blob["id"]:
+            logger.info(f"Found partial ID match: {blob['id']} contains {target_id}")
+            try:
+                return blob["attributes"]["quantity"]["numeric"]
+            except (KeyError, TypeError):
+                pass
                 
         # Special case for the Zerion API response structure
         if "data" in blob and isinstance(blob["data"], list):
             for item in blob["data"]:
+                # Try exact match first
+                if item.get("id") == target_id:
+                    try:
+                        return item["attributes"]["quantity"]["numeric"]
+                    except (KeyError, TypeError):
+                        pass
+                
+                # Try partial match
+                if "id" in item and isinstance(item["id"], str) and target_id in item["id"]:
+                    logger.info(f"Found partial ID match in data array: {item['id']} contains {target_id}")
+                    try:
+                        return item["attributes"]["quantity"]["numeric"]
+                    except (KeyError, TypeError):
+                        pass
+                
+                # Recursive search
                 result = get_quantity_numeric(item, target_id)
                 if result is not None:
                     return result
                     
         # Search all children
-        for value in blob.values():
+        for key, value in blob.items():
             result = get_quantity_numeric(value, target_id)
             if result is not None:
                 return result
+    
     # Case 2 – list: iterate and recurse
     elif isinstance(blob, list):
         for item in blob:
             result = get_quantity_numeric(item, target_id)
             if result is not None:
                 return result
+    
     # Case 3 – primitives: nothing to do
     return None
 
@@ -891,6 +925,7 @@ def update_zerion_data():
         portfolio_entries = Portfolio.query.all()
         logger.info(f"Found {len(portfolio_entries)} portfolio entries to check")
         updated_entries = []
+        not_found_entries = []
         
         # Process each entry
         for entry in portfolio_entries:
@@ -911,11 +946,18 @@ def update_zerion_data():
                         updated_entries.append({
                             'coin_id': entry.coin_id,
                             'source': entry.source,
+                            'zerion_id': entry.zerion_id,
                             'old_amount': old_amount,
                             'new_amount': new_amount
                         })
                     except (ValueError, TypeError) as e:
                         logger.error(f"Error converting quantity to float for {entry.coin_id}: {e}")
+                else:
+                    not_found_entries.append({
+                        'coin_id': entry.coin_id,
+                        'source': entry.source,
+                        'zerion_id': entry.zerion_id
+                    })
         
         # Commit changes if any entries were updated
         if updated_entries:
@@ -924,14 +966,23 @@ def update_zerion_data():
             return jsonify({
                 'success': True, 
                 'message': f'Updated {len(updated_entries)} entries with Zerion data',
-                'updated_entries': updated_entries
+                'updated_entries': updated_entries,
+                'not_found_entries': not_found_entries
             })
         else:
             logger.info("No entries were updated")
-            return jsonify({
-                'success': True, 
-                'message': 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.'
-            })
+            # Return more detailed information about why no entries were updated
+            if not_found_entries:
+                return jsonify({
+                    'success': True, 
+                    'message': f'No entries were updated. {len(not_found_entries)} entries had Zerion IDs but no matching data was found.',
+                    'not_found_entries': not_found_entries
+                })
+            else:
+                return jsonify({
+                    'success': True, 
+                    'message': 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.'
+                })
     
     except Exception as e:
         logger.error(f"Error fetching Zerion data: {e}")
@@ -984,6 +1035,29 @@ def debug_zerion():
                 'data_length': len(data.get('data', [])) if isinstance(data, dict) and 'data' in data else 0
             }
         })
+    
+    except Exception as e:
+        logger.error(f"Error debugging Zerion data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/debug_zerion_full', methods=['GET'])
+def debug_zerion_full():
+    try:
+        url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_simple&currency=usd&filter[trash]=only_non_trash&sort=value"
+        
+        headers = {
+            "accept": "application/json",
+            "authorization": "Basic emtfZGV2XzQ5MDU4MDM1NjA1MjQwNzA5NWYzYjc5ODc3Mjg5M2MwOg=="
+        }
+        
+        logger.info("Fetching full Zerion data for debugging...")
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code != 200:
+            return jsonify({'success': False, 'message': f'Failed to fetch Zerion data: {response.status_code}'})
+        
+        # Return the full response
+        return response.json()
     
     except Exception as e:
         logger.error(f"Error debugging Zerion data: {e}")

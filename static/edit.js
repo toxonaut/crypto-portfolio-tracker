@@ -497,12 +497,30 @@ document.getElementById('updateZerionDataBtn').addEventListener('click', async (
             if (data.updated_entries && data.updated_entries.length > 0) {
                 const updatedCount = data.updated_entries.length;
                 const message = `Successfully updated ${updatedCount} portfolio entries with Zerion data.`;
-                alert(message);
+                
+                // Create a more detailed message with the updated entries
+                let detailedMessage = message + "\n\nUpdated entries:";
+                data.updated_entries.forEach(entry => {
+                    detailedMessage += `\n- ${entry.coin_id} (${entry.source}): ${entry.old_amount} → ${entry.new_amount}`;
+                });
+                
+                alert(detailedMessage);
                 
                 // Refresh the portfolio display to show updated amounts
                 updatePortfolio();
             } else {
-                alert(data.message || 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.');
+                let message = data.message || 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.';
+                
+                // Add details about entries that weren't found
+                if (data.not_found_entries && data.not_found_entries.length > 0) {
+                    message += "\n\nEntries with Zerion IDs that weren't found:";
+                    data.not_found_entries.forEach(entry => {
+                        message += `\n- ${entry.coin_id} (${entry.source}): ${entry.zerion_id}`;
+                    });
+                    message += "\n\nPossible issues:\n- The Zerion ID might be incorrect\n- The asset might not be in the wallet\n- The asset might be in a different format in Zerion";
+                }
+                
+                alert(message);
             }
         } else {
             alert(`Error: ${data.message || data.error || 'Unknown error'}`);
