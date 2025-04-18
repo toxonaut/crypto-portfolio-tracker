@@ -492,38 +492,130 @@ document.getElementById('updateZerionDataBtn').addEventListener('click', async (
         
         const data = await response.json();
         
-        // Show result message
+        // Create a modal to display the detailed information
+        const modalId = 'zerionDebugModal';
+        let modal = document.getElementById(modalId);
+        
+        // Remove existing modal if it exists
+        if (modal) {
+            document.body.removeChild(modal);
+        }
+        
+        // Create modal HTML
+        modal = document.createElement('div');
+        modal.id = modalId;
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        modal.style.zIndex = '1000';
+        modal.style.display = 'flex';
+        modal.style.justifyContent = 'center';
+        modal.style.alignItems = 'center';
+        
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.style.backgroundColor = '#121726';
+        modalContent.style.padding = '20px';
+        modalContent.style.borderRadius = '5px';
+        modalContent.style.maxWidth = '90%';
+        modalContent.style.maxHeight = '90%';
+        modalContent.style.overflow = 'auto';
+        modalContent.style.color = '#e0e0e0';
+        
+        // Create title
+        const title = document.createElement('h3');
+        title.textContent = 'Zerion Data Update Results';
+        title.style.marginBottom = '15px';
+        
+        // Create close button
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close';
+        closeButton.className = 'btn btn-secondary';
+        closeButton.style.marginBottom = '15px';
+        closeButton.onclick = () => {
+            document.body.removeChild(modal);
+        };
+        
+        // Create result message
+        const message = document.createElement('p');
         if (data.success) {
             if (data.updated_entries && data.updated_entries.length > 0) {
                 const updatedCount = data.updated_entries.length;
-                const message = `Successfully updated ${updatedCount} portfolio entries with Zerion data.`;
+                message.innerHTML = `<strong>Success:</strong> Updated ${updatedCount} portfolio entries with Zerion data.`;
                 
-                // Create a more detailed message with the updated entries
-                let detailedMessage = message + "\n\nUpdated entries:";
+                // Add updated entries details
+                const updatedList = document.createElement('ul');
                 data.updated_entries.forEach(entry => {
-                    detailedMessage += `\n- ${entry.coin_id} (${entry.source}): ${entry.old_amount} → ${entry.new_amount}`;
+                    const item = document.createElement('li');
+                    item.innerHTML = `<strong>${entry.coin_id}</strong> (${entry.source}): ${entry.old_amount} → ${entry.new_amount}`;
+                    updatedList.appendChild(item);
                 });
                 
-                alert(detailedMessage);
-                
-                // Refresh the portfolio display to show updated amounts
-                updatePortfolio();
+                message.appendChild(updatedList);
             } else {
-                let message = data.message || 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.';
+                message.innerHTML = `<strong>No Updates:</strong> ${data.message}`;
                 
                 // Add details about entries that weren't found
                 if (data.not_found_entries && data.not_found_entries.length > 0) {
-                    message += "\n\nEntries with Zerion IDs that weren't found:";
+                    const notFoundTitle = document.createElement('p');
+                    notFoundTitle.innerHTML = '<strong>Entries with Zerion IDs that weren\'t found:</strong>';
+                    message.appendChild(notFoundTitle);
+                    
+                    const notFoundList = document.createElement('ul');
                     data.not_found_entries.forEach(entry => {
-                        message += `\n- ${entry.coin_id} (${entry.source}): ${entry.zerion_id}`;
+                        const item = document.createElement('li');
+                        item.innerHTML = `<strong>${entry.coin_id}</strong> (${entry.source}): ${entry.zerion_id}`;
+                        notFoundList.appendChild(item);
                     });
-                    message += "\n\nPossible issues:\n- The Zerion ID might be incorrect\n- The asset might not be in the wallet\n- The asset might be in a different format in Zerion";
+                    
+                    message.appendChild(notFoundList);
+                    
+                    const helpText = document.createElement('p');
+                    helpText.innerHTML = '<strong>Possible issues:</strong><br>- The Zerion ID might be incorrect<br>- The asset might not be in the wallet<br>- The asset might be in a different format in Zerion';
+                    message.appendChild(helpText);
                 }
-                
-                alert(message);
             }
         } else {
-            alert(`Error: ${data.message || data.error || 'Unknown error'}`);
+            message.innerHTML = `<strong>Error:</strong> ${data.message || data.error || 'Unknown error'}`;
+        }
+        
+        // Create JSON preview section
+        const jsonSection = document.createElement('div');
+        jsonSection.style.marginTop = '20px';
+        
+        const jsonTitle = document.createElement('h4');
+        jsonTitle.textContent = 'Zerion API Response Preview (First 100 lines)';
+        jsonTitle.style.marginBottom = '10px';
+        
+        const jsonContent = document.createElement('pre');
+        jsonContent.style.backgroundColor = '#1e1e1e';
+        jsonContent.style.padding = '10px';
+        jsonContent.style.borderRadius = '5px';
+        jsonContent.style.overflow = 'auto';
+        jsonContent.style.maxHeight = '400px';
+        jsonContent.style.fontSize = '12px';
+        jsonContent.style.whiteSpace = 'pre-wrap';
+        jsonContent.textContent = data.json_preview || 'No JSON preview available';
+        
+        jsonSection.appendChild(jsonTitle);
+        jsonSection.appendChild(jsonContent);
+        
+        // Assemble modal content
+        modalContent.appendChild(title);
+        modalContent.appendChild(closeButton);
+        modalContent.appendChild(message);
+        modalContent.appendChild(jsonSection);
+        modal.appendChild(modalContent);
+        
+        // Add modal to body
+        document.body.appendChild(modal);
+        
+        // Refresh the portfolio display if updates were made
+        if (data.success && data.updated_entries && data.updated_entries.length > 0) {
+            updatePortfolio();
         }
         
         // Reset button state

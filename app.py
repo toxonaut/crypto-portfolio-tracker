@@ -948,6 +948,11 @@ def update_zerion_data():
         logger.info("Parsing Zerion response...")
         data = json.loads(response.text)
         
+        # Extract the first 100 lines of the JSON response for debugging
+        json_preview = json.dumps(data, indent=2)
+        json_lines = json_preview.split('\n')
+        json_preview = '\n'.join(json_lines[:100]) + '\n...' if len(json_lines) > 100 else json_preview
+        
         # Get all portfolio entries
         portfolio_entries = Portfolio.query.all()
         logger.info(f"Found {len(portfolio_entries)} portfolio entries to check")
@@ -994,7 +999,8 @@ def update_zerion_data():
                 'success': True, 
                 'message': f'Updated {len(updated_entries)} entries with Zerion data',
                 'updated_entries': updated_entries,
-                'not_found_entries': not_found_entries
+                'not_found_entries': not_found_entries,
+                'json_preview': json_preview
             })
         else:
             logger.info("No entries were updated")
@@ -1003,12 +1009,14 @@ def update_zerion_data():
                 return jsonify({
                     'success': True, 
                     'message': f'No entries were updated. {len(not_found_entries)} entries had Zerion IDs but no matching data was found.',
-                    'not_found_entries': not_found_entries
+                    'not_found_entries': not_found_entries,
+                    'json_preview': json_preview
                 })
             else:
                 return jsonify({
                     'success': True, 
-                    'message': 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.'
+                    'message': 'No entries were updated. Make sure Zerion IDs are set for your portfolio entries.',
+                    'json_preview': json_preview
                 })
     
     except Exception as e:
