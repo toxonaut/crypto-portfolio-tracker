@@ -323,7 +323,7 @@ async function updatePortfolio() {
                 const zerionIdCell = document.createElement('td');
                 zerionIdCell.className = 'zerion-id-cell';
                 const zerionId = sourceData.zerion_id || '';
-                zerionIdCell.innerHTML = `<span class="editable">${zerionId || '<i class="text-muted">Click to add</i>'}</span>`;
+                zerionIdCell.innerHTML = `<span class="editable" style="font-size: 0.8rem;">${zerionId || '<i class="text-muted">Click to add</i>'}</span>`;
                 const zerionIdSpan = zerionIdCell.querySelector('.editable');
                 
                 zerionIdSpan.addEventListener('click', function(e) {

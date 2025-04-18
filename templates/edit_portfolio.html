@@ -78,13 +78,22 @@
             width: 15%;
         }
         .portfolio-table th.apy-col {
-            width: 30%;
+            width: 35%;
         }
         .portfolio-table th.zerion-col {
-            width: 25%;
+            width: 20%;
         }
         .portfolio-table th.actions-col {
             width: 10%;
+        }
+        
+        /* Zerion ID specific styles */
+        .zerion-id-input {
+            font-size: 0.8rem !important;
+        }
+        .zerion-id-cell {
+            font-size: 0.8rem;
+            word-break: break-all;
         }
     </style>
 </head>
@@ -148,8 +157,8 @@
                         <tr>
                             <th class="location-col">Location</th>
                             <th class="amount-col">Amount</th>
-                            <th class="apy-col" style="width: 30%;">APY Yield (%)</th>
-                            <th class="zerion-col" style="width: 25%;">Zerion Id</th>
+                            <th class="apy-col" style="width: 35%;">APY Yield (%)</th>
+                            <th class="zerion-col" style="width: 20%;">Zerion Id</th>
                             <th class="actions-col">Actions</th>
                         </tr>
                     </thead>
@@ -178,7 +187,7 @@
                     <input type="number" step="0.01" min="0" class="form-control apy-input" value="0">
                 </div>
             </td>
-            <td>
+            <td class="zerion-id-cell">
                 <div class="input-group">
                     <input type="text" class="form-control zerion-id-input" value="">
                 </div>
