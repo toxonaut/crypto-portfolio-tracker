@@ -59,6 +59,7 @@ class Portfolio(db.Model):
     source = db.Column(db.String(50), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     apy = db.Column(db.Float, default=0.0)
+    zerion_id = db.Column(db.String(100), nullable=True)
     
     def to_dict(self):
         return {
@@ -66,7 +67,8 @@ class Portfolio(db.Model):
             'coin_id': self.coin_id,
             'source': self.source,
             'amount': self.amount,
-            'apy': self.apy
+            'apy': self.apy,
+            'zerion_id': self.zerion_id
         }
 
 class PortfolioHistory(db.Model):
@@ -194,7 +196,8 @@ def scheduled_add_history():
             # Add source data to the coin
             grouped_data[coin_id]['sources'][source] = {
                 'amount': amount,
-                'apy': apy
+                'apy': apy,
+                'zerion_id': item.get('zerion_id', '')
             }
             
             # Add to the total amount for this coin
@@ -356,7 +359,8 @@ def get_portfolio():
         # Add source data to the coin
         grouped_data[coin_id]['sources'][source] = {
             'amount': amount,
-            'apy': apy
+            'apy': apy,
+            'zerion_id': item.get('zerion_id', '')
         }
         
         # Add to the total amount for this coin
@@ -436,7 +440,8 @@ def add_coin_api():
             coin_id=data['coin_id'],
             source=data['source'],
             amount=float(data['amount']),
-            apy=float(data.get('apy', 0))
+            apy=float(data.get('apy', 0)),
+            zerion_id=data.get('zerion_id', '')
         )
         
         db.session.add(new_entry)
@@ -456,7 +461,8 @@ def add_coin():
             coin_id=data['coin_id'],
             source=data['source'],
             amount=float(data['amount']),
-            apy=float(data.get('apy', 0))
+            apy=float(data.get('apy', 0)),
+            zerion_id=data.get('zerion_id', '')
         )
         
         db.session.add(new_entry)
@@ -479,6 +485,8 @@ def update_coin(coin_id):
         entry.amount = float(data['amount'])
         if 'apy' in data:
             entry.apy = float(data['apy'])
+        if 'zerion_id' in data:
+            entry.zerion_id = data['zerion_id']
         
         db.session.commit()
         
@@ -501,13 +509,13 @@ def update_coin_api():
         if not entry:
             return jsonify({'success': False, 'error': 'Entry not found'})
         
-        # Update the entry
+        # Update fields
         entry.source = data['new_source']
         entry.amount = float(data['new_amount'])
-        
-        # Check if new_apy is explicitly defined (including 0 values)
         if 'new_apy' in data:
             entry.apy = float(data['new_apy'])
+        if 'new_zerion_id' in data:
+            entry.zerion_id = data['new_zerion_id']
         
         db.session.commit()
         

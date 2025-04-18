@@ -72,9 +72,9 @@ async function removeSource(coinId, source) {
     }
 }
 
-async function updateCoinEntry(coinId, oldSource, newSource, newAmount, newApy) {
+async function updateCoinEntry(coinId, oldSource, newSource, newAmount, newApy, newZerionId) {
     try {
-        console.log('Updating coin entry:', { coinId, oldSource, newSource, newAmount, newApy });
+        console.log('Updating coin entry:', { coinId, oldSource, newSource, newAmount, newApy, newZerionId });
         const response = await fetch('/api/update_coin', {
             method: 'POST',
             headers: {
@@ -85,7 +85,8 @@ async function updateCoinEntry(coinId, oldSource, newSource, newAmount, newApy) 
                 old_source: oldSource,
                 new_source: newSource,
                 new_amount: newAmount,
-                new_apy: newApy
+                new_apy: newApy,
+                new_zerion_id: newZerionId
             })
         });
 
@@ -115,7 +116,7 @@ function makeEditable(element, currentValue, onSave) {
     // Create save button
     const saveBtn = document.createElement('button');
     saveBtn.className = 'btn btn-sm btn-success';
-    saveBtn.innerHTML = '✓';
+    saveBtn.innerHTML = '&#10003;';
     
     // Create container
     const container = document.createElement('div');
@@ -216,6 +217,7 @@ async function updatePortfolio() {
                         <th>Location</th>
                         <th>Amount</th>
                         <th>APY Yield (%)</th>
+                        <th>Zerion Id</th>
                         <th>Value (USD)</th>
                         <th>Daily Yield</th>
                         <th>Actions</th>
@@ -317,6 +319,21 @@ async function updatePortfolio() {
                     });
                 });
                 
+                // Zerion Id column (editable)
+                const zerionIdCell = document.createElement('td');
+                zerionIdCell.className = 'zerion-id-cell';
+                const zerionId = sourceData.zerion_id || '';
+                zerionIdCell.innerHTML = `<span class="editable">${zerionId || '<i class="text-muted">Click to add</i>'}</span>`;
+                const zerionIdSpan = zerionIdCell.querySelector('.editable');
+                
+                zerionIdSpan.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    makeEditable(this, zerionId, function(newZerionId) {
+                        // Update the coin entry with the new Zerion Id
+                        updateCoinEntry(coinId, source, source, amount, apy, newZerionId);
+                    });
+                });
+                
                 // Value column
                 const valueCell = document.createElement('td');
                 const value = amount * details.price;
@@ -362,6 +379,7 @@ async function updatePortfolio() {
                 row.appendChild(sourceCell);
                 row.appendChild(amountCell);
                 row.appendChild(apyCell);
+                row.appendChild(zerionIdCell);
                 row.appendChild(valueCell);
                 row.appendChild(dailyYieldCell);
                 row.appendChild(actionsCell);
