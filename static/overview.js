@@ -800,7 +800,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // Add event listener for demo mode toggle
-        const toggleDemoModeBtn = document.getElementById('toggleDemoModeBtn');
+        const toggleDemoModeBtn = document.getElementById('toggleDemoButton');
         if (toggleDemoModeBtn) {
             toggleDemoModeBtn.addEventListener('click', toggleDemoMode);
         }
