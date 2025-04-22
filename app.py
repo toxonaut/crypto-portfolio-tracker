@@ -937,6 +937,11 @@ def update_zerion_data():
             "authorization": "Basic emtfZGV2XzQ5MDU4MDM1NjA1MjQwNzA5NWYzYjc5ODc3Mjg5M2MwOg=="
         }
         
+        # Calculate total Bitcoin before update
+        bitcoin_entries_before = Portfolio.query.filter_by(coin_id='bitcoin').all()
+        total_bitcoin_before = sum(entry.amount for entry in bitcoin_entries_before)
+        logger.info(f"Total Bitcoin before update: {total_bitcoin_before}")
+        
         logger.info("Fetching Zerion data...")
         response = requests.get(url, headers=headers)
         
@@ -993,9 +998,21 @@ def update_zerion_data():
         if updated_entries:
             logger.info(f"Committing updates for {len(updated_entries)} entries")
             db.session.commit()
+            
+            # Calculate total Bitcoin after update
+            bitcoin_entries_after = Portfolio.query.filter_by(coin_id='bitcoin').all()
+            total_bitcoin_after = sum(entry.amount for entry in bitcoin_entries_after)
+            bitcoin_difference = total_bitcoin_after - total_bitcoin_before
+            
+            logger.info(f"Total Bitcoin after update: {total_bitcoin_after}")
+            logger.info(f"Bitcoin difference: {bitcoin_difference}")
+            
             return jsonify({
                 'success': True, 
                 'message': f'Updated {len(updated_entries)} entries with Zerion data',
+                'bitcoin_before': total_bitcoin_before,
+                'bitcoin_after': total_bitcoin_after,
+                'bitcoin_difference': bitcoin_difference,
                 'updated_entries': updated_entries,
                 'not_found_entries': not_found_entries,
                 'json_preview': json_preview
