@@ -557,17 +557,20 @@ function calculateHistoricalChanges() {
         }
     }
     
-    // If we couldn't find historical values, use the oldest available data point
+    // If we couldn't find historical values, use the most recent data point
     if (value24hAgo === null && sortedData.length > 1) {
-        value24hAgo = sortedData[sortedData.length - 1].total_value;
+        value24hAgo = sortedData[0].total_value;
+        console.log('No 24h data found, using most recent value instead:', value24hAgo);
     }
     
     if (value7dAgo === null && sortedData.length > 1) {
-        value7dAgo = sortedData[sortedData.length - 1].total_value;
+        value7dAgo = sortedData[0].total_value;
+        console.log('No 7d data found, using most recent value instead:', value7dAgo);
     }
     
     if (value30dAgo === null && sortedData.length > 1) {
-        value30dAgo = sortedData[sortedData.length - 1].total_value;
+        value30dAgo = sortedData[0].total_value;
+        console.log('No 30d data found, using most recent value instead:', value30dAgo);
     }
     
     // Apply demo mode scaling to historical values if needed
@@ -579,13 +582,13 @@ function calculateHistoricalChanges() {
     
     // Calculate dollar and percentage changes
     const dollarChange24h = value24hAgo ? (currentValue - value24hAgo) : 0;
-    const percentChange24h = value24hAgo ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
+    const percentChange24h = value24hAgo && value24hAgo !== 0 ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
     
     const dollarChange7d = value7dAgo ? (currentValue - value7dAgo) : 0;
-    const percentChange7d = value7dAgo ? ((currentValue - value7dAgo) / value7dAgo) * 100 : 0;
+    const percentChange7d = value7dAgo && value7dAgo !== 0 ? ((currentValue - value7dAgo) / value7dAgo) * 100 : 0;
     
     const dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
-    const percentChange30d = value30dAgo ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
+    const percentChange30d = value30dAgo && value30dAgo !== 0 ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
     
     // Initialize largest changes
     let largestPercentGain = { value: 0, percent: 0, date: '' };
@@ -613,7 +616,7 @@ function calculateHistoricalChanges() {
                 }
                 
                 const dollarChange = laterValue - earlierValue;
-                const percentChange = ((laterValue - earlierValue) / earlierValue) * 100;
+                const percentChange = earlierValue !== 0 ? ((laterValue - earlierValue) / earlierValue) * 100 : 0;
                 const dateStr = laterDate.toISOString().split('T')[0]; // Just the date part
                 
                 // Update largest percentage gain
