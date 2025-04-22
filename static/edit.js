@@ -546,6 +546,28 @@ document.getElementById('updateZerionDataBtn').addEventListener('click', async (
                 const updatedCount = data.updated_entries.length;
                 message.innerHTML = `<strong>Success:</strong> Updated ${updatedCount} portfolio entries with Zerion data.`;
                 
+                // Add Bitcoin difference information if available
+                if (data.bitcoin_before !== undefined && data.bitcoin_after !== undefined && data.bitcoin_difference !== undefined) {
+                    const bitcoinInfo = document.createElement('div');
+                    bitcoinInfo.style.marginTop = '10px';
+                    bitcoinInfo.style.marginBottom = '15px';
+                    bitcoinInfo.style.padding = '10px';
+                    bitcoinInfo.style.backgroundColor = '#1c243e';
+                    bitcoinInfo.style.borderRadius = '5px';
+                    
+                    const diffColor = data.bitcoin_difference >= 0 ? '#2ecc71' : '#e74c3c';
+                    const diffSign = data.bitcoin_difference >= 0 ? '+' : '';
+                    
+                    bitcoinInfo.innerHTML = `
+                        <h4>Bitcoin Balance Change</h4>
+                        <p><strong>Before update:</strong> ${data.bitcoin_before.toFixed(8)} BTC</p>
+                        <p><strong>After update:</strong> ${data.bitcoin_after.toFixed(8)} BTC</p>
+                        <p><strong>Difference:</strong> <span style="color: ${diffColor};">${diffSign}${data.bitcoin_difference.toFixed(8)} BTC</span></p>
+                    `;
+                    
+                    message.appendChild(bitcoinInfo);
+                }
+                
                 // Add updated entries details
                 const updatedList = document.createElement('ul');
                 data.updated_entries.forEach(entry => {
