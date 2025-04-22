@@ -353,7 +353,11 @@ async function updatePortfolio() {
             totalBalanceCell.textContent = totalAmount.toFixed(8);
             
             const priceCell = document.createElement('td');
-            priceCell.textContent = '$' + details.price.toFixed(2);
+            // Format with apostrophes as thousands separators and 2 decimal places
+            priceCell.textContent = '$' + details.price.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).replace(/,/g, "'");
             
             const hourlyChangeCell = document.createElement('td');
             hourlyChangeCell.innerHTML = formatPriceChange(details.hourly_change);
@@ -369,7 +373,11 @@ async function updatePortfolio() {
             if (isDemoMode) {
                 value = value / 15;
             }
-            valueCell.textContent = '$' + value.toFixed(2);
+            // Format with apostrophes as thousands separators and 2 decimal places
+            valueCell.textContent = '$' + value.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).replace(/,/g, "'");
             
             // Append all cells to the row
             row.appendChild(coinCell);
@@ -390,7 +398,11 @@ async function updatePortfolio() {
         if (isDemoMode) {
             totalValue = totalValue / 15;
         }
-        totalValueElement.textContent = totalValue.toFixed(2);
+        // Format with apostrophes as thousands separators and 2 decimal places
+        totalValueElement.textContent = totalValue.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).replace(/,/g, "'");
         
         // Update BTC value
         const btcValueElement = document.getElementById('btcValue');
@@ -406,7 +418,11 @@ async function updatePortfolio() {
         if (isDemoMode) {
             totalMonthlyYield = totalMonthlyYield / 15;
         }
-        monthlyYieldElement.textContent = totalMonthlyYield.toFixed(2);
+        // Format with apostrophes as thousands separators and 2 decimal places
+        monthlyYieldElement.textContent = totalMonthlyYield.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).replace(/,/g, "'");
         
         // Update history chart
         console.log('Updating history chart...');
