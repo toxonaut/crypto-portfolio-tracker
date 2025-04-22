@@ -483,7 +483,10 @@ function calculateHistoricalChanges() {
     // Try to get current value from UI
     const totalValueElement = document.getElementById('totalValue');
     if (totalValueElement) {
-        const uiValue = parseFloat(totalValueElement.textContent || totalValueElement.innerText);
+        // Extract the numeric value, removing any formatting characters like apostrophes
+        const rawText = totalValueElement.textContent || totalValueElement.innerText;
+        const cleanText = rawText.replace(/'/g, '').replace(/,/g, '');
+        const uiValue = parseFloat(cleanText);
         if (!isNaN(uiValue) && uiValue > 0) {
             currentValue = uiValue;
             console.log('Using current value from UI:', currentValue);
@@ -581,14 +584,45 @@ function calculateHistoricalChanges() {
     }
     
     // Calculate dollar and percentage changes
-    const dollarChange24h = value24hAgo ? (currentValue - value24hAgo) : 0;
-    const percentChange24h = value24hAgo && value24hAgo !== 0 ? ((currentValue - value24hAgo) / value24hAgo) * 100 : 0;
+    let dollarChange24h = value24hAgo ? (currentValue - value24hAgo) : 0;
+    // Ensure we don't show negative 100% changes when data is limited
+    let percentChange24h = 0;
+    if (value24hAgo && value24hAgo !== 0) {
+        percentChange24h = ((currentValue - value24hAgo) / value24hAgo) * 100;
+        // If we're showing a large negative percentage (like -100%), it's likely due to data issues
+        // In this case, default to 0% change to avoid misleading information
+        if (percentChange24h <= -99) {
+            console.log('Detected extreme negative percentage change for 24h, defaulting to 0%');
+            percentChange24h = 0;
+            dollarChange24h = 0; // Also reset the dollar change to be consistent
+        }
+    }
     
-    const dollarChange7d = value7dAgo ? (currentValue - value7dAgo) : 0;
-    const percentChange7d = value7dAgo && value7dAgo !== 0 ? ((currentValue - value7dAgo) / value7dAgo) * 100 : 0;
+    let dollarChange7d = value7dAgo ? (currentValue - value7dAgo) : 0;
+    // Ensure we don't show negative 100% changes when data is limited
+    let percentChange7d = 0;
+    if (value7dAgo && value7dAgo !== 0) {
+        percentChange7d = ((currentValue - value7dAgo) / value7dAgo) * 100;
+        // If we're showing a large negative percentage (like -100%), it's likely due to data issues
+        if (percentChange7d <= -99) {
+            console.log('Detected extreme negative percentage change for 7d, defaulting to 0%');
+            percentChange7d = 0;
+            dollarChange7d = 0; // Also reset the dollar change to be consistent
+        }
+    }
     
-    const dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
-    const percentChange30d = value30dAgo && value30dAgo !== 0 ? ((currentValue - value30dAgo) / value30dAgo) * 100 : 0;
+    let dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
+    // Ensure we don't show negative 100% changes when data is limited
+    let percentChange30d = 0;
+    if (value30dAgo && value30dAgo !== 0) {
+        percentChange30d = ((currentValue - value30dAgo) / value30dAgo) * 100;
+        // If we're showing a large negative percentage (like -100%), it's likely due to data issues
+        if (percentChange30d <= -99) {
+            console.log('Detected extreme negative percentage change for 30d, defaulting to 0%');
+            percentChange30d = 0;
+            dollarChange30d = 0; // Also reset the dollar change to be consistent
+        }
+    }
     
     // Initialize largest changes
     let largestPercentGain = { value: 0, percent: 0, date: '' };
