@@ -558,11 +558,25 @@ document.getElementById('updateZerionDataBtn').addEventListener('click', async (
                     const diffColor = data.bitcoin_difference >= 0 ? '#2ecc71' : '#e74c3c';
                     const diffSign = data.bitcoin_difference >= 0 ? '+' : '';
                     
+                    // Format USD value
+                    let usdValueDisplay = '';
+                    if (data.bitcoin_price && data.bitcoin_difference_usd !== undefined) {
+                        const usdDiffFormatted = Math.abs(data.bitcoin_difference_usd).toLocaleString('en-US', {
+                            style: 'currency',
+                            currency: 'USD',
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        });
+                        const usdSign = data.bitcoin_difference_usd >= 0 ? '+' : '-';
+                        usdValueDisplay = ` (${usdSign}${usdDiffFormatted})`;
+                    }
+                    
                     bitcoinInfo.innerHTML = `
                         <h4>Bitcoin Balance Change</h4>
                         <p><strong>Before update:</strong> ${data.bitcoin_before.toFixed(8)} BTC</p>
                         <p><strong>After update:</strong> ${data.bitcoin_after.toFixed(8)} BTC</p>
-                        <p><strong>Difference:</strong> <span style="color: ${diffColor};">${diffSign}${data.bitcoin_difference.toFixed(8)} BTC</span></p>
+                        <p><strong>Difference:</strong> <span style="color: ${diffColor};">${diffSign}${data.bitcoin_difference.toFixed(8)} BTC${usdValueDisplay}</span></p>
+                        ${data.bitcoin_price ? `<p><strong>Current BTC Price:</strong> $${data.bitcoin_price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>` : ''}
                     `;
                     
                     message.appendChild(bitcoinInfo);

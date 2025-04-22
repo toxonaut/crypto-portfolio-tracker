@@ -942,6 +942,16 @@ def update_zerion_data():
         total_bitcoin_before = sum(entry.amount for entry in bitcoin_entries_before)
         logger.info(f"Total Bitcoin before update: {total_bitcoin_before}")
         
+        # Get current Bitcoin price
+        try:
+            bitcoin_price_response = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
+            bitcoin_price_data = bitcoin_price_response.json()
+            bitcoin_price = bitcoin_price_data.get('bitcoin', {}).get('usd', 0)
+            logger.info(f"Current Bitcoin price: ${bitcoin_price}")
+        except Exception as e:
+            logger.error(f"Error fetching Bitcoin price: {e}")
+            bitcoin_price = 0
+        
         logger.info("Fetching Zerion data...")
         response = requests.get(url, headers=headers)
         
@@ -1004,8 +1014,11 @@ def update_zerion_data():
             total_bitcoin_after = sum(entry.amount for entry in bitcoin_entries_after)
             bitcoin_difference = total_bitcoin_after - total_bitcoin_before
             
+            # Calculate USD values
+            bitcoin_difference_usd = bitcoin_difference * bitcoin_price
+            
             logger.info(f"Total Bitcoin after update: {total_bitcoin_after}")
-            logger.info(f"Bitcoin difference: {bitcoin_difference}")
+            logger.info(f"Bitcoin difference: {bitcoin_difference} BTC (${bitcoin_difference_usd})")
             
             return jsonify({
                 'success': True, 
@@ -1013,6 +1026,8 @@ def update_zerion_data():
                 'bitcoin_before': total_bitcoin_before,
                 'bitcoin_after': total_bitcoin_after,
                 'bitcoin_difference': bitcoin_difference,
+                'bitcoin_price': bitcoin_price,
+                'bitcoin_difference_usd': bitcoin_difference_usd,
                 'updated_entries': updated_entries,
                 'not_found_entries': not_found_entries,
                 'json_preview': json_preview
