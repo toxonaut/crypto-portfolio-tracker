@@ -542,33 +542,39 @@ function calculateHistoricalChanges() {
         // For 24h
         if (value24hAgo === null && entryDate <= oneDayAgo) {
             value24hAgo = entry.total_value;
-            // Ensure the entry is not too old (max 48 hours old)
+            // Only reject if the entry is extremely old (more than 7 days old)
             const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
-            if (hoursDiff > 48) {
-                console.log(`Entry for 24h comparison is too old (${hoursDiff.toFixed(1)} hours). Using null instead.`);
+            if (hoursDiff > 168) { // 7 days in hours
+                console.log(`Entry for 24h comparison is very old (${hoursDiff.toFixed(1)} hours). Using null instead.`);
                 value24hAgo = null;
+            } else {
+                console.log(`Using entry from ${hoursDiff.toFixed(1)} hours ago for 24h comparison.`);
             }
         }
         
         // For 7d
         if (value7dAgo === null && entryDate <= sevenDaysAgo) {
             value7dAgo = entry.total_value;
-            // Ensure the entry is not too old (max 10 days old)
+            // Only reject if the entry is extremely old (more than 14 days old)
             const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
-            if (daysDiff > 10) {
-                console.log(`Entry for 7d comparison is too old (${daysDiff.toFixed(1)} days). Using null instead.`);
+            if (daysDiff > 14) {
+                console.log(`Entry for 7d comparison is very old (${daysDiff.toFixed(1)} days). Using null instead.`);
                 value7dAgo = null;
+            } else {
+                console.log(`Using entry from ${daysDiff.toFixed(1)} days ago for 7d comparison.`);
             }
         }
         
         // For 30d
         if (value30dAgo === null && entryDate <= thirtyDaysAgo) {
             value30dAgo = entry.total_value;
-            // Ensure the entry is not too old (max 40 days old)
+            // Only reject if the entry is extremely old (more than 60 days old)
             const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
-            if (daysDiff > 40) {
-                console.log(`Entry for 30d comparison is too old (${daysDiff.toFixed(1)} days). Using null instead.`);
+            if (daysDiff > 60) {
+                console.log(`Entry for 30d comparison is very old (${daysDiff.toFixed(1)} days). Using null instead.`);
                 value30dAgo = null;
+            } else {
+                console.log(`Using entry from ${daysDiff.toFixed(1)} days ago for 30d comparison.`);
             }
         }
         
@@ -578,21 +584,62 @@ function calculateHistoricalChanges() {
         }
     }
     
-    // If we couldn't find historical values, show 0 change instead of using most recent value
-    // This prevents comparing a value to itself which can lead to incorrect calculations
+    // If we couldn't find historical values, try to use the oldest available data point
+    // This is better than showing 0 change when we have some historical data
+    if (value24hAgo === null && sortedData.length > 1) {
+        // Find the oldest entry that's not today
+        for (let i = 0; i < sortedData.length; i++) {
+            const entryDate = new Date(sortedData[i].datetime);
+            const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
+            
+            // Use any entry that's at least 6 hours old
+            if (hoursDiff >= 6) {
+                value24hAgo = sortedData[i].total_value;
+                console.log(`No ideal 24h data found, using entry from ${hoursDiff.toFixed(1)} hours ago instead.`);
+                break;
+            }
+        }
+    }
+    
+    if (value7dAgo === null && sortedData.length > 1) {
+        // Try to use any historical data that's at least 3 days old
+        for (let i = 0; i < sortedData.length; i++) {
+            const entryDate = new Date(sortedData[i].datetime);
+            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
+            
+            if (daysDiff >= 3) {
+                value7dAgo = sortedData[i].total_value;
+                console.log(`No ideal 7d data found, using entry from ${daysDiff.toFixed(1)} days ago instead.`);
+                break;
+            }
+        }
+    }
+    
+    if (value30dAgo === null && sortedData.length > 1) {
+        // Try to use any historical data that's at least 14 days old
+        for (let i = 0; i < sortedData.length; i++) {
+            const entryDate = new Date(sortedData[i].datetime);
+            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
+            
+            if (daysDiff >= 14) {
+                value30dAgo = sortedData[i].total_value;
+                console.log(`No ideal 30d data found, using entry from ${daysDiff.toFixed(1)} days ago instead.`);
+                break;
+            }
+        }
+    }
+    
+    // If we still couldn't find historical values, only then show 0 change
     if (value24hAgo === null) {
-        console.log('No valid 24h data found within reasonable time range, showing 0 change');
-        value24hAgo = null;
+        console.log('No valid historical data found for 24h comparison, showing 0 change');
     }
     
     if (value7dAgo === null) {
-        console.log('No valid 7d data found within reasonable time range, showing 0 change');
-        value7dAgo = null;
+        console.log('No valid historical data found for 7d comparison, showing 0 change');
     }
     
     if (value30dAgo === null) {
-        console.log('No valid 30d data found within reasonable time range, showing 0 change');
-        value30dAgo = null;
+        console.log('No valid historical data found for 30d comparison, showing 0 change');
     }
     
     // Apply demo mode scaling to historical values if needed
