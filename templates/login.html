@@ -74,6 +74,24 @@
         <div class="error-message" id="auth-error">
             Authentication error. Please try again or contact the administrator.
         </div>
+        
+        {% if debug_info %}
+        <div class="debug-info" style="margin-top: 20px; text-align: left; font-size: 12px; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
+            <h5>Debug Information</h5>
+            <p>Google Client ID set: {{ debug_info.client_id_set }}</p>
+            <p>Google Client Secret set: {{ debug_info.client_secret_set }}</p>
+            <p>Base URL: {{ debug_info.base_url }}</p>
+            <p>Callback URL: {{ debug_info.callback_url }}</p>
+            <p>Please make sure these environment variables are set in Railway:</p>
+            <ul>
+                <li>GOOGLE_CLIENT_ID</li>
+                <li>GOOGLE_CLIENT_SECRET</li>
+                <li>SECRET_KEY</li>
+            </ul>
+            <p>And make sure the authorized redirect URI in Google Cloud Console matches exactly:</p>
+            <code>{{ debug_info.callback_url }}</code>
+        </div>
+        {% endif %}
     </div>
 
     <script>

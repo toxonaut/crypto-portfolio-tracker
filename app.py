@@ -483,7 +483,14 @@ def index():
 
 @app.route('/login')
 def login():
-    return render_template('login.html')
+    # Add debug information to help diagnose OAuth issues
+    debug_info = {
+        'client_id_set': bool(os.environ.get('GOOGLE_CLIENT_ID')),
+        'client_secret_set': bool(os.environ.get('GOOGLE_CLIENT_SECRET')),
+        'base_url': base_url,
+        'callback_url': f"{base_url}/login/google/callback"
+    }
+    return render_template('login.html', debug_info=debug_info)
 
 @app.route('/login/google')
 def login_google():
