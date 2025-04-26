@@ -477,53 +477,50 @@ function calculateHistoricalChanges() {
     
     console.log('History data available:', historyData.length, 'entries');
     
-    // Get the current value from the portfolio data
-    let currentValue = 0;
-    
-    // Try to get current value from UI
-    const totalValueElement = document.getElementById('totalValue');
-    if (totalValueElement) {
-        // Extract the numeric value, removing any formatting characters like apostrophes
-        const rawText = totalValueElement.textContent || totalValueElement.innerText;
-        const cleanText = rawText.replace(/'/g, '').replace(/,/g, '');
-        const uiValue = parseFloat(cleanText);
-        if (!isNaN(uiValue) && uiValue > 0) {
-            currentValue = uiValue;
-            console.log('Using current value from UI:', currentValue);
-        }
-    }
-    
-    // If we couldn't get a valid value from the UI, use the most recent history entry
-    if (currentValue === 0) {
-        // Sort by date (newest first)
-        const sortedForValue = [...historyData].sort((a, b) => {
-            return new Date(b.datetime) - new Date(a.datetime);
-        });
-        
-        if (sortedForValue.length > 0) {
-            currentValue = sortedForValue[0].total_value;
-            if (isDemoMode) {
-                currentValue = currentValue / 15;
-            }
-            console.log('Using current value from history:', currentValue);
-        } else {
-            console.error('No valid current value available');
-            return {
-                change24h: { value: 0, percent: 0 },
-                change7d: { value: 0, percent: 0 },
-                change30d: { value: 0, percent: 0 },
-                largestPercentGain: { value: 0, percent: 0, date: '' },
-                largestDollarGain: { value: 0, percent: 0, date: '' },
-                largestPercentLoss: { value: 0, percent: 0, date: '' },
-                largestDollarLoss: { value: 0, percent: 0, date: '' }
-            };
-        }
-    }
-
     // Sort history data by date (newest first)
     const sortedData = [...historyData].sort((a, b) => {
         return new Date(b.datetime) - new Date(a.datetime);
     });
+    
+    // Get the current value (most recent history entry)
+    let currentValue = 0;
+    let currentDate = null;
+    
+    if (sortedData.length > 0) {
+        currentValue = sortedData[0].total_value;
+        currentDate = new Date(sortedData[0].datetime);
+        console.log('Current value from most recent history entry:', currentValue, 'from', currentDate);
+    } else {
+        console.error('No valid current value available');
+        return {
+            change24h: { value: 0, percent: 0 },
+            change7d: { value: 0, percent: 0 },
+            change30d: { value: 0, percent: 0 },
+            largestPercentGain: { value: 0, percent: 0, date: '' },
+            largestDollarGain: { value: 0, percent: 0, date: '' },
+            largestPercentLoss: { value: 0, percent: 0, date: '' },
+            largestDollarLoss: { value: 0, percent: 0, date: '' }
+        };
+    }
+    
+    // Apply demo mode scaling if needed
+    if (isDemoMode) {
+        currentValue = currentValue / 15;
+    }
+    
+    // We need at least 2 data points to calculate changes
+    if (sortedData.length < 2) {
+        console.error('Not enough history data to calculate changes');
+        return {
+            change24h: { value: 0, percent: 0 },
+            change7d: { value: 0, percent: 0 },
+            change30d: { value: 0, percent: 0 },
+            largestPercentGain: { value: 0, percent: 0, date: '' },
+            largestDollarGain: { value: 0, percent: 0, date: '' },
+            largestPercentLoss: { value: 0, percent: 0, date: '' },
+            largestDollarLoss: { value: 0, percent: 0, date: '' }
+        };
+    }
     
     // Find values from 24h ago, 7d ago, and 30d ago
     const now = new Date();
@@ -531,115 +528,44 @@ function calculateHistoricalChanges() {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     
+    // Find the closest data points to our target times
     let value24hAgo = null;
     let value7dAgo = null;
     let value30dAgo = null;
+    let date24hAgo = null;
+    let date7dAgo = null;
+    let date30dAgo = null;
     
-    // Find the closest data points to our target times
-    for (const entry of sortedData) {
+    // Skip the most recent entry (which we're using as current value)
+    for (let i = 1; i < sortedData.length; i++) {
+        const entry = sortedData[i];
         const entryDate = new Date(entry.datetime);
         
-        // For 24h
-        if (value24hAgo === null && entryDate <= oneDayAgo) {
+        // For 24h comparison
+        if (value24hAgo === null) {
             value24hAgo = entry.total_value;
-            // Only reject if the entry is extremely old (more than 7 days old)
-            const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
-            if (hoursDiff > 168) { // 7 days in hours
-                console.log(`Entry for 24h comparison is very old (${hoursDiff.toFixed(1)} hours). Using null instead.`);
-                value24hAgo = null;
-            } else {
-                console.log(`Using entry from ${hoursDiff.toFixed(1)} hours ago for 24h comparison.`);
-            }
+            date24hAgo = entryDate;
+            console.log('Using entry from', entryDate, 'with value', value24hAgo, 'for 24h comparison');
         }
         
-        // For 7d
+        // For 7d comparison
         if (value7dAgo === null && entryDate <= sevenDaysAgo) {
             value7dAgo = entry.total_value;
-            // Only reject if the entry is extremely old (more than 14 days old)
-            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
-            if (daysDiff > 14) {
-                console.log(`Entry for 7d comparison is very old (${daysDiff.toFixed(1)} days). Using null instead.`);
-                value7dAgo = null;
-            } else {
-                console.log(`Using entry from ${daysDiff.toFixed(1)} days ago for 7d comparison.`);
-            }
+            date7dAgo = entryDate;
+            console.log('Using entry from', entryDate, 'with value', value7dAgo, 'for 7d comparison');
         }
         
-        // For 30d
+        // For 30d comparison
         if (value30dAgo === null && entryDate <= thirtyDaysAgo) {
             value30dAgo = entry.total_value;
-            // Only reject if the entry is extremely old (more than 60 days old)
-            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
-            if (daysDiff > 60) {
-                console.log(`Entry for 30d comparison is very old (${daysDiff.toFixed(1)} days). Using null instead.`);
-                value30dAgo = null;
-            } else {
-                console.log(`Using entry from ${daysDiff.toFixed(1)} days ago for 30d comparison.`);
-            }
+            date30dAgo = entryDate;
+            console.log('Using entry from', entryDate, 'with value', value30dAgo, 'for 30d comparison');
         }
         
         // If we found all values, we can stop
         if (value24hAgo !== null && value7dAgo !== null && value30dAgo !== null) {
             break;
         }
-    }
-    
-    // If we couldn't find historical values, try to use the oldest available data point
-    // This is better than showing 0 change when we have some historical data
-    if (value24hAgo === null && sortedData.length > 1) {
-        // Find the oldest entry that's not today
-        for (let i = 0; i < sortedData.length; i++) {
-            const entryDate = new Date(sortedData[i].datetime);
-            const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
-            
-            // Use any entry that's at least 6 hours old
-            if (hoursDiff >= 6) {
-                value24hAgo = sortedData[i].total_value;
-                console.log(`No ideal 24h data found, using entry from ${hoursDiff.toFixed(1)} hours ago instead.`);
-                break;
-            }
-        }
-    }
-    
-    if (value7dAgo === null && sortedData.length > 1) {
-        // Try to use any historical data that's at least 3 days old
-        for (let i = 0; i < sortedData.length; i++) {
-            const entryDate = new Date(sortedData[i].datetime);
-            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
-            
-            if (daysDiff >= 3) {
-                value7dAgo = sortedData[i].total_value;
-                console.log(`No ideal 7d data found, using entry from ${daysDiff.toFixed(1)} days ago instead.`);
-                break;
-            }
-        }
-    }
-    
-    if (value30dAgo === null && sortedData.length > 1) {
-        // Try to use any historical data that's at least 14 days old
-        for (let i = 0; i < sortedData.length; i++) {
-            const entryDate = new Date(sortedData[i].datetime);
-            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
-            
-            if (daysDiff >= 14) {
-                value30dAgo = sortedData[i].total_value;
-                console.log(`No ideal 30d data found, using entry from ${daysDiff.toFixed(1)} days ago instead.`);
-                break;
-            }
-        }
-    }
-    
-    // If we still couldn't find historical values, only then show 0 change
-    if (value24hAgo === null) {
-        console.log('No valid historical data found for 24h comparison, showing 0 change');
-    }
-    
-    if (value7dAgo === null) {
-        console.log('No valid historical data found for 7d comparison, showing 0 change');
-    }
-    
-    if (value30dAgo === null) {
-        console.log('No valid historical data found for 30d comparison, showing 0 change');
     }
     
     // Apply demo mode scaling to historical values if needed
@@ -650,45 +576,81 @@ function calculateHistoricalChanges() {
     }
     
     // Calculate dollar and percentage changes
-    let dollarChange24h = value24hAgo !== null ? (currentValue - value24hAgo) : 0;
+    let dollarChange24h = 0;
     let percentChange24h = 0;
     
     if (value24hAgo !== null && value24hAgo !== 0) {
+        dollarChange24h = currentValue - value24hAgo;
         percentChange24h = ((currentValue - value24hAgo) / value24hAgo) * 100;
         
+        console.log('24h change calculation:');
+        console.log('Current value:', currentValue, 'from', currentDate);
+        console.log('24h ago value:', value24hAgo, 'from', date24hAgo);
+        console.log('Dollar change:', dollarChange24h);
+        console.log('Percent change:', percentChange24h);
+        
         // Check for unreasonable changes (both positive and negative)
-        if (percentChange24h <= -99 || percentChange24h >= 1000) {
-            console.log(`Detected extreme percentage change for 24h (${percentChange24h.toFixed(2)}%), defaulting to 0%`);
-            percentChange24h = 0;
-            dollarChange24h = 0;
+        if (Math.abs(percentChange24h) > 100) {
+            console.log(`Detected extreme percentage change for 24h (${percentChange24h.toFixed(2)}%), capping at ±100%`);
+            if (percentChange24h > 0) {
+                percentChange24h = 100;
+                dollarChange24h = value24hAgo; // 100% increase
+            } else {
+                percentChange24h = -100;
+                dollarChange24h = -value24hAgo; // 100% decrease
+            }
         }
     }
     
-    let dollarChange7d = value7dAgo !== null ? (currentValue - value7dAgo) : 0;
+    let dollarChange7d = 0;
     let percentChange7d = 0;
     
     if (value7dAgo !== null && value7dAgo !== 0) {
+        dollarChange7d = currentValue - value7dAgo;
         percentChange7d = ((currentValue - value7dAgo) / value7dAgo) * 100;
         
-        // Check for unreasonable changes (both positive and negative)
-        if (percentChange7d <= -99 || percentChange7d >= 1000) {
-            console.log(`Detected extreme percentage change for 7d (${percentChange7d.toFixed(2)}%), defaulting to 0%`);
-            percentChange7d = 0;
-            dollarChange7d = 0;
+        console.log('7d change calculation:');
+        console.log('Current value:', currentValue, 'from', currentDate);
+        console.log('7d ago value:', value7dAgo, 'from', date7dAgo);
+        console.log('Dollar change:', dollarChange7d);
+        console.log('Percent change:', percentChange7d);
+        
+        // Check for unreasonable changes
+        if (Math.abs(percentChange7d) > 200) {
+            console.log(`Detected extreme percentage change for 7d (${percentChange7d.toFixed(2)}%), capping at ±200%`);
+            if (percentChange7d > 0) {
+                percentChange7d = 200;
+                dollarChange7d = value7dAgo * 2; // 200% increase
+            } else {
+                percentChange7d = -200;
+                dollarChange7d = -value7dAgo * 2; // 200% decrease
+            }
         }
     }
     
-    let dollarChange30d = value30dAgo !== null ? (currentValue - value30dAgo) : 0;
+    let dollarChange30d = 0;
     let percentChange30d = 0;
     
     if (value30dAgo !== null && value30dAgo !== 0) {
+        dollarChange30d = currentValue - value30dAgo;
         percentChange30d = ((currentValue - value30dAgo) / value30dAgo) * 100;
         
-        // Check for unreasonable changes (both positive and negative)
-        if (percentChange30d <= -99 || percentChange30d >= 1000) {
-            console.log(`Detected extreme percentage change for 30d (${percentChange30d.toFixed(2)}%), defaulting to 0%`);
-            percentChange30d = 0;
-            dollarChange30d = 0;
+        console.log('30d change calculation:');
+        console.log('Current value:', currentValue, 'from', currentDate);
+        console.log('30d ago value:', value30dAgo, 'from', date30dAgo);
+        console.log('Dollar change:', dollarChange30d);
+        console.log('Percent change:', percentChange30d);
+        
+        // Check for unreasonable changes
+        if (Math.abs(percentChange30d) > 500) {
+            console.log(`Detected extreme percentage change for 30d (${percentChange30d.toFixed(2)}%), capping at ±500%`);
+            if (percentChange30d > 0) {
+                percentChange30d = 500;
+                dollarChange30d = value30dAgo * 5; // 500% increase
+            } else {
+                percentChange30d = -500;
+                dollarChange30d = -value30dAgo * 5; // 500% decrease
+            }
         }
     }
     
