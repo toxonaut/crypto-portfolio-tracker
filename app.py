@@ -130,16 +130,32 @@ def load_user(user_id):
 
 # Initialize OAuth
 oauth = OAuth(app)
+
+# Get the base URL for the application
+if 'RAILWAY_ENVIRONMENT' in os.environ:
+    base_url = "https://crypto-tracker.up.railway.app"
+    logger.info(f"Using Railway base URL: {base_url}")
+else:
+    base_url = "http://localhost:5000"
+    logger.info(f"Using local base URL: {base_url}")
+
+# Configure Google OAuth
+google_client_id = os.environ.get('GOOGLE_CLIENT_ID')
+google_client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+
+if not google_client_id or not google_client_secret:
+    logger.warning("Google OAuth credentials not set. Authentication will not work properly.")
+
 google = oauth.register(
     name='google',
-    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
-    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    client_id=google_client_id,
+    client_secret=google_client_secret,
     access_token_url='https://accounts.google.com/o/oauth2/token',
     access_token_params=None,
     authorize_url='https://accounts.google.com/o/oauth2/auth',
     authorize_params=None,
     api_base_url='https://www.googleapis.com/oauth2/v1/',
-    client_kwargs={'scope': 'openid email profile'},
+    client_kwargs={'scope': 'email profile'},
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration'
 )
 
@@ -363,7 +379,6 @@ def scheduled_add_history():
                 hourly_change = price_data.get('usd_1h_change', 0)
                 daily_change = price_data.get('usd_24h_change', 0)
                 seven_day_change = price_data.get('usd_7d_change', 0)
-                grouped_data[coin_id]['image'] = price_data.get('image', "https://assets.coingecko.com/coins/images/1/small/bitcoin.png")
             
             coin_total_value = 0
             coin_monthly_yield = 0
@@ -472,35 +487,45 @@ def login():
 
 @app.route('/login/google')
 def login_google():
-    redirect_uri = url_for('google_callback', _external=True)
-    return google.authorize_redirect(redirect_uri)
+    # Use the correct callback URL format that matches Google Cloud Console configuration
+    callback_url = f"{base_url}/login/google/callback"
+    logger.info(f"Using Google OAuth callback URL: {callback_url}")
+    return google.authorize_redirect(callback_url)
 
 @app.route('/login/google/callback')
 def google_callback():
-    token = google.authorize_access_token()
-    user_info = google.get('userinfo')
-    email = user_info.json().get('email')
-    name = user_info.json().get('name')
-    
-    # Only allow specific email to login
-    if email != 'martin.schaerer@gmail.com':
-        logger.warning(f"Unauthorized login attempt from: {email}")
-        return redirect(url_for('login', error='unauthorized'))
-    
-    # Check if user exists in database
-    user = User.query.filter_by(email=email).first()
-    
-    # If user doesn't exist, create a new one
-    if not user:
-        user = User(email=email, name=name)
-        db.session.add(user)
-        db.session.commit()
-    
-    # Log in the user
-    login_user(user)
-    
-    # Redirect to the main page
-    return redirect(url_for('index'))
+    try:
+        token = google.authorize_access_token()
+        user_info = google.get('userinfo')
+        email = user_info.json().get('email')
+        name = user_info.json().get('name')
+        
+        logger.info(f"Google OAuth login attempt from: {email}")
+        
+        # Only allow specific email to login
+        if email != 'martin.schaerer@gmail.com':
+            logger.warning(f"Unauthorized login attempt from: {email}")
+            return redirect(url_for('login', error='unauthorized'))
+        
+        # Check if user exists in database
+        user = User.query.filter_by(email=email).first()
+        
+        # If user doesn't exist, create a new one
+        if not user:
+            user = User(email=email, name=name)
+            db.session.add(user)
+            db.session.commit()
+            logger.info(f"Created new user: {email}")
+        
+        # Log in the user
+        login_user(user)
+        logger.info(f"User logged in successfully: {email}")
+        
+        # Redirect to the main page
+        return redirect(url_for('index'))
+    except Exception as e:
+        logger.error(f"Error during Google OAuth callback: {str(e)}", exc_info=True)
+        return redirect(url_for('login', error='auth_error'))
 
 @app.route('/logout')
 @login_required

@@ -67,16 +67,25 @@
             Sign in with Google
         </a>
         
-        <div class="error-message" id="error-message">
+        <div class="error-message" id="unauthorized-error">
             Unauthorized access. Only authorized users can log in.
+        </div>
+        
+        <div class="error-message" id="auth-error">
+            Authentication error. Please try again or contact the administrator.
         </div>
     </div>
 
     <script>
         // Check for error parameter in URL
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('error') && urlParams.get('error') === 'unauthorized') {
-            document.getElementById('error-message').style.display = 'block';
+        if (urlParams.has('error')) {
+            const errorType = urlParams.get('error');
+            if (errorType === 'unauthorized') {
+                document.getElementById('unauthorized-error').style.display = 'block';
+            } else if (errorType === 'auth_error') {
+                document.getElementById('auth-error').style.display = 'block';
+            }
         }
     </script>
 </body>
