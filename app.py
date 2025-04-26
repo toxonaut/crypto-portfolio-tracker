@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 import os
 import datetime
@@ -8,6 +8,8 @@ import requests
 import time
 from dotenv import load_dotenv
 from typing import Any, Optional
+from authlib.integrations.flask_client import OAuth
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -46,6 +48,8 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PORT'] = os.environ.get('PORT', 5000)
+# Set a secret key for session management
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret_key')
 
 db = SQLAlchemy(app)
 
@@ -103,6 +107,41 @@ class PortfolioHistory(db.Model):
             'btc': self.btc if self.btc is not None else 0,
             'actual_btc': self.actual_btc if self.actual_btc is not None else 0
         }
+
+# User model for authentication
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(100), unique=True)
+    name = db.Column(db.String(100))
+    
+    def __init__(self, email, name):
+        self.email = email
+        self.name = name
+
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Initialize OAuth
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    access_token_url='https://accounts.google.com/o/oauth2/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    authorize_params=None,
+    api_base_url='https://www.googleapis.com/oauth2/v1/',
+    client_kwargs={'scope': 'openid email profile'},
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration'
+)
 
 def get_portfolio_data():
     try:
@@ -385,43 +424,103 @@ def scheduled_add_history():
 # This is a fallback mechanism in case the background scheduler fails
 last_history_check = datetime.datetime.now() - datetime.timedelta(hours=2)  # Start in the past to trigger immediately
 
-if 1==2:  # Disable request-based history checking to rely solely on worker process
-    @app.before_request
-    def check_history_interval():
-        global last_history_check
-        now = datetime.datetime.now()
-        
-        # Only check once per hour maximum
-        if (now - last_history_check).total_seconds() >= 3600:  # 1 hour in seconds
-            try:
-                # Get the most recent history entry
-                latest_entry = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).first()
+@app.before_request
+def before_request():
+    # Skip authentication for login routes
+    if request.path.startswith('/login') or request.path == '/favicon.ico':
+        return
+    
+    # Check if user is authenticated
+    if not current_user.is_authenticated:
+        if request.path != '/':
+            return redirect(url_for('login'))
+    
+    # Only run the history check if 1==2 (disabled)
+    # We now rely on the worker.py process to add history entries
+    if 1==2:
+        check_history_interval()
+
+def check_history_interval():
+    global last_history_check
+    now = datetime.datetime.now()
+    
+    # Only check once per hour maximum
+    if (now - last_history_check).total_seconds() >= 3600:  # 1 hour in seconds
+        try:
+            # Get the most recent history entry
+            latest_entry = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).first()
+            
+            # If no entry exists or the latest entry is more than 1 hour old, add a new one
+            if not latest_entry or (now - latest_entry.date).total_seconds() >= 3600:
+                logger.info("Adding history entry via request-based check")
+                scheduled_add_history()
                 
-                # If no entry exists or the latest entry is more than 1 hour old, add a new one
-                if not latest_entry or (now - latest_entry.date).total_seconds() >= 3600:
-                    logger.info("Adding history entry via request-based check")
-                    scheduled_add_history()
-                    
-                # Update the last check time
-                last_history_check = now
-            except Exception as e:
-                logger.error(f"Error in request-based history check: {str(e)}", exc_info=True)
+            # Update the last check time
+            last_history_check = now
+        except Exception as e:
+            logger.error(f"Error in request-based history check: {str(e)}", exc_info=True)
 
 @app.route('/')
+@login_required
 def index():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
     return render_template('index.html', version="1.3.0", db_type=db_type)
 
+@app.route('/login')
+def login():
+    return render_template('login.html')
+
+@app.route('/login/google')
+def login_google():
+    redirect_uri = url_for('google_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/login/google/callback')
+def google_callback():
+    token = google.authorize_access_token()
+    user_info = google.get('userinfo')
+    email = user_info.json().get('email')
+    name = user_info.json().get('name')
+    
+    # Only allow specific email to login
+    if email != 'martin.schaerer@gmail.com':
+        logger.warning(f"Unauthorized login attempt from: {email}")
+        return redirect(url_for('login', error='unauthorized'))
+    
+    # Check if user exists in database
+    user = User.query.filter_by(email=email).first()
+    
+    # If user doesn't exist, create a new one
+    if not user:
+        user = User(email=email, name=name)
+        db.session.add(user)
+        db.session.commit()
+    
+    # Log in the user
+    login_user(user)
+    
+    # Redirect to the main page
+    return redirect(url_for('index'))
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
 @app.route('/statistics')
+@login_required
 def statistics():
     return render_template('statistics.html')
 
 @app.route('/edit_portfolio')
+@login_required
 def edit_portfolio():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
     return render_template('edit_portfolio.html', version="1.3.0", db_type=db_type)
 
 @app.route('/portfolio')
+@login_required
 def get_portfolio():
     portfolio_data = get_portfolio_data()
     
@@ -521,6 +620,7 @@ def get_portfolio():
     })
 
 @app.route('/history')
+@login_required
 def get_history():
     history_data = get_history_data()
     
@@ -540,6 +640,7 @@ def get_history():
     })
 
 @app.route('/api/add_coin', methods=['POST'])
+@login_required
 def add_coin_api():
     try:
         data = request.json
@@ -561,6 +662,7 @@ def add_coin_api():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_coin', methods=['POST'])
+@login_required
 def add_coin():
     try:
         data = request.json
@@ -582,6 +684,7 @@ def add_coin():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/update_coin/<int:coin_id>', methods=['PUT'])
+@login_required
 def update_coin(coin_id):
     try:
         data = request.json
@@ -604,6 +707,7 @@ def update_coin(coin_id):
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/update_coin', methods=['POST'])
+@login_required
 def update_coin_api():
     try:
         data = request.json
@@ -633,6 +737,7 @@ def update_coin_api():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/remove_source', methods=['POST'])
+@login_required
 def delete_coin_api():
     try:
         data = request.json
@@ -654,6 +759,7 @@ def delete_coin_api():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/delete_coin/<int:coin_id>', methods=['DELETE'])
+@login_required
 def delete_coin(coin_id):
     try:
         entry = Portfolio.query.get(coin_id)
@@ -670,6 +776,7 @@ def delete_coin(coin_id):
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_history', methods=['POST'])
+@login_required
 def add_history():
     try:
         data = request.get_json()
@@ -745,6 +852,7 @@ def add_history():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/debug_db')
+@login_required
 def debug_db():
     """
     Debug endpoint to check database contents directly.
@@ -774,6 +882,7 @@ def debug_db():
         })
 
 @app.route('/initialize_bitcoin_data', methods=['POST'])
+@login_required
 def initialize_bitcoin_data():
     """
     Initialize the database with Bitcoin data from the update_local_bitcoin_data.py script.
@@ -843,6 +952,7 @@ def initialize_bitcoin_data():
         })
 
 @app.route('/debug_worker', methods=['GET'])
+@login_required
 def debug_worker():
     """
     Debug endpoint to check worker status and manually trigger history addition
@@ -900,6 +1010,7 @@ def debug_worker():
         }), 500
 
 @app.route('/fix_sequence', methods=['GET'])
+@login_required
 def fix_sequence():
     try:
         # Use SQLAlchemy's connection to execute raw SQL
@@ -928,6 +1039,7 @@ def fix_sequence():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/update_zerion_data', methods=['POST'])
+@login_required
 def update_zerion_data():
     try:
         url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_complex&currency=usd&filter[trash]=only_non_trash&sort=value"
@@ -1054,6 +1166,7 @@ def update_zerion_data():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/debug_zerion', methods=['GET'])
+@login_required
 def debug_zerion():
     try:
         url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_complex&currency=usd&filter[trash]=only_non_trash&sort=value"
@@ -1106,6 +1219,7 @@ def debug_zerion():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/debug_zerion_full', methods=['GET'])
+@login_required
 def debug_zerion_full():
     try:
         url = "https://api.zerion.io/v1/wallets/0xa9bA157770045CfFe977601fD46b9Cc3C4429604/positions/?filter[positions]=only_complex&currency=usd&filter[trash]=only_non_trash&sort=value"
@@ -1129,6 +1243,7 @@ def debug_zerion_full():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/migrate_zerion_id', methods=['GET'])
+@login_required
 def migrate_zerion_id_endpoint():
     try:
         # Check if the column exists and get its current type

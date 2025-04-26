@@ -1,0 +1,13 @@
+ FLASK_APP=app.py FLASK_RUN_PORT=8000 flask run
+
+back: #050b16
+lightert: #121726
+#abc4ff
+
+menu font: #5a688e
+
+
+
+#060c16
+
+#111927
