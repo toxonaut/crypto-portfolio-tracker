@@ -542,16 +542,34 @@ function calculateHistoricalChanges() {
         // For 24h
         if (value24hAgo === null && entryDate <= oneDayAgo) {
             value24hAgo = entry.total_value;
+            // Ensure the entry is not too old (max 48 hours old)
+            const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
+            if (hoursDiff > 48) {
+                console.log(`Entry for 24h comparison is too old (${hoursDiff.toFixed(1)} hours). Using null instead.`);
+                value24hAgo = null;
+            }
         }
         
         // For 7d
         if (value7dAgo === null && entryDate <= sevenDaysAgo) {
             value7dAgo = entry.total_value;
+            // Ensure the entry is not too old (max 10 days old)
+            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
+            if (daysDiff > 10) {
+                console.log(`Entry for 7d comparison is too old (${daysDiff.toFixed(1)} days). Using null instead.`);
+                value7dAgo = null;
+            }
         }
         
         // For 30d
         if (value30dAgo === null && entryDate <= thirtyDaysAgo) {
             value30dAgo = entry.total_value;
+            // Ensure the entry is not too old (max 40 days old)
+            const daysDiff = (now - entryDate) / (1000 * 60 * 60 * 24);
+            if (daysDiff > 40) {
+                console.log(`Entry for 30d comparison is too old (${daysDiff.toFixed(1)} days). Using null instead.`);
+                value30dAgo = null;
+            }
         }
         
         // If we found all values, we can stop
@@ -560,20 +578,21 @@ function calculateHistoricalChanges() {
         }
     }
     
-    // If we couldn't find historical values, use the most recent data point
-    if (value24hAgo === null && sortedData.length > 1) {
-        value24hAgo = sortedData[0].total_value;
-        console.log('No 24h data found, using most recent value instead:', value24hAgo);
+    // If we couldn't find historical values, show 0 change instead of using most recent value
+    // This prevents comparing a value to itself which can lead to incorrect calculations
+    if (value24hAgo === null) {
+        console.log('No valid 24h data found within reasonable time range, showing 0 change');
+        value24hAgo = null;
     }
     
-    if (value7dAgo === null && sortedData.length > 1) {
-        value7dAgo = sortedData[0].total_value;
-        console.log('No 7d data found, using most recent value instead:', value7dAgo);
+    if (value7dAgo === null) {
+        console.log('No valid 7d data found within reasonable time range, showing 0 change');
+        value7dAgo = null;
     }
     
-    if (value30dAgo === null && sortedData.length > 1) {
-        value30dAgo = sortedData[0].total_value;
-        console.log('No 30d data found, using most recent value instead:', value30dAgo);
+    if (value30dAgo === null) {
+        console.log('No valid 30d data found within reasonable time range, showing 0 change');
+        value30dAgo = null;
     }
     
     // Apply demo mode scaling to historical values if needed
@@ -584,43 +603,45 @@ function calculateHistoricalChanges() {
     }
     
     // Calculate dollar and percentage changes
-    let dollarChange24h = value24hAgo ? (currentValue - value24hAgo) : 0;
-    // Ensure we don't show negative 100% changes when data is limited
+    let dollarChange24h = value24hAgo !== null ? (currentValue - value24hAgo) : 0;
     let percentChange24h = 0;
-    if (value24hAgo && value24hAgo !== 0) {
+    
+    if (value24hAgo !== null && value24hAgo !== 0) {
         percentChange24h = ((currentValue - value24hAgo) / value24hAgo) * 100;
-        // If we're showing a large negative percentage (like -100%), it's likely due to data issues
-        // In this case, default to 0% change to avoid misleading information
-        if (percentChange24h <= -99) {
-            console.log('Detected extreme negative percentage change for 24h, defaulting to 0%');
+        
+        // Check for unreasonable changes (both positive and negative)
+        if (percentChange24h <= -99 || percentChange24h >= 1000) {
+            console.log(`Detected extreme percentage change for 24h (${percentChange24h.toFixed(2)}%), defaulting to 0%`);
             percentChange24h = 0;
-            dollarChange24h = 0; // Also reset the dollar change to be consistent
+            dollarChange24h = 0;
         }
     }
     
-    let dollarChange7d = value7dAgo ? (currentValue - value7dAgo) : 0;
-    // Ensure we don't show negative 100% changes when data is limited
+    let dollarChange7d = value7dAgo !== null ? (currentValue - value7dAgo) : 0;
     let percentChange7d = 0;
-    if (value7dAgo && value7dAgo !== 0) {
+    
+    if (value7dAgo !== null && value7dAgo !== 0) {
         percentChange7d = ((currentValue - value7dAgo) / value7dAgo) * 100;
-        // If we're showing a large negative percentage (like -100%), it's likely due to data issues
-        if (percentChange7d <= -99) {
-            console.log('Detected extreme negative percentage change for 7d, defaulting to 0%');
+        
+        // Check for unreasonable changes (both positive and negative)
+        if (percentChange7d <= -99 || percentChange7d >= 1000) {
+            console.log(`Detected extreme percentage change for 7d (${percentChange7d.toFixed(2)}%), defaulting to 0%`);
             percentChange7d = 0;
-            dollarChange7d = 0; // Also reset the dollar change to be consistent
+            dollarChange7d = 0;
         }
     }
     
-    let dollarChange30d = value30dAgo ? (currentValue - value30dAgo) : 0;
-    // Ensure we don't show negative 100% changes when data is limited
+    let dollarChange30d = value30dAgo !== null ? (currentValue - value30dAgo) : 0;
     let percentChange30d = 0;
-    if (value30dAgo && value30dAgo !== 0) {
+    
+    if (value30dAgo !== null && value30dAgo !== 0) {
         percentChange30d = ((currentValue - value30dAgo) / value30dAgo) * 100;
-        // If we're showing a large negative percentage (like -100%), it's likely due to data issues
-        if (percentChange30d <= -99) {
-            console.log('Detected extreme negative percentage change for 30d, defaulting to 0%');
+        
+        // Check for unreasonable changes (both positive and negative)
+        if (percentChange30d <= -99 || percentChange30d >= 1000) {
+            console.log(`Detected extreme percentage change for 30d (${percentChange30d.toFixed(2)}%), defaulting to 0%`);
             percentChange30d = 0;
-            dollarChange30d = 0; // Also reset the dollar change to be consistent
+            dollarChange30d = 0;
         }
     }
     
