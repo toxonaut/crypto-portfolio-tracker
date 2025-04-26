@@ -128,6 +128,17 @@ login_manager.login_view = 'login'
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Create tables if they don't exist
+with app.app_context():
+    # Check if users table exists
+    try:
+        db.session.execute(db.select(User).limit(1))
+        logger.info("Users table exists")
+    except Exception as e:
+        logger.info("Creating users table")
+        db.create_all()
+        logger.info("Users table created")
+
 # Initialize OAuth
 oauth = OAuth(app)
 
