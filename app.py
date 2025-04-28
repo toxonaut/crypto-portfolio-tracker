@@ -1389,6 +1389,30 @@ def debug_history():
             'error': str(e)
         })
 
+@app.route('/debug_worker_key')
+def debug_worker_key():
+    """
+    Debug endpoint to check the worker key configuration
+    """
+    try:
+        worker_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        # Don't show the actual key for security reasons
+        key_status = 'custom' if worker_key != 'default_worker_key' else 'default'
+        
+        return jsonify({
+            'success': True,
+            'worker_key_status': key_status,
+            'worker_key_length': len(worker_key),
+            'worker_key_set': worker_key != 'default_worker_key'
+        })
+    except Exception as e:
+        logger.error(f"Error in debug_worker_key: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # Worker-specific endpoints that bypass authentication for internal worker requests
 @app.route('/worker_portfolio')
 def worker_portfolio():
@@ -1570,6 +1594,33 @@ def worker_add_history():
             'success': False,
             'error': str(e)
         })
+
+@app.route('/worker_key_check')
+def worker_key_check():
+    """
+    Simple endpoint to check if the worker key is valid
+    This endpoint doesn't require authentication but requires a valid worker key
+    """
+    try:
+        worker_key = request.headers.get('X-Worker-Key')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        if worker_key and worker_key == expected_key:
+            return jsonify({
+                'success': True,
+                'message': 'Worker key is valid'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid or missing worker key'
+            }), 401
+    except Exception as e:
+        logger.error(f"Error in worker_key_check: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     # Only run the development server when running locally

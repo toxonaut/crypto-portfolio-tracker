@@ -40,6 +40,41 @@ def add_history_entry():
         try:
             logger.info(f"Worker: Starting add_history task at {datetime.datetime.now().isoformat()} (Attempt {retry+1}/{max_retries})")
             
+            # First check if our worker key is valid
+            check_url = f"{base_url.rstrip('/')}/worker_key_check"
+            logger.info(f"Worker: Checking worker key validity at {check_url}")
+            
+            # Create headers with detailed logging
+            headers = {
+                "X-Worker-Key": worker_key,
+                "User-Agent": "Portfolio-Worker/1.0"
+            }
+            logger.info(f"Using worker key: {worker_key[:3]}...{worker_key[-3:] if len(worker_key) > 6 else worker_key}")
+            
+            # Check the worker key
+            check_response = requests.get(
+                check_url,
+                timeout=30,
+                headers=headers
+            )
+            
+            # Log the response details
+            logger.info(f"Check response status code: {check_response.status_code}")
+            
+            # Try to parse the response as JSON
+            try:
+                check_data = check_response.json()
+                if not check_data.get('success'):
+                    logger.error(f"Worker key check failed: {check_data.get('message', 'Unknown error')}")
+                    logger.error("Please set the correct WORKER_KEY environment variable on both the web app and worker services")
+                    raise Exception("Worker key authentication failed")
+                else:
+                    logger.info("Worker key check successful")
+            except json.JSONDecodeError:
+                logger.error("Failed to parse worker key check response as JSON")
+                logger.error(f"Response content: {check_response.text[:500]}...")
+                raise Exception("Failed to parse worker key check response")
+            
             # First get the current portfolio data to calculate the total value
             # Use the standard endpoint with the worker key header
             portfolio_url = f"{base_url.rstrip('/')}/portfolio"
