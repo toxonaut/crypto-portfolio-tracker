@@ -830,32 +830,38 @@ function updateHistoricalChanges() {
     change24hElements.forEach(element => {
         let formattedChange = formatValueChange(changes.change24h.value, changes.change24h.percent);
         if (changes.change24h.date) {
-            formattedChange += ` <span class="text-muted">(${changes.change24h.date})</span>`;
+            // Make sure the date is clearly visible by using a different approach
+            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change24h.date})</span>`;
+        } else {
+            element.innerHTML = formattedChange;
         }
-        element.innerHTML = formattedChange;
     });
     
     change7dElements.forEach(element => {
         let formattedChange = formatValueChange(changes.change7d.value, changes.change7d.percent);
         if (changes.change7d.date) {
-            formattedChange += ` <span class="text-muted">(${changes.change7d.date})</span>`;
+            // Make sure the date is clearly visible by using a different approach
+            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change7d.date})</span>`;
+        } else {
+            element.innerHTML = formattedChange;
         }
-        element.innerHTML = formattedChange;
     });
     
     change30dElements.forEach(element => {
         let formattedChange = formatValueChange(changes.change30d.value, changes.change30d.percent);
         if (changes.change30d.date) {
-            formattedChange += ` <span class="text-muted">(${changes.change30d.date})</span>`;
+            // Make sure the date is clearly visible by using a different approach
+            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change30d.date})</span>`;
+        } else {
+            element.innerHTML = formattedChange;
         }
-        element.innerHTML = formattedChange;
     });
     
     // Update largest percentage gain
     if (largestPercentGainElement) {
         let formattedChange = formatPercentOnly(changes.largestPercentGain.percent);
         if (changes.largestPercentGain.date) {
-            formattedChange += ` <span class="text-muted">(${changes.largestPercentGain.date})</span>`;
+            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestPercentGain.date})</span>`;
         }
         largestPercentGainElement.innerHTML = formattedChange;
     }
@@ -864,7 +870,7 @@ function updateHistoricalChanges() {
     if (largestDollarGainElement) {
         let formattedChange = formatDollarOnly(changes.largestDollarGain.value);
         if (changes.largestDollarGain.date) {
-            formattedChange += ` <span class="text-muted">(${changes.largestDollarGain.date})</span>`;
+            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestDollarGain.date})</span>`;
         }
         largestDollarGainElement.innerHTML = formattedChange;
     }
@@ -873,7 +879,7 @@ function updateHistoricalChanges() {
     if (largestPercentLossElement) {
         let formattedChange = formatPercentOnly(changes.largestPercentLoss.percent);
         if (changes.largestPercentLoss.date) {
-            formattedChange += ` <span class="text-muted">(${changes.largestPercentLoss.date})</span>`;
+            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestPercentLoss.date})</span>`;
         }
         largestPercentLossElement.innerHTML = formattedChange;
     }
@@ -882,7 +888,7 @@ function updateHistoricalChanges() {
     if (largestDollarLossElement) {
         let formattedChange = formatDollarOnly(changes.largestDollarLoss.value);
         if (changes.largestDollarLoss.date) {
-            formattedChange += ` <span class="text-muted">(${changes.largestDollarLoss.date})</span>`;
+            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestDollarLoss.date})</span>`;
         }
         largestDollarLossElement.innerHTML = formattedChange;
     }
