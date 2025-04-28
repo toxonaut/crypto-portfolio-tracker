@@ -465,9 +465,9 @@ function calculateHistoricalChanges() {
     if (!historyData || historyData.length === 0) {
         console.error('No history data available for calculating changes');
         return {
-            change24h: { value: 0, percent: 0 },
-            change7d: { value: 0, percent: 0 },
-            change30d: { value: 0, percent: 0 },
+            change24h: { value: 0, percent: 0, date: '' },
+            change7d: { value: 0, percent: 0, date: '' },
+            change30d: { value: 0, percent: 0, date: '' },
             largestPercentGain: { value: 0, percent: 0, date: '' },
             largestDollarGain: { value: 0, percent: 0, date: '' },
             largestPercentLoss: { value: 0, percent: 0, date: '' },
@@ -493,9 +493,9 @@ function calculateHistoricalChanges() {
     } else {
         console.error('No valid current value available');
         return {
-            change24h: { value: 0, percent: 0 },
-            change7d: { value: 0, percent: 0 },
-            change30d: { value: 0, percent: 0 },
+            change24h: { value: 0, percent: 0, date: '' },
+            change7d: { value: 0, percent: 0, date: '' },
+            change30d: { value: 0, percent: 0, date: '' },
             largestPercentGain: { value: 0, percent: 0, date: '' },
             largestDollarGain: { value: 0, percent: 0, date: '' },
             largestPercentLoss: { value: 0, percent: 0, date: '' },
@@ -512,9 +512,9 @@ function calculateHistoricalChanges() {
     if (sortedData.length < 2) {
         console.error('Not enough history data to calculate changes');
         return {
-            change24h: { value: 0, percent: 0 },
-            change7d: { value: 0, percent: 0 },
-            change30d: { value: 0, percent: 0 },
+            change24h: { value: 0, percent: 0, date: '' },
+            change7d: { value: 0, percent: 0, date: '' },
+            change30d: { value: 0, percent: 0, date: '' },
             largestPercentGain: { value: 0, percent: 0, date: '' },
             largestDollarGain: { value: 0, percent: 0, date: '' },
             largestPercentLoss: { value: 0, percent: 0, date: '' },
@@ -598,10 +598,20 @@ function calculateHistoricalChanges() {
     // Calculate dollar and percentage changes
     let dollarChange24h = 0;
     let percentChange24h = 0;
+    let formattedDate24h = '';
     
     if (value24hAgo !== null && value24hAgo !== 0) {
         dollarChange24h = currentValue - value24hAgo;
         percentChange24h = ((currentValue - value24hAgo) / value24hAgo) * 100;
+        
+        // Format the date for display
+        if (date24hAgo) {
+            const month = date24hAgo.toLocaleString('en-US', { month: 'short' });
+            const day = date24hAgo.getDate();
+            const hours = date24hAgo.getHours().toString().padStart(2, '0');
+            const minutes = date24hAgo.getMinutes().toString().padStart(2, '0');
+            formattedDate24h = `${month}-${day}, ${hours}:${minutes}`;
+        }
         
         console.log('24h change calculation:');
         console.log('Current value:', currentValue);
@@ -624,10 +634,20 @@ function calculateHistoricalChanges() {
     
     let dollarChange7d = 0;
     let percentChange7d = 0;
+    let formattedDate7d = '';
     
     if (value7dAgo !== null && value7dAgo !== 0) {
         dollarChange7d = currentValue - value7dAgo;
         percentChange7d = ((currentValue - value7dAgo) / value7dAgo) * 100;
+        
+        // Format the date for 7d display
+        if (date7dAgo) {
+            const month = date7dAgo.toLocaleString('en-US', { month: 'short' });
+            const day = date7dAgo.getDate();
+            const hours = date7dAgo.getHours().toString().padStart(2, '0');
+            const minutes = date7dAgo.getMinutes().toString().padStart(2, '0');
+            formattedDate7d = `${month}-${day}, ${hours}:${minutes}`;
+        }
         
         console.log('7d change calculation:');
         console.log('Current value:', currentValue);
@@ -650,10 +670,20 @@ function calculateHistoricalChanges() {
     
     let dollarChange30d = 0;
     let percentChange30d = 0;
+    let formattedDate30d = '';
     
     if (value30dAgo !== null && value30dAgo !== 0) {
         dollarChange30d = currentValue - value30dAgo;
         percentChange30d = ((currentValue - value30dAgo) / value30dAgo) * 100;
+        
+        // Format the date for 30d display
+        if (date30dAgo) {
+            const month = date30dAgo.toLocaleString('en-US', { month: 'short' });
+            const day = date30dAgo.getDate();
+            const hours = date30dAgo.getHours().toString().padStart(2, '0');
+            const minutes = date30dAgo.getMinutes().toString().padStart(2, '0');
+            formattedDate30d = `${month}-${day}, ${hours}:${minutes}`;
+        }
         
         console.log('30d change calculation:');
         console.log('Current value:', currentValue);
@@ -753,9 +783,9 @@ function calculateHistoricalChanges() {
     console.log('Largest dollar loss:', largestDollarLoss);
     
     return {
-        change24h: { value: dollarChange24h, percent: percentChange24h },
-        change7d: { value: dollarChange7d, percent: percentChange7d },
-        change30d: { value: dollarChange30d, percent: percentChange30d },
+        change24h: { value: dollarChange24h, percent: percentChange24h, date: formattedDate24h },
+        change7d: { value: dollarChange7d, percent: percentChange7d, date: formattedDate7d },
+        change30d: { value: dollarChange30d, percent: percentChange30d, date: formattedDate30d },
         largestPercentGain: largestPercentGain,
         largestDollarGain: largestDollarGain,
         largestPercentLoss: largestPercentLoss,
@@ -798,15 +828,27 @@ function updateHistoricalChanges() {
     
     // Update all instances of each element
     change24hElements.forEach(element => {
-        element.innerHTML = formatValueChange(changes.change24h.value, changes.change24h.percent);
+        let formattedChange = formatValueChange(changes.change24h.value, changes.change24h.percent);
+        if (changes.change24h.date) {
+            formattedChange += ` <span class="text-muted">(${changes.change24h.date})</span>`;
+        }
+        element.innerHTML = formattedChange;
     });
     
     change7dElements.forEach(element => {
-        element.innerHTML = formatValueChange(changes.change7d.value, changes.change7d.percent);
+        let formattedChange = formatValueChange(changes.change7d.value, changes.change7d.percent);
+        if (changes.change7d.date) {
+            formattedChange += ` <span class="text-muted">(${changes.change7d.date})</span>`;
+        }
+        element.innerHTML = formattedChange;
     });
     
     change30dElements.forEach(element => {
-        element.innerHTML = formatValueChange(changes.change30d.value, changes.change30d.percent);
+        let formattedChange = formatValueChange(changes.change30d.value, changes.change30d.percent);
+        if (changes.change30d.date) {
+            formattedChange += ` <span class="text-muted">(${changes.change30d.date})</span>`;
+        }
+        element.innerHTML = formattedChange;
     });
     
     // Update largest percentage gain
