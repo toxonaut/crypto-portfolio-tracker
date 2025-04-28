@@ -43,13 +43,13 @@ def add_history_entry():
             logger.info(f"Worker: Starting add_history task at {datetime.datetime.now().isoformat()} (Attempt {retry+1}/{max_retries})")
             
             # First get the current portfolio data to calculate the total value
-            # Use the special worker endpoint that doesn't require authentication
-            worker_portfolio_url = f"{base_url.rstrip('/')}/worker_portfolio"
-            logger.info(f"Worker: Sending request to {worker_portfolio_url}")
+            # Use the standard endpoint with the worker key header
+            portfolio_url = f"{base_url.rstrip('/')}/portfolio"
+            logger.info(f"Worker: Sending request to {portfolio_url}")
             
             # Add a timeout to the request to prevent hanging
             portfolio_response = requests.get(
-                worker_portfolio_url, 
+                portfolio_url, 
                 timeout=30,
                 headers={
                     "X-Worker-Key": os.environ.get("WORKER_KEY", "default_worker_key")
@@ -136,10 +136,10 @@ def add_history_entry():
                 return False
             
             # Now send the add_history request
-            worker_add_history_url = f"{base_url.rstrip('/')}/worker_add_history"
-            logger.info(f"Worker: Sending request to {worker_add_history_url} with total_value={total_value}")
+            add_history_url = f"{base_url.rstrip('/')}/add_history"
+            logger.info(f"Worker: Sending request to {add_history_url} with total_value={total_value}")
             response = requests.post(
-                worker_add_history_url, 
+                add_history_url, 
                 json={
                     "total_value": total_value,
                     "btc_value": btc_value,

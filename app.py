@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from typing import Any, Optional
 from authlib.integrations.flask_client import OAuth
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from functools import wraps
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -486,6 +487,23 @@ def check_history_interval():
         except Exception as e:
             logger.error(f"Error in request-based history check: {str(e)}", exc_info=True)
 
+# Add a custom decorator to allow worker requests to bypass authentication
+def login_required_except_worker(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Check if this is a request from the worker process
+        worker_key = request.headers.get('X-Worker-Key')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        # If the worker key matches, allow the request without authentication
+        if worker_key == expected_key:
+            logger.info("Worker request authenticated via X-Worker-Key")
+            return f(*args, **kwargs)
+            
+        # Otherwise, use the standard login_required behavior
+        return login_required(f)(*args, **kwargs)
+    return decorated_function
+
 @app.route('/')
 @login_required
 def index():
@@ -556,7 +574,7 @@ def edit_portfolio():
     return render_template('edit_portfolio.html', version="1.3.0", db_type=db_type)
 
 @app.route('/portfolio')
-@login_required
+@login_required_except_worker
 def get_portfolio():
     portfolio_data = get_portfolio_data()
     
@@ -812,7 +830,7 @@ def delete_coin(coin_id):
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_history', methods=['POST'])
-@login_required
+@login_required_except_worker
 def add_history():
     try:
         data = request.get_json()
@@ -1041,8 +1059,7 @@ def debug_worker():
         logger.error(f"Error in debug_worker: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e),
-            'traceback': traceback.format_exc()
+            'error': str(e)
         }), 500
 
 @app.route('/fix_sequence', methods=['GET'])
@@ -1436,7 +1453,7 @@ def worker_portfolio():
             
             # Add to the total amount for this coin
             grouped_data[coin_id]['total_amount'] += amount
-        
+    
         # Calculate total values and monthly yield
         for coin_id, coin_data in grouped_data.items():
             price = 0
