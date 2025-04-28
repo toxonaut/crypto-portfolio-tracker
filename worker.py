@@ -40,8 +40,8 @@ def add_history_entry():
         try:
             logger.info(f"Worker: Starting add_history task at {datetime.datetime.now().isoformat()} (Attempt {retry+1}/{max_retries})")
             
-            # First check if our worker key is valid
-            check_url = f"{base_url.rstrip('/')}/worker_key_check"
+            # First check if our worker key is valid using the API endpoint
+            check_url = f"{base_url.rstrip('/')}/api/worker_key_check"
             logger.info(f"Worker: Checking worker key validity at {check_url}")
             
             # Create headers with detailed logging
@@ -77,7 +77,7 @@ def add_history_entry():
             
             # First get the current portfolio data to calculate the total value
             # Use the standard endpoint with the worker key header
-            portfolio_url = f"{base_url.rstrip('/')}/portfolio"
+            portfolio_url = f"{base_url.rstrip('/')}/api/portfolio"
             logger.info(f"Worker: Sending request to {portfolio_url}")
             
             # Create headers with detailed logging
@@ -157,7 +157,7 @@ def add_history_entry():
                 return False
             
             # Now send the add_history request
-            add_history_url = f"{base_url.rstrip('/')}/add_history"
+            add_history_url = f"{base_url.rstrip('/')}/api/add_history"
             logger.info(f"Worker: Sending request to {add_history_url} with total_value={total_value}")
             response = requests.post(
                 add_history_url, 

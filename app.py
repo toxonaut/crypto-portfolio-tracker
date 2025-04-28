@@ -1389,8 +1389,8 @@ def debug_history():
             'error': str(e)
         })
 
-@app.route('/debug_worker_key')
-def debug_worker_key():
+@app.route('/api/debug_worker_key')
+def api_debug_worker_key():
     """
     Debug endpoint to check the worker key configuration
     """
@@ -1407,7 +1407,7 @@ def debug_worker_key():
             'worker_key_set': worker_key != 'default_worker_key'
         })
     except Exception as e:
-        logger.error(f"Error in debug_worker_key: {str(e)}", exc_info=True)
+        logger.error(f"Error in api_debug_worker_key: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1595,8 +1595,8 @@ def worker_add_history():
             'error': str(e)
         })
 
-@app.route('/worker_key_check')
-def worker_key_check():
+@app.route('/api/worker_key_check')
+def api_worker_key_check():
     """
     Simple endpoint to check if the worker key is valid
     This endpoint doesn't require authentication but requires a valid worker key
@@ -1616,7 +1616,124 @@ def worker_key_check():
                 'message': 'Invalid or missing worker key'
             }), 401
     except Exception as e:
-        logger.error(f"Error in worker_key_check: {str(e)}", exc_info=True)
+        logger.error(f"Error in api_worker_key_check: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/test')
+def api_test():
+    """
+    Simple test endpoint that bypasses all authentication
+    """
+    try:
+        worker_key = request.headers.get('X-Worker-Key', 'not-provided')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        # Mask the keys for security
+        masked_worker_key = f"{worker_key[:3]}...{worker_key[-3:]}" if len(worker_key) > 6 else worker_key
+        masked_expected_key = f"{expected_key[:3]}...{expected_key[-3:]}" if len(expected_key) > 6 else expected_key
+        
+        return jsonify({
+            'success': True,
+            'message': 'API test endpoint',
+            'worker_key_provided': worker_key != 'not-provided',
+            'worker_key_matches': worker_key == expected_key,
+            'masked_worker_key': masked_worker_key,
+            'masked_expected_key': masked_expected_key,
+            'environment_variables': list(os.environ.keys())
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/portfolio')
+def api_portfolio():
+    """
+    API endpoint to get portfolio data
+    This endpoint requires a valid worker key
+    """
+    try:
+        # Check if the worker key is valid
+        worker_key = request.headers.get('X-Worker-Key')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        if not worker_key or worker_key != expected_key:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid or missing worker key'
+            }), 401
+        
+        # Get the portfolio data
+        portfolio_data = get_portfolio_data()
+        return jsonify(portfolio_data)
+    except Exception as e:
+        logger.error(f"Error in api_portfolio: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/add_history', methods=['POST'])
+def api_add_history():
+    """
+    API endpoint to add a history entry
+    This endpoint requires a valid worker key
+    """
+    try:
+        # Check if the worker key is valid
+        worker_key = request.headers.get('X-Worker-Key')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        if not worker_key or worker_key != expected_key:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid or missing worker key'
+            }), 401
+        
+        # Get the data from the request
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Extract the values
+        total_value = data.get('total_value')
+        btc_value = data.get('btc_value')
+        actual_btc = data.get('actual_btc')
+        
+        if total_value is None:
+            return jsonify({
+                'success': False,
+                'message': 'Missing total_value'
+            }), 400
+        
+        # Create a new history entry
+        new_history = PortfolioHistory(
+            date=datetime.datetime.now(),
+            total_value=total_value,
+            btc=btc_value,
+            actual_btc=actual_btc
+        )
+        
+        # Add to the database
+        db.session.add(new_history)
+        db.session.commit()
+        
+        logger.info(f"Added history entry: total_value={total_value}, btc={btc_value}, actual_btc={actual_btc}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'History entry added successfully',
+            'id': new_history.id
+        })
+    except Exception as e:
+        logger.error(f"Error in api_add_history: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)
