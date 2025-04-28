@@ -527,7 +527,7 @@ function calculateHistoricalChanges() {
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
+
     // Find the closest data points to our target times
     let value24hAgo = null;
     let value7dAgo = null;
@@ -535,39 +535,59 @@ function calculateHistoricalChanges() {
     let date24hAgo = null;
     let date7dAgo = null;
     let date30dAgo = null;
-    
-    // Skip the most recent entry (which we're using as current value)
-    for (let i = 1; i < sortedData.length; i++) {
+
+    // For 24h comparison, find the entry closest to exactly 24 hours ago
+    let closestTimeDiff24h = Infinity;
+    let closestTimeDiff7d = Infinity;
+    let closestTimeDiff30d = Infinity;
+
+    for (let i = 0; i < sortedData.length; i++) {
         const entry = sortedData[i];
         const entryDate = new Date(entry.datetime);
         
+        // Skip the current value (most recent entry) for historical comparisons
+        if (i === 0) continue;
+        
         // For 24h comparison
-        if (value24hAgo === null) {
+        const timeDiff24h = Math.abs(entryDate.getTime() - oneDayAgo.getTime());
+        if (timeDiff24h < closestTimeDiff24h) {
+            closestTimeDiff24h = timeDiff24h;
             value24hAgo = entry.total_value;
             date24hAgo = entryDate;
-            console.log('Using entry from', entryDate, 'with value', value24hAgo, 'for 24h comparison');
         }
         
         // For 7d comparison
-        if (value7dAgo === null && entryDate <= sevenDaysAgo) {
+        const timeDiff7d = Math.abs(entryDate.getTime() - sevenDaysAgo.getTime());
+        if (timeDiff7d < closestTimeDiff7d) {
+            closestTimeDiff7d = timeDiff7d;
             value7dAgo = entry.total_value;
             date7dAgo = entryDate;
-            console.log('Using entry from', entryDate, 'with value', value7dAgo, 'for 7d comparison');
         }
         
         // For 30d comparison
-        if (value30dAgo === null && entryDate <= thirtyDaysAgo) {
+        const timeDiff30d = Math.abs(entryDate.getTime() - thirtyDaysAgo.getTime());
+        if (timeDiff30d < closestTimeDiff30d) {
+            closestTimeDiff30d = timeDiff30d;
             value30dAgo = entry.total_value;
             date30dAgo = entryDate;
-            console.log('Using entry from', entryDate, 'with value', value30dAgo, 'for 30d comparison');
-        }
-        
-        // If we found all values, we can stop
-        if (value24hAgo !== null && value7dAgo !== null && value30dAgo !== null) {
-            break;
         }
     }
-    
+
+    if (date24hAgo) {
+        console.log('Using entry from', date24hAgo, 'with value', value24hAgo, 'for 24h comparison');
+        console.log('This entry is', (closestTimeDiff24h / (60 * 60 * 1000)).toFixed(2), 'hours away from exactly 24h ago');
+    }
+
+    if (date7dAgo) {
+        console.log('Using entry from', date7dAgo, 'with value', value7dAgo, 'for 7d comparison');
+        console.log('This entry is', (closestTimeDiff7d / (24 * 60 * 60 * 1000)).toFixed(2), 'days away from exactly 7d ago');
+    }
+
+    if (date30dAgo) {
+        console.log('Using entry from', date30dAgo, 'with value', value30dAgo, 'for 30d comparison');
+        console.log('This entry is', (closestTimeDiff30d / (24 * 60 * 60 * 1000)).toFixed(2), 'days away from exactly 30d ago');
+    }
+
     // Apply demo mode scaling to historical values if needed
     if (isDemoMode) {
         if (value24hAgo !== null) value24hAgo = value24hAgo / 15;
@@ -584,7 +604,7 @@ function calculateHistoricalChanges() {
         percentChange24h = ((currentValue - value24hAgo) / value24hAgo) * 100;
         
         console.log('24h change calculation:');
-        console.log('Current value:', currentValue, 'from', currentDate);
+        console.log('Current value:', currentValue);
         console.log('24h ago value:', value24hAgo, 'from', date24hAgo);
         console.log('Dollar change:', dollarChange24h);
         console.log('Percent change:', percentChange24h);
@@ -610,7 +630,7 @@ function calculateHistoricalChanges() {
         percentChange7d = ((currentValue - value7dAgo) / value7dAgo) * 100;
         
         console.log('7d change calculation:');
-        console.log('Current value:', currentValue, 'from', currentDate);
+        console.log('Current value:', currentValue);
         console.log('7d ago value:', value7dAgo, 'from', date7dAgo);
         console.log('Dollar change:', dollarChange7d);
         console.log('Percent change:', percentChange7d);
@@ -636,7 +656,7 @@ function calculateHistoricalChanges() {
         percentChange30d = ((currentValue - value30dAgo) / value30dAgo) * 100;
         
         console.log('30d change calculation:');
-        console.log('Current value:', currentValue, 'from', currentDate);
+        console.log('Current value:', currentValue);
         console.log('30d ago value:', value30dAgo, 'from', date30dAgo);
         console.log('Dollar change:', dollarChange30d);
         console.log('Percent change:', percentChange30d);
