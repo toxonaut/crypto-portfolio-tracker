@@ -536,94 +536,101 @@ function calculateHistoricalChanges() {
     let date7dAgo = null;
     let date30dAgo = null;
 
-    // Get entries from the last 48 hours to ensure we have enough data
-    const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-
     // Log the target times for debugging
+    console.log('Current time:', now);
     console.log('Target times for comparison:');
     console.log('24h ago:', oneDayAgo);
     console.log('7d ago:', sevenDaysAgo);
     console.log('30d ago:', thirtyDaysAgo);
 
-    // First, check if we have any entries from the past 48 hours
-    let hasRecentEntries = false;
-    for (let i = 0; i < sortedData.length; i++) {
+    console.log('Available history entries:');
+    sortedData.forEach((entry, index) => {
+        const entryDate = new Date(entry.datetime);
+        console.log(`Entry ${index}: ${entryDate} - Value: ${entry.total_value}`);
+    });
+
+    // COMPLETELY NEW APPROACH: Find the entry closest to 24 hours ago based on actual hours difference
+    let closestEntry24h = null;
+    let closestHoursDiff24h = Infinity;
+
+    // Skip the most recent entry (which we're using as current value)
+    for (let i = 1; i < sortedData.length; i++) {
         const entry = sortedData[i];
         const entryDate = new Date(entry.datetime);
         
-        // Skip the current value (most recent entry) for historical comparisons
-        if (i === 0) continue;
+        // Calculate how many hours ago this entry was created
+        const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
         
-        // Check if this entry is from the past 48 hours
-        if (entryDate >= twoDaysAgo) {
-            hasRecentEntries = true;
-            break;
+        // We want the entry closest to 24 hours ago
+        const distanceFrom24h = Math.abs(hoursDiff - 24);
+        
+        console.log(`Entry ${i}: ${entryDate} - ${hoursDiff.toFixed(2)} hours ago, distance from 24h: ${distanceFrom24h.toFixed(2)}`);
+        
+        if (distanceFrom24h < closestHoursDiff24h) {
+            closestHoursDiff24h = distanceFrom24h;
+            closestEntry24h = entry;
+            value24hAgo = entry.total_value;
+            date24hAgo = entryDate;
         }
     }
 
-    // If we don't have any recent entries, log a warning
-    if (!hasRecentEntries) {
-        console.warn('No entries found from the past 48 hours! The worker process might not be running correctly.');
-        console.warn('Please check the worker process and make sure it\'s adding history entries hourly.');
-    }
+    // For 7d and 30d, we'll use a similar approach
+    let closestEntry7d = null;
+    let closestHoursDiff7d = Infinity;
+    let closestEntry30d = null;
+    let closestHoursDiff30d = Infinity;
 
-    let closestTimeDiff24h = Infinity;
-    let closestTimeDiff7d = Infinity;
-    let closestTimeDiff30d = Infinity;
-
-    for (let i = 0; i < sortedData.length; i++) {
+    for (let i = 1; i < sortedData.length; i++) {
         const entry = sortedData[i];
         const entryDate = new Date(entry.datetime);
         
-        // Skip the current value (most recent entry) for historical comparisons
-        if (i === 0) continue;
+        // Calculate how many hours ago this entry was created
+        const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
         
-        // For 24h comparison, only consider entries from the past 48 hours
-        // This prevents using very old entries for the 24h comparison
-        if (entryDate >= twoDaysAgo) {
-            const timeDiff24h = Math.abs(entryDate.getTime() - oneDayAgo.getTime());
-            if (timeDiff24h < closestTimeDiff24h) {
-                closestTimeDiff24h = timeDiff24h;
-                value24hAgo = entry.total_value;
-                date24hAgo = entryDate;
-            }
-        }
-        
-        // For 7d comparison
-        const timeDiff7d = Math.abs(entryDate.getTime() - sevenDaysAgo.getTime());
-        if (timeDiff7d < closestTimeDiff7d) {
-            closestTimeDiff7d = timeDiff7d;
+        // We want the entry closest to 7 days ago (168 hours)
+        const distanceFrom7d = Math.abs(hoursDiff - 168);
+        if (distanceFrom7d < closestHoursDiff7d) {
+            closestHoursDiff7d = distanceFrom7d;
+            closestEntry7d = entry;
             value7dAgo = entry.total_value;
             date7dAgo = entryDate;
         }
         
-        // For 30d comparison
-        const timeDiff30d = Math.abs(entryDate.getTime() - thirtyDaysAgo.getTime());
-        if (timeDiff30d < closestTimeDiff30d) {
-            closestTimeDiff30d = timeDiff30d;
+        // We want the entry closest to 30 days ago (720 hours)
+        const distanceFrom30d = Math.abs(hoursDiff - 720);
+        if (distanceFrom30d < closestHoursDiff30d) {
+            closestHoursDiff30d = distanceFrom30d;
+            closestEntry30d = entry;
             value30dAgo = entry.total_value;
             date30dAgo = entryDate;
         }
     }
 
-    // If we couldn't find a 24h entry from the past 48 hours, use the most recent entry after the current one
-    if (value24hAgo === null && sortedData.length > 1) {
-        console.warn('No suitable entry found for 24h comparison within the past 48 hours. Using the second most recent entry.');
-        value24hAgo = sortedData[1].total_value;
-        date24hAgo = new Date(sortedData[1].datetime);
-    }
-
     if (date24hAgo) {
-        const hoursSince = (now.getTime() - date24hAgo.getTime()) / (60 * 60 * 1000);
+        const hoursSince = (now - date24hAgo) / (1000 * 60 * 60);
         console.log('Using entry from', date24hAgo, 'with value', value24hAgo, 'for 24h comparison');
-        console.log('This entry is', (closestTimeDiff24h / (60 * 60 * 1000)).toFixed(2), 'hours away from exactly 24h ago');
         console.log('This entry is', hoursSince.toFixed(2), 'hours old');
+        console.log('This is', closestHoursDiff24h.toFixed(2), 'hours away from exactly 24h');
         
-        // Add a warning if the entry is too old
-        if (hoursSince > 48) {
-            console.warn(`WARNING: The entry used for 24h comparison is ${hoursSince.toFixed(2)} hours old, which is more than 48 hours!`);
+        // Add a warning if the entry is too far from 24 hours
+        if (closestHoursDiff24h > 12) {
+            console.warn(`WARNING: The closest entry to 24h ago is ${closestHoursDiff24h.toFixed(2)} hours away from 24h!`);
             console.warn('This suggests the worker process might not be adding history entries regularly.');
         }
+    }
+
+    if (date7dAgo) {
+        const hoursSince = (now - date7dAgo) / (1000 * 60 * 60);
+        console.log('Using entry from', date7dAgo, 'with value', value7dAgo, 'for 7d comparison');
+        console.log('This entry is', hoursSince.toFixed(2), 'hours old');
+        console.log('This is', closestHoursDiff7d.toFixed(2), 'hours away from exactly 7d');
+    }
+
+    if (date30dAgo) {
+        const hoursSince = (now - date30dAgo) / (1000 * 60 * 60);
+        console.log('Using entry from', date30dAgo, 'with value', value30dAgo, 'for 30d comparison');
+        console.log('This entry is', hoursSince.toFixed(2), 'hours old');
+        console.log('This is', closestHoursDiff30d.toFixed(2), 'hours away from exactly 30d');
     }
     
     // Apply demo mode scaling to historical values if needed

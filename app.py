@@ -1320,6 +1320,53 @@ def migrate_zerion_id_endpoint():
         logger.error(f"Error during migration: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/debug_history')
+@login_required
+def debug_history():
+    """
+    Debug endpoint to check the most recent history entries
+    """
+    try:
+        # Get the 10 most recent history entries
+        recent_entries = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).limit(10).all()
+        
+        # Format the entries for display
+        entries_data = []
+        for entry in recent_entries:
+            entries_data.append({
+                'id': entry.id,
+                'date': entry.date.strftime('%Y-%m-%d %H:%M:%S'),
+                'total_value': entry.total_value,
+                'btc': entry.btc,
+                'actual_btc': entry.actual_btc
+            })
+        
+        # Get the current time
+        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Calculate time since last entry
+        time_since_last = "No entries found"
+        if entries_data:
+            last_entry_time = datetime.datetime.strptime(entries_data[0]['date'], '%Y-%m-%d %H:%M:%S')
+            current_time_obj = datetime.datetime.now()
+            time_diff = current_time_obj - last_entry_time
+            hours, remainder = divmod(time_diff.total_seconds(), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            time_since_last = f"{int(hours)} hours, {int(minutes)} minutes, {int(seconds)} seconds"
+        
+        return jsonify({
+            'success': True,
+            'current_time': current_time,
+            'time_since_last_entry': time_since_last,
+            'entries': entries_data
+        })
+    except Exception as e:
+        logger.error(f"Error in debug_history: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 if __name__ == '__main__':
     # Only run the development server when running locally
     # Railway will use gunicorn to run the application
