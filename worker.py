@@ -22,7 +22,7 @@ logging.basicConfig(
 logger = logging.getLogger("portfolio_worker")
 
 # Get the base URL from environment variable or use a default
-base_url = os.environ.get('BASE_URL', 'https://crypto-portfolio-tracker-production.up.railway.app')
+base_url = os.environ.get('BASE_URL', 'https://crypto-tracker.up.railway.app')
 worker_key = os.environ.get('WORKER_KEY', 'default_worker_key')
 
 # Log the configuration
