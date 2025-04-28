@@ -23,11 +23,22 @@ logger = logging.getLogger("portfolio_worker")
 
 # Get the base URL from environment variable or use a default
 base_url = os.environ.get('BASE_URL', 'https://crypto-tracker.up.railway.app')
-worker_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+session_cookie = os.environ.get('SESSION_COOKIE')
+session_cookie_name = os.environ.get('SESSION_COOKIE_NAME', 'session')
 
 # Log the configuration
 logger.info(f"Worker starting with BASE_URL={base_url}")
-logger.info(f"Worker key is {'set to a custom value' if worker_key != 'default_worker_key' else 'using default value'}")
+logger.info(f"Session cookie is {'set' if session_cookie else 'NOT SET'}")
+
+# Create a session that will persist cookies
+session = requests.Session()
+
+# Set the session cookie if provided
+if session_cookie:
+    # Extract domain from base_url
+    domain = base_url.split('//')[1].split('/')[0]
+    session.cookies.set(session_cookie_name, session_cookie, domain=domain)
+    logger.info(f"Set session cookie: {session_cookie_name}={session_cookie[:5]}...{session_cookie[-5:] if len(session_cookie) > 10 else session_cookie}")
 
 def add_history_entry():
     """
@@ -40,65 +51,24 @@ def add_history_entry():
         try:
             logger.info(f"Worker: Starting add_history task at {datetime.datetime.now().isoformat()} (Attempt {retry+1}/{max_retries})")
             
-            # First check if our worker key is valid using the Blueprint endpoint
-            check_url = f"{base_url.rstrip('/')}/worker_api/test"
-            logger.info(f"Worker: Checking worker key validity at {check_url}")
-            
-            # Create headers with detailed logging
-            headers = {
-                "X-Worker-Key": worker_key,
-                "User-Agent": "Portfolio-Worker/1.0"
-            }
-            logger.info(f"Using worker key: {worker_key[:3]}...{worker_key[-3:] if len(worker_key) > 6 else worker_key}")
-            
-            # Check the worker key
-            check_response = requests.get(
-                check_url,
-                timeout=30,
-                headers=headers
-            )
-            
-            # Log the response details
-            logger.info(f"Check response status code: {check_response.status_code}")
-            
-            # Try to parse the response as JSON
-            try:
-                check_data = check_response.json()
-                if not check_data.get('success'):
-                    logger.error(f"Worker key check failed: {check_data.get('message', 'Unknown error')}")
-                    logger.error("Please set the correct WORKER_KEY environment variable on both the web app and worker services")
-                    raise Exception("Worker key authentication failed")
-                else:
-                    logger.info("Worker key check successful")
-                    logger.info(f"Worker key matches: {check_data.get('worker_key_matches', False)}")
-            except json.JSONDecodeError:
-                logger.error("Failed to parse worker key check response as JSON")
-                logger.error(f"Response content: {check_response.text[:500]}...")
-                raise Exception("Failed to parse worker key check response")
-            
             # First get the current portfolio data to calculate the total value
-            # Use the Blueprint endpoint with the worker key header
-            portfolio_url = f"{base_url.rstrip('/')}/worker_api/portfolio"
+            portfolio_url = f"{base_url.rstrip('/')}/portfolio"
             logger.info(f"Worker: Sending request to {portfolio_url}")
             
-            # Create headers with detailed logging
-            headers = {
-                "X-Worker-Key": worker_key,
-                "User-Agent": "Portfolio-Worker/1.0"
-            }
-            logger.info(f"Using worker key: {worker_key[:3]}...{worker_key[-3:] if len(worker_key) > 6 else worker_key}")
-            logger.info(f"Request headers: {headers}")
-            
-            # Add a timeout to the request to prevent hanging
-            portfolio_response = requests.get(
+            # Use the session to maintain cookies
+            portfolio_response = session.get(
                 portfolio_url, 
-                timeout=30,
-                headers=headers
+                timeout=30
             )
             
             # Log the response details
             logger.info(f"Response status code: {portfolio_response.status_code}")
-            logger.info(f"Response headers: {dict(portfolio_response.headers)}")
+            
+            # Check if we got redirected to the login page
+            if 'login' in portfolio_response.url.lower() or 'sign in with google' in portfolio_response.text.lower():
+                logger.error("Got redirected to login page. The session cookie is invalid or expired.")
+                logger.error("Please get a new session cookie by logging in manually and set it as the SESSION_COOKIE environment variable.")
+                return False
             
             # Check if we got a successful response
             if portfolio_response.status_code != 200:
@@ -110,11 +80,10 @@ def add_history_entry():
                 portfolio_data = portfolio_response.json()
                 logger.info(f"Successfully parsed portfolio data as JSON")
             except json.JSONDecodeError:
-                # If we can't parse as JSON, it's likely we got HTML (login page)
-                logger.error("Received HTML response instead of JSON. This likely means authentication is required.")
-                logger.error("Please add a session cookie or implement an authentication mechanism for the worker.")
+                # If we can't parse as JSON, it's likely we got HTML
+                logger.error("Received HTML response instead of JSON.")
                 logger.error(f"First 1000 characters of response: {portfolio_response.text[:1000]}")
-                raise Exception("Authentication required")
+                raise Exception("Failed to parse portfolio data as JSON")
             
             if not portfolio_data.get('success'):
                 logger.error(f"Portfolio data response indicates failure: {portfolio_data}")
@@ -158,9 +127,9 @@ def add_history_entry():
                 return False
             
             # Now send the add_history request
-            add_history_url = f"{base_url.rstrip('/')}/worker_api/add_history"
+            add_history_url = f"{base_url.rstrip('/')}/add_history"
             logger.info(f"Worker: Sending request to {add_history_url} with total_value={total_value}")
-            response = requests.post(
+            response = session.post(
                 add_history_url, 
                 json={
                     "total_value": total_value,
@@ -168,8 +137,7 @@ def add_history_entry():
                     "actual_btc": actual_bitcoin_amount
                 },
                 headers={
-                    "Content-Type": "application/json",
-                    "X-Worker-Key": worker_key
+                    "Content-Type": "application/json"
                 },
                 timeout=30
             )
@@ -207,6 +175,11 @@ def main():
     """
     Main worker function that runs in an infinite loop
     """
+    if not session_cookie:
+        logger.error("SESSION_COOKIE environment variable is not set. Cannot authenticate with the web application.")
+        logger.error("Please set the SESSION_COOKIE environment variable to a valid session cookie from the web application.")
+        return
+    
     logger.info("Starting portfolio history worker")
     
     # Wait a bit on startup to ensure the web app is running
