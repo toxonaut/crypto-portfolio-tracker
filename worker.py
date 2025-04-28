@@ -21,19 +21,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("portfolio_worker")
 
-# Determine if we're running on Railway
-if 'RAILWAY_ENVIRONMENT' in os.environ:
-    # We're on Railway, use internal connection
-    logger.info("Running on Railway - using internal service connection")
-    base_url = "https://crypto-tracker.up.railway.app"
-else:
-    # We're running locally
-    logger.info("Running locally - using localhost connection")
-    base_url = "http://localhost:5000"
+# Get the base URL from environment variable or use a default
+base_url = os.environ.get('BASE_URL', 'https://crypto-portfolio-tracker-production.up.railway.app')
+worker_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+
+# Log the configuration
+logger.info(f"Worker starting with BASE_URL={base_url}")
+logger.info(f"Worker key is {'set to a custom value' if worker_key != 'default_worker_key' else 'using default value'}")
 
 def add_history_entry():
     """
-    Send a request to the add_history endpoint to create a new history entry
+    Fetch the current portfolio value and add a history entry
     """
     max_retries = 3
     retry_delay = 60  # seconds
@@ -47,52 +45,40 @@ def add_history_entry():
             portfolio_url = f"{base_url.rstrip('/')}/portfolio"
             logger.info(f"Worker: Sending request to {portfolio_url}")
             
+            # Create headers with detailed logging
+            headers = {
+                "X-Worker-Key": worker_key,
+                "User-Agent": "Portfolio-Worker/1.0"
+            }
+            logger.info(f"Using worker key: {worker_key[:3]}...{worker_key[-3:] if len(worker_key) > 6 else worker_key}")
+            logger.info(f"Request headers: {headers}")
+            
             # Add a timeout to the request to prevent hanging
             portfolio_response = requests.get(
                 portfolio_url, 
                 timeout=30,
-                headers={
-                    "X-Worker-Key": os.environ.get("WORKER_KEY", "default_worker_key")
-                }
+                headers=headers
             )
             
-            # Log the raw response for debugging
+            # Log the response details
             logger.info(f"Response status code: {portfolio_response.status_code}")
-            logger.info(f"Response headers: {portfolio_response.headers}")
-            logger.info(f"Response content (first 500 chars): {portfolio_response.text[:500]}")
+            logger.info(f"Response headers: {dict(portfolio_response.headers)}")
             
-            if not portfolio_response.ok:
-                logger.error(f"Failed to get portfolio data: {portfolio_response.status_code} - {portfolio_response.text}")
-                
-                # Check if we need to authenticate
-                if portfolio_response.status_code == 401 or portfolio_response.status_code == 302 or 'login' in portfolio_response.text.lower():
-                    logger.error("Authentication required. The worker needs to be authenticated to access the portfolio data.")
-                    logger.error("Please add a session cookie or implement an authentication mechanism for the worker.")
-                    
-                    if retry < max_retries - 1:
-                        logger.info(f"Retrying in {retry_delay} seconds...")
-                        time.sleep(retry_delay)
-                        continue
-                    
-                return False
-                
+            # Check if we got a successful response
+            if portfolio_response.status_code != 200:
+                logger.error(f"Failed to get portfolio data. Status code: {portfolio_response.status_code}")
+                logger.error(f"Response content: {portfolio_response.text[:500]}...")
+                raise Exception(f"Failed to get portfolio data. Status code: {portfolio_response.status_code}")
+            
             try:
                 portfolio_data = portfolio_response.json()
-            except Exception as e:
-                logger.error(f"Error parsing JSON response: {e}")
-                logger.error(f"Response content: {portfolio_response.text}")
-                
-                # Check if the response contains HTML instead of JSON (likely a login page)
-                if '<html' in portfolio_response.text.lower():
-                    logger.error("Received HTML response instead of JSON. This likely means authentication is required.")
-                    logger.error("Please add a session cookie or implement an authentication mechanism for the worker.")
-                
-                if retry < max_retries - 1:
-                    logger.info(f"Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    continue
-                
-                return False
+                logger.info(f"Successfully parsed portfolio data as JSON")
+            except json.JSONDecodeError:
+                # If we can't parse as JSON, it's likely we got HTML (login page)
+                logger.error("Received HTML response instead of JSON. This likely means authentication is required.")
+                logger.error("Please add a session cookie or implement an authentication mechanism for the worker.")
+                logger.error(f"First 1000 characters of response: {portfolio_response.text[:1000]}")
+                raise Exception("Authentication required")
             
             if not portfolio_data.get('success'):
                 logger.error(f"Portfolio data response indicates failure: {portfolio_data}")
@@ -147,7 +133,7 @@ def add_history_entry():
                 },
                 headers={
                     "Content-Type": "application/json",
-                    "X-Worker-Key": os.environ.get("WORKER_KEY", "default_worker_key")
+                    "X-Worker-Key": worker_key
                 },
                 timeout=30
             )

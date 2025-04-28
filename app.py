@@ -496,12 +496,17 @@ def login_required_except_worker(f):
         expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
         
         # If the worker key matches, allow the request without authentication
-        if worker_key == expected_key:
+        if worker_key and worker_key == expected_key:
             logger.info("Worker request authenticated via X-Worker-Key")
             return f(*args, **kwargs)
+        
+        # Otherwise, check if the user is logged in
+        if not current_user.is_authenticated:
+            logger.warning("User not authenticated and no valid worker key provided")
+            return redirect(url_for('login'))
             
-        # Otherwise, use the standard login_required behavior
-        return login_required(f)(*args, **kwargs)
+        # User is authenticated, proceed with the request
+        return f(*args, **kwargs)
     return decorated_function
 
 @app.route('/')
