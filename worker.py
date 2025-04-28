@@ -40,8 +40,8 @@ def add_history_entry():
         try:
             logger.info(f"Worker: Starting add_history task at {datetime.datetime.now().isoformat()} (Attempt {retry+1}/{max_retries})")
             
-            # First check if our worker key is valid using the API endpoint
-            check_url = f"{base_url.rstrip('/')}/api/worker_key_check"
+            # First check if our worker key is valid using the Blueprint endpoint
+            check_url = f"{base_url.rstrip('/')}/worker_api/test"
             logger.info(f"Worker: Checking worker key validity at {check_url}")
             
             # Create headers with detailed logging
@@ -70,14 +70,15 @@ def add_history_entry():
                     raise Exception("Worker key authentication failed")
                 else:
                     logger.info("Worker key check successful")
+                    logger.info(f"Worker key matches: {check_data.get('worker_key_matches', False)}")
             except json.JSONDecodeError:
                 logger.error("Failed to parse worker key check response as JSON")
                 logger.error(f"Response content: {check_response.text[:500]}...")
                 raise Exception("Failed to parse worker key check response")
             
             # First get the current portfolio data to calculate the total value
-            # Use the standard endpoint with the worker key header
-            portfolio_url = f"{base_url.rstrip('/')}/api/portfolio"
+            # Use the Blueprint endpoint with the worker key header
+            portfolio_url = f"{base_url.rstrip('/')}/worker_api/portfolio"
             logger.info(f"Worker: Sending request to {portfolio_url}")
             
             # Create headers with detailed logging
@@ -157,7 +158,7 @@ def add_history_entry():
                 return False
             
             # Now send the add_history request
-            add_history_url = f"{base_url.rstrip('/')}/api/add_history"
+            add_history_url = f"{base_url.rstrip('/')}/worker_api/add_history"
             logger.info(f"Worker: Sending request to {add_history_url} with total_value={total_value}")
             response = requests.post(
                 add_history_url, 

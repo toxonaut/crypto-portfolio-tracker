@@ -1739,6 +1739,129 @@ def api_add_history():
             'error': str(e)
         }), 500
 
+# Create a separate Blueprint for worker API that bypasses authentication
+from flask import Blueprint
+
+worker_api = Blueprint('worker_api', __name__, url_prefix='/worker_api')
+
+@worker_api.route('/test')
+def worker_test():
+    """
+    Test endpoint for worker API
+    """
+    try:
+        worker_key = request.headers.get('X-Worker-Key', 'not-provided')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        # Mask the keys for security
+        masked_worker_key = f"{worker_key[:3]}...{worker_key[-3:]}" if len(worker_key) > 6 else worker_key
+        masked_expected_key = f"{expected_key[:3]}...{expected_key[-3:]}" if len(expected_key) > 6 else expected_key
+        
+        return jsonify({
+            'success': True,
+            'message': 'Worker API test endpoint',
+            'worker_key_provided': worker_key != 'not-provided',
+            'worker_key_matches': worker_key == expected_key,
+            'masked_worker_key': masked_worker_key,
+            'masked_expected_key': masked_expected_key,
+            'environment_variables': list(os.environ.keys())
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@worker_api.route('/portfolio')
+def worker_portfolio():
+    """
+    Get portfolio data for worker
+    """
+    try:
+        # Check if the worker key is valid
+        worker_key = request.headers.get('X-Worker-Key')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        if not worker_key or worker_key != expected_key:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid or missing worker key'
+            }), 401
+        
+        # Get the portfolio data
+        portfolio_data = get_portfolio_data()
+        return jsonify(portfolio_data)
+    except Exception as e:
+        logger.error(f"Error in worker_portfolio: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@worker_api.route('/add_history', methods=['POST'])
+def worker_add_history():
+    """
+    Add history entry for worker
+    """
+    try:
+        # Check if the worker key is valid
+        worker_key = request.headers.get('X-Worker-Key')
+        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+        
+        if not worker_key or worker_key != expected_key:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid or missing worker key'
+            }), 401
+        
+        # Get the data from the request
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Extract the values
+        total_value = data.get('total_value')
+        btc_value = data.get('btc_value')
+        actual_btc = data.get('actual_btc')
+        
+        if total_value is None:
+            return jsonify({
+                'success': False,
+                'message': 'Missing total_value'
+            }), 400
+        
+        # Create a new history entry
+        new_history = PortfolioHistory(
+            date=datetime.datetime.now(),
+            total_value=total_value,
+            btc=btc_value,
+            actual_btc=actual_btc
+        )
+        
+        # Add to the database
+        db.session.add(new_history)
+        db.session.commit()
+        
+        logger.info(f"Added history entry: total_value={total_value}, btc={btc_value}, actual_btc={actual_btc}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'History entry added successfully',
+            'id': new_history.id
+        })
+    except Exception as e:
+        logger.error(f"Error in worker_add_history: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Register the blueprint
+app.register_blueprint(worker_api)
+
 if __name__ == '__main__':
     # Only run the development server when running locally
     # Railway will use gunicorn to run the application
