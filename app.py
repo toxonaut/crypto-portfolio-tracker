@@ -1367,6 +1367,188 @@ def debug_history():
             'error': str(e)
         })
 
+# Worker-specific endpoints that bypass authentication for internal worker requests
+@app.route('/worker_portfolio')
+def worker_portfolio():
+    """
+    Worker-specific endpoint to get portfolio data without authentication
+    """
+    # Check for worker key in headers
+    worker_key = request.headers.get('X-Worker-Key')
+    expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+    
+    if worker_key != expected_key:
+        logger.error(f"Unauthorized worker request: Invalid worker key")
+        return jsonify({
+            'success': False,
+            'error': 'Unauthorized'
+        }), 401
+    
+    try:
+        # Get portfolio data
+        portfolio_data = get_portfolio_data()
+        
+        # Get unique coin IDs
+        coin_ids = list(set(item['coin_id'] for item in portfolio_data))
+        
+        # Get current prices
+        prices = get_coin_prices(coin_ids)
+        
+        # Group portfolio data by coin_id
+        grouped_data = {}
+        total_value = 0
+        total_monthly_yield = 0
+        
+        # First, group all entries by coin_id
+        for item in portfolio_data:
+            coin_id = item['coin_id']
+            source = item['source']
+            amount = item['amount']
+            apy = item.get('apy', 0)
+            
+            # Initialize coin data if not exists
+            if coin_id not in grouped_data:
+                # Default image if none is available from CoinGecko
+                image_url = "https://assets.coingecko.com/coins/images/1/small/bitcoin.png"
+                
+                # If we have data from CoinGecko, use their image URL
+                if coin_id in prices and 'image' in prices[coin_id]:
+                    image_url = prices[coin_id]['image']
+                
+                grouped_data[coin_id] = {
+                    'total_amount': 0,
+                    'sources': {},
+                    'price': 0,
+                    'total_value': 0,
+                    'hourly_change': 0,
+                    'daily_change': 0,
+                    'seven_day_change': 0,
+                    'monthly_yield': 0,
+                    'image': image_url
+                }
+            
+            # Add source data to the coin
+            grouped_data[coin_id]['sources'][source] = {
+                'amount': amount,
+                'apy': apy,
+                'zerion_id': item.get('zerion_id', '')
+            }
+            
+            # Add to the total amount for this coin
+            grouped_data[coin_id]['total_amount'] += amount
+        
+        # Calculate total values and monthly yield
+        for coin_id, coin_data in grouped_data.items():
+            price = 0
+            hourly_change = None
+            daily_change = None
+            seven_day_change = None
+            
+            if coin_id in prices:
+                price_data = prices[coin_id]
+                price = price_data.get('usd', 0)
+                hourly_change = price_data.get('usd_1h_change', 0)
+                daily_change = price_data.get('usd_24h_change', 0)
+                seven_day_change = price_data.get('usd_7d_change', 0)
+            
+            coin_total_value = 0
+            coin_monthly_yield = 0
+            
+            for source, source_data in coin_data['sources'].items():
+                amount = source_data['amount']
+                apy = source_data.get('apy', 0)
+                value = amount * price
+                coin_total_value += value
+                
+                # Calculate monthly yield for this source
+                yearly_yield = value * (apy / 100)
+                monthly_yield = yearly_yield / 12
+                coin_monthly_yield += monthly_yield
+            
+            # Set the total value and monthly yield for this coin
+            grouped_data[coin_id]['total_value'] = coin_total_value
+            grouped_data[coin_id]['monthly_yield'] = coin_monthly_yield
+            grouped_data[coin_id]['price'] = price
+            grouped_data[coin_id]['hourly_change'] = hourly_change
+            grouped_data[coin_id]['daily_change'] = daily_change
+            grouped_data[coin_id]['seven_day_change'] = seven_day_change
+            total_value += coin_total_value
+            total_monthly_yield += coin_monthly_yield
+        
+        # Return formatted data
+        return jsonify({
+            'success': True,
+            'data': grouped_data,
+            'total_value': total_value,
+            'total_monthly_yield': total_monthly_yield
+        })
+    except Exception as e:
+        logger.error(f"Error in worker_portfolio: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/worker_add_history', methods=['POST'])
+def worker_add_history():
+    """
+    Worker-specific endpoint to add a history entry without authentication
+    """
+    # Check for worker key in headers
+    worker_key = request.headers.get('X-Worker-Key')
+    expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
+    
+    if worker_key != expected_key:
+        logger.error(f"Unauthorized worker request: Invalid worker key")
+        return jsonify({
+            'success': False,
+            'error': 'Unauthorized'
+        }), 401
+    
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No data provided'
+            }), 400
+        
+        total_value = data.get('total_value')
+        btc_value = data.get('btc_value')
+        actual_btc = data.get('actual_btc')
+        
+        if not total_value:
+            return jsonify({
+                'success': False,
+                'error': 'total_value is required'
+            }), 400
+        
+        # Create a new history entry
+        new_entry = PortfolioHistory(
+            date=datetime.datetime.now(),
+            total_value=total_value,
+            btc=btc_value,
+            actual_btc=actual_btc
+        )
+        
+        db.session.add(new_entry)
+        db.session.commit()
+        
+        logger.info(f"Added history entry: {total_value} USD, {btc_value} BTC, {actual_btc} actual BTC")
+        
+        return jsonify({
+            'success': True,
+            'message': 'History entry added successfully',
+            'entry_id': new_entry.id
+        })
+    except Exception as e:
+        logger.error(f"Error in worker_add_history: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 if __name__ == '__main__':
     # Only run the development server when running locally
     # Railway will use gunicorn to run the application

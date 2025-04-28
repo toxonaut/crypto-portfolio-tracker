@@ -39,16 +39,46 @@ def add_history_entry():
         logger.info(f"Worker: Starting add_history task at {datetime.datetime.now().isoformat()}")
         
         # First get the current portfolio data to calculate the total value
-        logger.info(f"Worker: Sending request to {base_url}/portfolio")
+        # Use the special worker endpoint that doesn't require authentication
+        logger.info(f"Worker: Sending request to {base_url}/worker_portfolio")
         
         # Add a timeout to the request to prevent hanging
-        portfolio_response = requests.get(f"{base_url}/portfolio", timeout=30)
+        portfolio_response = requests.get(
+            f"{base_url}/worker_portfolio", 
+            timeout=30,
+            headers={
+                "X-Worker-Key": os.environ.get("WORKER_KEY", "default_worker_key")
+            }
+        )
+        
+        # Log the raw response for debugging
+        logger.info(f"Response status code: {portfolio_response.status_code}")
+        logger.info(f"Response headers: {portfolio_response.headers}")
+        logger.info(f"Response content (first 500 chars): {portfolio_response.text[:500]}")
         
         if not portfolio_response.ok:
             logger.error(f"Failed to get portfolio data: {portfolio_response.status_code} - {portfolio_response.text}")
-            return False
             
-        portfolio_data = portfolio_response.json()
+            # Check if we need to authenticate
+            if portfolio_response.status_code == 401 or portfolio_response.status_code == 302 or 'login' in portfolio_response.text.lower():
+                logger.error("Authentication required. The worker needs to be authenticated to access the portfolio data.")
+                logger.error("Please add a session cookie or implement an authentication mechanism for the worker.")
+                return False
+                
+            return False
+        
+        try:
+            portfolio_data = portfolio_response.json()
+        except Exception as e:
+            logger.error(f"Error parsing JSON response: {e}")
+            logger.error(f"Response content: {portfolio_response.text}")
+            
+            # Check if the response contains HTML instead of JSON (likely a login page)
+            if '<html' in portfolio_response.text.lower():
+                logger.error("Received HTML response instead of JSON. This likely means authentication is required.")
+                logger.error("Please add a session cookie or implement an authentication mechanism for the worker.")
+            
+            return False
         
         if not portfolio_data.get('success'):
             logger.error(f"Portfolio data response indicates failure: {portfolio_data}")
@@ -86,15 +116,18 @@ def add_history_entry():
             return False
         
         # Now send the add_history request
-        logger.info(f"Worker: Sending request to {base_url}/add_history with total_value={total_value}")
+        logger.info(f"Worker: Sending request to {base_url}/worker_add_history with total_value={total_value}")
         response = requests.post(
-            f"{base_url}/add_history", 
+            f"{base_url}/worker_add_history", 
             json={
                 "total_value": total_value,
                 "btc_value": btc_value,
                 "actual_btc": actual_bitcoin_amount
             },
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "X-Worker-Key": os.environ.get("WORKER_KEY", "default_worker_key")
+            },
             timeout=30
         )
         
