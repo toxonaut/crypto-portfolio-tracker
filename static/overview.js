@@ -5,6 +5,7 @@ let tradingViewWidget = null;
 let currentDateRange = '90'; // Default to 3 months
 let isLogScale = false;
 let isDemoMode = false;
+let portfolioData = null; // Global portfolio data
 
 // Format price change percentage
 function formatPriceChange(change) {
@@ -302,6 +303,9 @@ async function updatePortfolio() {
         
         console.log('Portfolio data received:', data);
         
+        // Store portfolio data in global variable for use in historical changes calculation
+        portfolioData = data;
+        
         // Update last updated timestamp
         const lastUpdatedElement = document.getElementById('lastUpdated');
         if (lastUpdatedElement) {
@@ -465,6 +469,11 @@ function calculateHistoricalChanges() {
     if (!historyData || historyData.length === 0) {
         console.error('No history data available for calculating changes');
         return {
+            currentValue: 0,
+            currentDate: '',
+            value24hAgo: 0,
+            value7dAgo: 0,
+            value30dAgo: 0,
             change24h: { value: 0, percent: 0, date: '' },
             change7d: { value: 0, percent: 0, date: '' },
             change30d: { value: 0, percent: 0, date: '' },
@@ -482,17 +491,27 @@ function calculateHistoricalChanges() {
         return new Date(b.datetime) - new Date(a.datetime);
     });
     
-    // Get the current value (most recent history entry)
+    // Get the current value from the portfolio data, not from history
     let currentValue = 0;
-    let currentDate = null;
+    let currentDate = new Date(); // Use current date/time
     
-    if (sortedData.length > 0) {
+    // Get the total portfolio value from the global portfolioData
+    if (portfolioData && portfolioData.total_value) {
+        currentValue = portfolioData.total_value;
+        console.log('Current value from portfolio data:', currentValue);
+    } else if (sortedData.length > 0) {
+        // Fallback to most recent history entry if portfolio data is not available
         currentValue = sortedData[0].total_value;
         currentDate = new Date(sortedData[0].datetime);
-        console.log('Current value from most recent history entry:', currentValue, 'from', currentDate);
+        console.log('Fallback: Current value from most recent history entry:', currentValue, 'from', currentDate);
     } else {
         console.error('No valid current value available');
         return {
+            currentValue: 0,
+            currentDate: '',
+            value24hAgo: 0,
+            value7dAgo: 0,
+            value30dAgo: 0,
             change24h: { value: 0, percent: 0, date: '' },
             change7d: { value: 0, percent: 0, date: '' },
             change30d: { value: 0, percent: 0, date: '' },
@@ -512,6 +531,11 @@ function calculateHistoricalChanges() {
     if (sortedData.length < 2) {
         console.error('Not enough history data to calculate changes');
         return {
+            currentValue: 0,
+            currentDate: '',
+            value24hAgo: 0,
+            value7dAgo: 0,
+            value30dAgo: 0,
             change24h: { value: 0, percent: 0, date: '' },
             change7d: { value: 0, percent: 0, date: '' },
             change30d: { value: 0, percent: 0, date: '' },
@@ -614,8 +638,8 @@ function calculateHistoricalChanges() {
         
         // Add a warning if the entry is too far from 24 hours
         if (closestHoursDiff24h > 12) {
-            console.warn(`WARNING: The closest entry to 24h ago is ${closestHoursDiff24h.toFixed(2)} hours away from 24h!`);
-            console.warn('This suggests the worker process might not be adding history entries regularly.');
+            console.log(`WARNING: The closest entry to 24h ago is ${closestHoursDiff24h.toFixed(2)} hours away from 24h!`);
+            console.log('This suggests the worker process might not be adding history entries regularly.');
         }
     }
 
