@@ -135,10 +135,15 @@ function makeEditable(element, currentValue, onSave) {
     // Function to save changes
     function save() {
         const newValue = input.type === 'number' ? parseFloat(input.value) : input.value.trim();
-        if ((newValue !== null && newValue !== undefined && (input.type === 'number' || newValue !== '')) && newValue !== currentValue) {
+        // Special handling for Zerion ID - allow empty strings
+        const isZerionIdField = element.parentElement && element.parentElement.classList.contains('zerion-id-cell');
+        
+        if ((input.type === 'number' && !isNaN(newValue) && newValue >= 0) || 
+            (input.type !== 'number' && (isZerionIdField || newValue !== '')) && 
+            newValue !== currentValue) {
             onSave(newValue);
         } else {
-            // Restore original content if no changes
+            // Restore original content if no changes or invalid input
             element.innerHTML = originalContent;
         }
     }
