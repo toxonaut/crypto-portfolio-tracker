@@ -817,17 +817,23 @@ function calculateHistoricalChanges() {
         }
     }
     
-    console.log('Historical changes calculation:');
-    console.log('Current value:', currentValue);
-    console.log('24h ago:', value24hAgo, 'Change:', dollarChange24h, 'Percent:', percentChange24h);
-    console.log('7d ago:', value7dAgo, 'Change:', dollarChange7d, 'Percent:', percentChange7d);
-    console.log('30d ago:', value30dAgo, 'Change:', dollarChange30d, 'Percent:', percentChange30d);
-    console.log('Largest percent gain:', largestPercentGain);
-    console.log('Largest dollar gain:', largestDollarGain);
-    console.log('Largest percent loss:', largestPercentLoss);
-    console.log('Largest dollar loss:', largestDollarLoss);
-    
+    // Format current date for display
+    let formattedCurrentDate = '';
+    if (currentDate) {
+        const month = currentDate.toLocaleString('en-US', { month: 'short' });
+        const day = currentDate.getDate();
+        const hours = currentDate.getHours().toString().padStart(2, '0');
+        const minutes = currentDate.getMinutes().toString().padStart(2, '0');
+        formattedCurrentDate = `${month}-${day}, ${hours}:${minutes}`;
+    }
+
+    // Return the changes
     return {
+        currentValue: currentValue,
+        currentDate: formattedCurrentDate,
+        value24hAgo: value24hAgo || 0,
+        value7dAgo: value7dAgo || 0,
+        value30dAgo: value30dAgo || 0,
         change24h: { value: dollarChange24h, percent: percentChange24h, date: formattedDate24h },
         change7d: { value: dollarChange7d, percent: percentChange7d, date: formattedDate7d },
         change30d: { value: dollarChange30d, percent: percentChange30d, date: formattedDate30d },
@@ -874,11 +880,21 @@ function updateHistoricalChanges() {
     // Update all instances of each element
     change24hElements.forEach(element => {
         let formattedChange = formatValueChange(changes.change24h.value, changes.change24h.percent);
+        
+        // Add debug information showing both values and dates
+        const debugInfo = `
+            <div class="debug-info" style="font-size: 0.8rem; margin-top: 5px; color: #6c757d;">
+                <div>Current: $${changes.currentValue.toFixed(2)} (${changes.currentDate})</div>
+                <div>24h ago: $${changes.value24hAgo.toFixed(2)} (${changes.change24h.date})</div>
+                <div>Raw diff: $${(changes.currentValue - changes.value24hAgo).toFixed(2)}</div>
+            </div>
+        `;
+        
         if (changes.change24h.date) {
             // Make sure the date is clearly visible by using a different approach
-            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change24h.date})</span>`;
+            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change24h.date})</span>${debugInfo}`;
         } else {
-            element.innerHTML = formattedChange;
+            element.innerHTML = `${formattedChange}${debugInfo}`;
         }
     });
     
