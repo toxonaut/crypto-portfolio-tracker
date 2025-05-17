@@ -109,6 +109,21 @@ class PortfolioHistory(db.Model):
             'actual_btc': self.actual_btc if self.actual_btc is not None else 0
         }
 
+class WorkerStatus(db.Model):
+    __tablename__ = 'worker_status'  # Explicitly set lowercase table name
+    id = db.Column(db.Integer, primary_key=True)
+    last_check = db.Column(db.DateTime, nullable=False)
+    is_authenticated = db.Column(db.Boolean, default=False)
+    last_error = db.Column(db.String(500), nullable=True)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'last_check': self.last_check.isoformat(),
+            'is_authenticated': self.is_authenticated,
+            'last_error': self.last_error
+        }
+
 # User model for authentication
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -513,7 +528,24 @@ def login_required_except_worker(f):
 @login_required
 def index():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
-    return render_template('index.html', version="1.3.0", db_type=db_type)
+    
+    # Check worker status
+    worker_status = WorkerStatus.query.first()
+    worker_auth_issue = False
+    worker_error = None
+    
+    if worker_status:
+        # Check if the worker status is recent (within the last 2 hours)
+        two_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=2)
+        if worker_status.last_check >= two_hours_ago and not worker_status.is_authenticated:
+            worker_auth_issue = True
+            worker_error = worker_status.last_error
+    
+    return render_template('index.html', 
+                           version="1.3.0", 
+                           db_type=db_type, 
+                           worker_auth_issue=worker_auth_issue,
+                           worker_error=worker_error)
 
 @app.route('/login')
 def login():
@@ -1854,6 +1886,55 @@ def worker_add_history():
         })
     except Exception as e:
         logger.error(f"Error in worker_add_history: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# API endpoint to update worker status
+@app.route('/api/update_worker_status', methods=['POST'])
+def api_update_worker_status():
+    """
+    API endpoint to update worker status
+    This endpoint requires a valid worker key
+    """
+    try:
+        # Get the request data
+        data = request.json
+        
+        # Validate the request data
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No data provided'
+            }), 400
+            
+        # Get the worker status
+        worker_status = WorkerStatus.query.first()
+        
+        # If no worker status exists, create one
+        if not worker_status:
+            worker_status = WorkerStatus(
+                last_check=datetime.datetime.now(),
+                is_authenticated=data.get('is_authenticated', False),
+                last_error=data.get('last_error')
+            )
+            db.session.add(worker_status)
+        else:
+            # Update the worker status
+            worker_status.last_check = datetime.datetime.now()
+            worker_status.is_authenticated = data.get('is_authenticated', False)
+            worker_status.last_error = data.get('last_error')
+            
+        # Commit the changes
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': worker_status.to_dict()
+        })
+    except Exception as e:
+        logger.error(f"Error in api_update_worker_status: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e)

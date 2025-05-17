@@ -6,6 +6,7 @@ import logging
 import requests
 import json
 import traceback
+import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
@@ -40,6 +41,37 @@ if session_cookie:
     session.cookies.set(session_cookie_name, session_cookie, domain=domain)
     logger.info(f"Set session cookie: {session_cookie_name}={session_cookie[:5]}...{session_cookie[-5:] if len(session_cookie) > 10 else session_cookie}")
 
+def update_worker_status(is_authenticated, error_message=None):
+    """
+    Update the worker status in the database
+    """
+    try:
+        # Use the worker API endpoint to update status
+        status_url = f"{base_url.rstrip('/')}/api/update_worker_status"
+        logger.info(f"Updating worker status: authenticated={is_authenticated}, error={error_message}")
+        
+        response = session.post(
+            status_url,
+            json={
+                "is_authenticated": is_authenticated,
+                "last_error": error_message
+            },
+            headers={
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        if response.ok:
+            logger.info("Successfully updated worker status")
+            return True
+        else:
+            logger.error(f"Failed to update worker status: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Error updating worker status: {e}")
+        return False
+
 def add_history_entry():
     """
     Fetch the current portfolio value and add a history entry
@@ -66,8 +98,13 @@ def add_history_entry():
             
             # Check if we got redirected to the login page
             if 'login' in portfolio_response.url.lower() or 'sign in with google' in portfolio_response.text.lower():
-                logger.error("Got redirected to login page. The session cookie is invalid or expired.")
+                error_message = "Got redirected to login page. The session cookie is invalid or expired."
+                logger.error(error_message)
                 logger.error("Please get a new session cookie by logging in manually and set it as the SESSION_COOKIE environment variable.")
+                
+                # Update worker status in the database
+                update_worker_status(False, error_message)
+                
                 return False
             
             # Check if we got a successful response
@@ -147,6 +184,8 @@ def add_history_entry():
             
             if response.ok:
                 logger.info(f"Successfully added history entry with value {total_value}")
+                # Update worker status to indicate successful authentication
+                update_worker_status(True)
                 return True
             else:
                 logger.error(f"Failed to add history entry: {response.status_code} - {response.text}")
