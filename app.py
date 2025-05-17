@@ -70,8 +70,25 @@ with app.app_context():
                 connection.execute(db.text("ALTER TABLE portfolio ADD COLUMN zerion_id VARCHAR(255)"))
                 connection.commit()
                 logger.info("Successfully added zerion_id column to portfolio table")
+                
+        # Check if worker_status table exists
+        tables = inspector.get_table_names()
+        if 'worker_status' not in tables:
+            logger.info("Creating worker_status table")
+            # Create the worker_status table directly
+            with db.engine.connect() as connection:
+                connection.execute(db.text("""
+                CREATE TABLE worker_status (
+                    id SERIAL PRIMARY KEY,
+                    last_check TIMESTAMP NOT NULL,
+                    is_authenticated BOOLEAN DEFAULT FALSE,
+                    last_error VARCHAR(500)
+                )
+                """))
+                connection.commit()
+                logger.info("Successfully created worker_status table")
     except Exception as e:
-        logger.error(f"Error adding zerion_id column: {e}")
+        logger.error(f"Error during database initialization: {e}")
 
 class Portfolio(db.Model):
     __tablename__ = 'portfolio'  # Explicitly set lowercase table name
@@ -530,16 +547,26 @@ def index():
     db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
     
     # Check worker status
-    worker_status = WorkerStatus.query.first()
     worker_auth_issue = False
     worker_error = None
     
-    if worker_status:
-        # Check if the worker status is recent (within the last 2 hours)
-        two_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=2)
-        if worker_status.last_check >= two_hours_ago and not worker_status.is_authenticated:
-            worker_auth_issue = True
-            worker_error = worker_status.last_error
+    try:
+        # Check if the worker_status table exists before querying
+        inspector = db.inspect(db.engine)
+        tables = inspector.get_table_names()
+        
+        if 'worker_status' in tables:
+            worker_status = WorkerStatus.query.first()
+            
+            if worker_status:
+                # Check if the worker status is recent (within the last 2 hours)
+                two_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=2)
+                if worker_status.last_check >= two_hours_ago and not worker_status.is_authenticated:
+                    worker_auth_issue = True
+                    worker_error = worker_status.last_error
+    except Exception as e:
+        logger.error(f"Error checking worker status: {e}")
+        # Don't show an error to the user if we can't check worker status
     
     return render_template('index.html', 
                            version="1.3.0", 
@@ -1909,6 +1936,25 @@ def api_update_worker_status():
                 'error': 'No data provided'
             }), 400
             
+        # Check if the worker_status table exists
+        inspector = db.inspect(db.engine)
+        tables = inspector.get_table_names()
+        
+        if 'worker_status' not in tables:
+            # Create the worker_status table if it doesn't exist
+            logger.info("Creating worker_status table from API endpoint")
+            with db.engine.connect() as connection:
+                connection.execute(db.text("""
+                CREATE TABLE worker_status (
+                    id SERIAL PRIMARY KEY,
+                    last_check TIMESTAMP NOT NULL,
+                    is_authenticated BOOLEAN DEFAULT FALSE,
+                    last_error VARCHAR(500)
+                )
+                """))
+                connection.commit()
+                logger.info("Successfully created worker_status table from API endpoint")
+        
         # Get the worker status
         worker_status = WorkerStatus.query.first()
         
