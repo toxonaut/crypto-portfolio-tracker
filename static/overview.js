@@ -7,6 +7,14 @@ let isLogScale = false;
 let isDemoMode = false;
 let portfolioData = null; // Global portfolio data
 
+// Detect iOS Chrome browser
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isChrome = /CriOS/.test(navigator.userAgent);
+const isIOSChrome = isIOS && isChrome;
+
+// Log browser detection
+console.log('Browser detection:', { isIOS, isChrome, isIOSChrome });
+
 // Format price change percentage
 function formatPriceChange(change) {
     const formattedChange = Math.abs(change).toFixed(2);
@@ -63,6 +71,26 @@ function initializePairSelection() {
     });
 }
 
+// Function to sample data for performance optimization
+function sampleHistoryData(data, maxPoints) {
+    if (!data || data.length <= maxPoints) return data;
+    
+    const result = [];
+    const step = Math.ceil(data.length / maxPoints);
+    
+    for (let i = 0; i < data.length; i += step) {
+        result.push(data[i]);
+    }
+    
+    // Always include the most recent point
+    if (result[result.length - 1] !== data[data.length - 1]) {
+        result.push(data[data.length - 1]);
+    }
+    
+    console.log(`Sampled history data from ${data.length} to ${result.length} points`);
+    return result;
+}
+
 async function updateHistoryChart() {
     try {
         console.log('Fetching history data...');
@@ -98,6 +126,13 @@ async function updateHistoryChart() {
                 const itemDate = new Date(item.datetime);
                 return itemDate >= cutoffDate;
             });
+        }
+        
+        // Apply data sampling for iOS Chrome to prevent crashes
+        if (isIOSChrome) {
+            // Use more aggressive sampling for iOS Chrome
+            const maxDataPoints = 60; // Limit to 60 points for iOS Chrome
+            filteredData = sampleHistoryData(filteredData, maxDataPoints);
         }
         
         // Store raw dates for chart formatting
@@ -149,9 +184,9 @@ async function updateHistoryChart() {
                         data: values,
                         borderColor: '#0d6efd',
                         backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 1,
+                        fill: isIOSChrome ? false : true, // Disable fill on iOS Chrome
+                        tension: isIOSChrome ? 0 : 0.4, // Disable curve tension on iOS Chrome
+                        pointRadius: isIOSChrome ? 0 : 1, // Disable points on iOS Chrome
                         yAxisID: 'y'
                     },
                     {
@@ -162,13 +197,15 @@ async function updateHistoryChart() {
                         fill: false,
                         tension: 0.4,
                         yAxisID: 'y1',
-                        pointRadius: 1,
-                        hidden: true // Hidden by default
+                        pointRadius: isIOSChrome ? 0 : 1, // Disable points for iOS Chrome
+                        hidden: isIOSChrome ? true : true // Always hidden on iOS Chrome
                     }
                 ]
             },
             options: {
                 responsive: true,
+                animation: isIOSChrome ? false : true, // Disable animations on iOS Chrome
+                responsiveAnimationDuration: isIOSChrome ? 0 : 1000, // Disable animation duration on iOS Chrome
                 plugins: {
                     legend: {
                         position: 'top',
@@ -183,7 +220,7 @@ async function updateHistoryChart() {
                         ticks: {
                             maxRotation: 45,
                             minRotation: 45,
-                            autoSkip: false, // Prevent Chart.js from automatically skipping labels
+                            autoSkip: isIOSChrome ? true : false, // Enable autoSkip for iOS Chrome to improve performance
                             callback: function(value, index) {
                                 if (index >= rawDates.length) return '';
                                 
@@ -464,6 +501,25 @@ function toggleDemoMode() {
 
 // Calculate historical changes based on history data
 function calculateHistoricalChanges() {
+    // For iOS Chrome, use a simplified calculation to prevent crashes
+    if (isIOSChrome) {
+        console.log('Using simplified historical changes calculation for iOS Chrome');
+        return {
+            currentValue: portfolioData ? portfolioData.total_value : 0,
+            currentDate: new Date().toISOString(),
+            value24hAgo: 0,
+            value7dAgo: 0,
+            value30dAgo: 0,
+            change24h: { value: 0, percent: 0, date: '' },
+            change7d: { value: 0, percent: 0, date: '' },
+            change30d: { value: 0, percent: 0, date: '' },
+            largestPercentGain: { value: 0, percent: 0, date: '' },
+            largestDollarGain: { value: 0, percent: 0, date: '' },
+            largestPercentLoss: { value: 0, percent: 0, date: '' },
+            largestDollarLoss: { value: 0, percent: 0, date: '' }
+        };
+    }
+    
     console.log('Calculating historical changes...');
     
     if (!historyData || historyData.length === 0) {
@@ -988,10 +1044,18 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('Current page:', isStatisticsPage ? 'Statistics' : 'Overview');
     
     try {
-        // Initialize TradingView widget only on the main page
+        // Initialize TradingView widget only on the main page and not on iOS Chrome
         if (!isStatisticsPage) {
-            createTradingViewWidget('BTCUSD');
-            initializePairSelection();
+            if (!isIOSChrome) {
+                createTradingViewWidget('BTCUSD');
+                initializePairSelection();
+            } else {
+                // For iOS Chrome, show a message instead of loading TradingView
+                const tvContainer = document.getElementById('tradingview_chart');
+                if (tvContainer) {
+                    tvContainer.innerHTML = '<div class="alert alert-info">Charts are disabled on iOS Chrome for better performance. Please use Safari for full functionality.</div>';
+                }
+            }
         }
         
         // First, load the history data
@@ -1122,8 +1186,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             });
         }
         
-        // Set up auto-refresh
-        setInterval(updatePortfolio, 60000); // Refresh every minute
+        // Set up auto-refresh with different intervals based on browser
+        const refreshInterval = isIOSChrome ? 300000 : 60000; // 5 minutes for iOS Chrome, 1 minute for others
+        setInterval(updatePortfolio, refreshInterval);
     } catch (error) {
         console.error('Error during initialization:', error);
     }
