@@ -164,35 +164,60 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
     <script>
-        new TradingView.widget({
-            "width": "100%",
-            "height": 400,
-            "symbol": "NASDAQ:AAPL",
-            "interval": "D",
-            "timezone": "Etc/UTC",
-            "theme": "dark",
-            "style": "1",
-            "locale": "en",
-            "toolbar_bg": "#00ff00",
-            "enable_publishing": false,
-            "allow_symbol_change": true,
-            "studies": [
-                "MASimple@tv-basicstudies"
-            ],
-            "container_id": "tradingview_chart",
-            "library_path": "/charting_library/",
-            "charts_storage_url": "https://saveload.tradingview.com",
-            "charts_storage_api_version": "1.1",
-            "client_id": "tradingview.com",
-            "user_id": "public_user_id",
-            "fullscreen": false,
-            "autosize": true,
-            "hide_side_toolbar": false,
-            "hide_top_toolbar": false,
-            "withdateranges": true,
-            "save_image": false,
-            "studies_overrides": {}
-        });
+        // Detect if browser is Chrome on iOS
+        const isIOSChrome = /CriOS/i.test(navigator.userAgent);
+        
+        // Use a simpler configuration for Chrome on iOS
+        if (isIOSChrome) {
+            new TradingView.widget({
+                "width": "100%",
+                "height": 350,
+                "symbol": "NASDAQ:AAPL",
+                "interval": "D",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#121726",
+                "enable_publishing": false,
+                "hide_top_toolbar": true,
+                "hide_side_toolbar": true,
+                "allow_symbol_change": true,
+                "container_id": "tradingview_chart",
+                "studies_overrides": {}
+            });
+        } else {
+            // Full configuration for other browsers
+            new TradingView.widget({
+                "width": "100%",
+                "height": 400,
+                "symbol": "NASDAQ:AAPL",
+                "interval": "D",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#00ff00",
+                "enable_publishing": false,
+                "allow_symbol_change": true,
+                "studies": [
+                    "MASimple@tv-basicstudies"
+                ],
+                "container_id": "tradingview_chart",
+                "library_path": "/charting_library/",
+                "charts_storage_url": "https://saveload.tradingview.com",
+                "charts_storage_api_version": "1.1",
+                "client_id": "tradingview.com",
+                "user_id": "public_user_id",
+                "fullscreen": false,
+                "autosize": true,
+                "hide_side_toolbar": false,
+                "hide_top_toolbar": false,
+                "withdateranges": true,
+                "save_image": false,
+                "studies_overrides": {}
+            });
+        }
     </script>
 </body>
 </html>

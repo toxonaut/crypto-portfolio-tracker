@@ -114,6 +114,53 @@ body {
     }
 }
 
+/* Chrome on iOS specific fixes */
+@supports (-webkit-touch-callout: none) {
+    /* Target only iOS browsers */
+    body {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Specific fixes for Chrome on iOS */
+    @media screen and (-webkit-min-device-pixel-ratio: 0) {
+        #tradingview_chart {
+            /* Use transform instead of height for better performance */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            /* Force hardware acceleration */
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            height: 350px !important;
+        }
+        
+        /* Optimize table rendering */
+        .table-responsive {
+            -webkit-overflow-scrolling: touch;
+            overflow-x: auto;
+        }
+        
+        /* Optimize chart buttons for touch */
+        .list-group-item {
+            touch-action: manipulation;
+        }
+        
+        /* Prevent text scaling */
+        html {
+            -webkit-text-size-adjust: 100%;
+        }
+        
+        /* Fix for freezing during scrolling */
+        .card {
+            transform: translateZ(0);
+        }
+        
+        /* Improve scrolling performance */
+        .container {
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+}
+
 .list-group-item {
     cursor: pointer;
     transition: background-color 0.2s;
