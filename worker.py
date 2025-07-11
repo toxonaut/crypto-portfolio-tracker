@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file if it exists
 load_dotenv()
 
-# Configure logging
+# Configure loggingss
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -24,22 +24,17 @@ logger = logging.getLogger("portfolio_worker")
 
 # Get the base URL from environment variable or use a default
 base_url = os.environ.get('BASE_URL', 'https://crypto-tracker.up.railway.app')
-session_cookie = os.environ.get('SESSION_COOKIE')
-session_cookie_name = os.environ.get('SESSION_COOKIE_NAME', 'session')
+worker_key = os.environ.get('WORKER_KEY', 'default_worker_key')
 
 # Log the configuration
 logger.info(f"Worker starting with BASE_URL={base_url}")
-logger.info(f"Session cookie is {'set' if session_cookie else 'NOT SET'}")
+logger.info(f"Worker key is {'set' if worker_key != 'default_worker_key' else 'using DEFAULT value - this may not work in production'}")
 
-# Create a session that will persist cookies
+# Create a session that will persist for requests
 session = requests.Session()
 
-# Set the session cookie if provided
-if session_cookie:
-    # Extract domain from base_url
-    domain = base_url.split('//')[1].split('/')[0]
-    session.cookies.set(session_cookie_name, session_cookie, domain=domain)
-    logger.info(f"Set session cookie: {session_cookie_name}={session_cookie[:5]}...{session_cookie[-5:] if len(session_cookie) > 10 else session_cookie}")
+# Set the worker key header for all requests
+session.headers.update({'X-Worker-Key': worker_key})
 
 def update_worker_status(is_authenticated, error_message=None):
     """
@@ -84,10 +79,11 @@ def add_history_entry():
             logger.info(f"Worker: Starting add_history task at {datetime.datetime.now().isoformat()} (Attempt {retry+1}/{max_retries})")
             
             # First get the current portfolio data to calculate the total value
-            portfolio_url = f"{base_url.rstrip('/')}/portfolio"
+            # Use the worker-specific API endpoint
+            portfolio_url = f"{base_url.rstrip('/')}/worker_api/portfolio"
             logger.info(f"Worker: Sending request to {portfolio_url}")
             
-            # Use the session to maintain cookies
+            # Use the session with the worker key header
             portfolio_response = session.get(
                 portfolio_url, 
                 timeout=30
@@ -95,12 +91,13 @@ def add_history_entry():
             
             # Log the response details
             logger.info(f"Response status code: {portfolio_response.status_code}")
+            logger.info(f"Response URL (after potential redirects): {portfolio_response.url}")
             
-            # Check if we got redirected to the login page
-            if 'login' in portfolio_response.url.lower() or 'sign in with google' in portfolio_response.text.lower():
-                error_message = "Got redirected to login page. The session cookie is invalid or expired."
+            # Check if we got an unauthorized response
+            if portfolio_response.status_code == 401:
+                error_message = "Unauthorized. The worker key is invalid or not set correctly."
                 logger.error(error_message)
-                logger.error("Please get a new session cookie by logging in manually and set it as the SESSION_COOKIE environment variable.")
+                logger.error("Please set the correct WORKER_KEY environment variable.")
                 
                 # Update worker status in the database
                 update_worker_status(False, error_message)
@@ -163,8 +160,8 @@ def add_history_entry():
                 logger.error("Cannot add history entry with invalid Bitcoin price")
                 return False
             
-            # Now send the add_history request
-            add_history_url = f"{base_url.rstrip('/')}/add_history"
+            # Now send the add_history request using the worker API endpoint
+            add_history_url = f"{base_url.rstrip('/')}/worker_api/add_history"
             logger.info(f"Worker: Sending request to {add_history_url} with total_value={total_value}")
             response = session.post(
                 add_history_url, 
@@ -214,10 +211,9 @@ def main():
     """
     Main worker function that runs in an infinite loop
     """
-    if not session_cookie:
-        logger.error("SESSION_COOKIE environment variable is not set. Cannot authenticate with the web application.")
-        logger.error("Please set the SESSION_COOKIE environment variable to a valid session cookie from the web application.")
-        return
+    if worker_key == 'default_worker_key':
+        logger.warning("WORKER_KEY environment variable is using the default value. This may not work in production.")
+        logger.warning("Please set the WORKER_KEY environment variable to the correct value from your application.")
     
     logger.info("Starting portfolio history worker")
     
