@@ -8,6 +8,8 @@ import json
 import traceback
 import os
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -27,6 +29,37 @@ base_url = os.environ.get('BASE_URL', 'https://crypto-tracker.up.railway.app')
 session_cookie = os.environ.get('SESSION_COOKIE')
 session_cookie_name = os.environ.get('SESSION_COOKIE_NAME', 'session')
 
+# Get database connection string
+database_url = os.environ.get('DATABASE_URL')
+
+# If running on Railway, use the internal connection string
+if 'RAILWAY_ENVIRONMENT' in os.environ:
+    logger.info("Running on Railway - using internal PostgreSQL connection")
+    # Use the internal connection string for better performance and security
+    database_url = "postgresql://postgres:RyWIsfflSCUOVGjjfrBvSVLGfqeGGYet@postgres.railway.internal:5432/railway"
+    logger.info(f"Using internal Railway database connection")
+else:
+    logger.info("Running locally - using external PostgreSQL connection")
+    # Local environment should have DATABASE_URL in .env file
+    if not database_url:
+        logger.error("DATABASE_URL environment variable not set")
+    else:
+        logger.info(f"Using external Railway database connection")
+
+# If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+# Create database engine
+db_engine = None
+if database_url:
+    try:
+        db_engine = create_engine(database_url)
+        logger.info("Database engine created successfully")
+    except Exception as e:
+        logger.error(f"Error creating database engine: {e}")
+        db_engine = None
+
 # Log the configuration
 logger.info(f"Worker starting with BASE_URL={base_url}")
 logger.info(f"Session cookie is {'set' if session_cookie else 'NOT SET'}")
@@ -41,14 +74,81 @@ if session_cookie:
     session.cookies.set(session_cookie_name, session_cookie, domain=domain)
     logger.info(f"Set session cookie: {session_cookie_name}={session_cookie[:5]}...{session_cookie[-5:] if len(session_cookie) > 10 else session_cookie}")
 
+def update_worker_status_db(is_authenticated, error_message=None):
+    """
+    Update the worker status directly in the database
+    """
+    if not db_engine:
+        logger.error("Cannot update worker status: database engine not available")
+        return False
+        
+    try:
+        logger.info(f"Updating worker status in database: authenticated={is_authenticated}, error={error_message}")
+        
+        with db_engine.connect() as connection:
+            # Check if worker_status table exists
+            result = connection.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'worker_status')"))
+            table_exists = result.scalar()
+            
+            if not table_exists:
+                logger.info("Creating worker_status table")
+                connection.execute(text("""
+                CREATE TABLE worker_status (
+                    id SERIAL PRIMARY KEY,
+                    last_check TIMESTAMP NOT NULL,
+                    is_authenticated BOOLEAN DEFAULT FALSE,
+                    last_error VARCHAR(500)
+                )
+                """))
+                connection.commit()
+                logger.info("Successfully created worker_status table")
+            
+            # Check if there's an existing record
+            result = connection.execute(text("SELECT COUNT(*) FROM worker_status"))
+            count = result.scalar()
+            
+            if count == 0:
+                # Insert new record
+                connection.execute(text("""
+                INSERT INTO worker_status (last_check, is_authenticated, last_error)
+                VALUES (:last_check, :is_authenticated, :last_error)
+                """), {
+                    "last_check": datetime.datetime.now(),
+                    "is_authenticated": is_authenticated,
+                    "last_error": error_message
+                })
+            else:
+                # Update existing record
+                connection.execute(text("""
+                UPDATE worker_status
+                SET last_check = :last_check,
+                    is_authenticated = :is_authenticated,
+                    last_error = :last_error
+                WHERE id = (SELECT id FROM worker_status LIMIT 1)
+                """), {
+                    "last_check": datetime.datetime.now(),
+                    "is_authenticated": is_authenticated,
+                    "last_error": error_message
+                })
+            
+            connection.commit()
+            logger.info("Successfully updated worker status in database")
+            return True
+    except SQLAlchemyError as e:
+        logger.error(f"Database error updating worker status: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error updating worker status in database: {e}")
+        return False
+
 def update_worker_status(is_authenticated, error_message=None):
     """
-    Update the worker status in the database
+    Update the worker status - try API first, fall back to direct DB update
     """
     try:
-        # Use the worker API endpoint to update status
+        # First try the API endpoint
         status_url = f"{base_url.rstrip('/')}/api/update_worker_status"
-        logger.info(f"Updating worker status: authenticated={is_authenticated}, error={error_message}")
+        logger.info(f"Updating worker status via API: authenticated={is_authenticated}, error={error_message}")
         
         response = session.post(
             status_url,
@@ -63,14 +163,18 @@ def update_worker_status(is_authenticated, error_message=None):
         )
         
         if response.ok:
-            logger.info("Successfully updated worker status")
+            logger.info("Successfully updated worker status via API")
             return True
         else:
-            logger.error(f"Failed to update worker status: {response.status_code} - {response.text}")
-            return False
+            logger.error(f"Failed to update worker status via API: {response.status_code} - {response.text}")
+            # Fall back to direct database update
+            logger.info("Falling back to direct database update")
+            return update_worker_status_db(is_authenticated, error_message)
     except Exception as e:
-        logger.error(f"Error updating worker status: {e}")
-        return False
+        logger.error(f"Error updating worker status via API: {e}")
+        # Fall back to direct database update
+        logger.info("Falling back to direct database update")
+        return update_worker_status_db(is_authenticated, error_message)
 
 def add_history_entry():
     """
@@ -103,7 +207,7 @@ def add_history_entry():
                 logger.error("Please get a new session cookie by logging in manually and set it as the SESSION_COOKIE environment variable.")
                 
                 # Update worker status in the database
-                update_worker_status(False, error_message)
+                update_worker_status_db(False, error_message)
                 
                 return False
             

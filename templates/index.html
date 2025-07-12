@@ -16,8 +16,8 @@
 <body>
     <div class="container mt-5">
         {% if worker_auth_issue %}
-        <div class="alert alert-warning alert-dismissible fade show" role="alert">
-            <strong>Warning:</strong> The worker process has authentication issues. History tracking may not be working correctly.
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>Worker Authentication Error:</strong> The worker process cannot authenticate with the web application. History tracking is not working.
             {% if worker_error %}
             <p><small>Error: {{ worker_error }}</small></p>
             {% endif %}
