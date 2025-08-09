@@ -19,17 +19,6 @@ logger = logging.getLogger(__name__)
 # Load environment variables from .env file if it exists
 load_dotenv()
 
-# Safe diagnostics: list relevant env keys present (names only, no values)
-try:
-    debug_keys = sorted([
-        k for k in os.environ.keys()
-        if k.startswith(('DATABASE', 'POSTGRES', 'PG', 'RAILWAY'))
-    ])
-    logger.info(f"Env probe keys present: {debug_keys}")
-except Exception as _e:
-    # Do not fail startup for diagnostics
-    logger.debug(f"Env probe failed: {_e}")
-
 def resolve_database_url() -> Optional[str]:
     """
     Resolve a usable SQLAlchemy Postgres URL from environment variables.
@@ -582,7 +571,7 @@ def login_required_except_worker(f):
 @app.route('/')
 @login_required
 def index():
-    db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
+    db_type = "PostgreSQL"
     
     # Check worker status
     worker_auth_issue = False
@@ -672,7 +661,7 @@ def statistics():
 @app.route('/edit_portfolio')
 @login_required
 def edit_portfolio():
-    db_type = "PostgreSQL" if "postgresql" in app.config['SQLALCHEMY_DATABASE_URI'] else "SQLite"
+    db_type = "PostgreSQL"
     return render_template('edit_portfolio.html', version="1.3.0", db_type=db_type)
 
 @app.route('/portfolio')

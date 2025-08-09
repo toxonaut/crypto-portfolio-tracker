@@ -1,5 +1,6 @@
 from app import app, db, Portfolio, PortfolioHistory, INITIALIZE_DB
 import os
+import sys
 import time
 import sqlite3
 import datetime
@@ -50,7 +51,8 @@ def setup_db():
         except Exception as e:
             print(f"Error checking database: {str(e)}")
 
-print("Starting database setup...")
+print("setup_db.py deprecated: Postgres-only. No action required. Exiting.")
+sys.exit(0)
 
 # Check if we're running on Railway
 is_railway = 'RAILWAY_ENVIRONMENT' in os.environ
