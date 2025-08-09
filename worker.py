@@ -29,17 +29,36 @@ base_url = os.environ.get('BASE_URL', 'https://crypto-tracker.up.railway.app')
 session_cookie = os.environ.get('SESSION_COOKIE')
 session_cookie_name = os.environ.get('SESSION_COOKIE_NAME', 'session')
 
-# Get database connection string
-database_url = os.environ.get('DATABASE_URL')
+def resolve_database_url() -> str | None:
+    """
+    Resolve a usable SQLAlchemy Postgres URL from environment variables.
+    Preference order:
+      1) DATABASE_URL
+      2) POSTGRES_URL
+      3) Compose from PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+    Normalizes postgres:// to postgresql:// as required by SQLAlchemy.
+    """
+    url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+    if not url:
+        pg_host = os.environ.get('PGHOST')
+        pg_port = os.environ.get('PGPORT', '5432')
+        pg_user = os.environ.get('PGUSER')
+        pg_pass = os.environ.get('PGPASSWORD')
+        pg_db = os.environ.get('PGDATABASE')
+        if all([pg_host, pg_user, pg_db]):
+            cred = pg_user
+            if pg_pass:
+                cred = f"{pg_user}:{pg_pass}"
+            url = f"postgresql://{cred}@{pg_host}:{pg_port}/{pg_db}"
+    if url and url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    return url
 
-# Require DATABASE_URL from environment for both local and Railway
+# Resolve database URL with fallbacks
+database_url = resolve_database_url()
 if not database_url:
-    logger.error("DATABASE_URL environment variable is not set. Set it in Railway Variables or in a local .env file.")
+    logger.error("No database connection info found. Expected DATABASE_URL, POSTGRES_URL, or PG* variables (PGHOST, PGUSER, PGPASSWORD, PGDATABASE).")
     raise SystemExit(1)
-
-# If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
-if database_url and database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
 # Create database engine
 db_engine = None

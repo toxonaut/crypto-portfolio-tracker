@@ -19,17 +19,37 @@ logger = logging.getLogger(__name__)
 # Load environment variables from .env file if it exists
 load_dotenv()
 
-# Get the database URL from environment variable
-database_url = os.environ.get('DATABASE_URL')
+def resolve_database_url() -> Optional[str]:
+    """
+    Resolve a usable SQLAlchemy Postgres URL from environment variables.
+    Preference order:
+      1) DATABASE_URL
+      2) POSTGRES_URL
+      3) Compose from PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+    Normalizes postgres:// to postgresql:// as required by SQLAlchemy.
+    """
+    url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+    if not url:
+        pg_host = os.environ.get('PGHOST')
+        pg_port = os.environ.get('PGPORT', '5432')
+        pg_user = os.environ.get('PGUSER')
+        pg_pass = os.environ.get('PGPASSWORD')
+        pg_db = os.environ.get('PGDATABASE')
+        if all([pg_host, pg_user, pg_db]):
+            # Password and port are optional (port defaults to 5432)
+            cred = pg_user
+            if pg_pass:
+                cred = f"{pg_user}:{pg_pass}"
+            url = f"postgresql://{cred}@{pg_host}:{pg_port}/{pg_db}"
+    if url and url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    return url
 
-# Require DATABASE_URL from environment for both local and Railway
+# Resolve database URL with fallbacks
+database_url = resolve_database_url()
 if not database_url:
-    logger.error("DATABASE_URL environment variable is not set. Set it in Railway Variables or in a local .env file for development.")
+    logger.error("No database connection info found. Expected DATABASE_URL, POSTGRES_URL, or PG* variables (PGHOST, PGUSER, PGPASSWORD, PGDATABASE).")
     raise SystemExit(1)
-
-# If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
-if database_url and database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
 logger.info(f"Starting Crypto Portfolio Tracker v1.3.0")
 logger.info(f"Using database URL: {'postgresql://<redacted>' if database_url else 'Unknown'}")
