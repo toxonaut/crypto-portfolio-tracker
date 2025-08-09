@@ -19,6 +19,17 @@ logger = logging.getLogger(__name__)
 # Load environment variables from .env file if it exists
 load_dotenv()
 
+# Safe diagnostics: list relevant env keys present (names only, no values)
+try:
+    debug_keys = sorted([
+        k for k in os.environ.keys()
+        if k.startswith(('DATABASE', 'POSTGRES', 'PG', 'RAILWAY'))
+    ])
+    logger.info(f"Env probe keys present: {debug_keys}")
+except Exception as _e:
+    # Do not fail startup for diagnostics
+    logger.debug(f"Env probe failed: {_e}")
+
 def resolve_database_url() -> Optional[str]:
     """
     Resolve a usable SQLAlchemy Postgres URL from environment variables.
@@ -28,13 +39,30 @@ def resolve_database_url() -> Optional[str]:
       3) Compose from PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
     Normalizes postgres:// to postgresql:// as required by SQLAlchemy.
     """
-    url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+    raw_db = os.environ.get('DATABASE_URL')
+    raw_pg = os.environ.get('POSTGRES_URL')
+    if raw_db is not None and raw_db.strip() == '':
+        logger.warning("DATABASE_URL is set but empty")
+    if raw_pg is not None and raw_pg.strip() == '':
+        logger.warning("POSTGRES_URL is set but empty")
+
+    url = (raw_db.strip() if isinstance(raw_db, str) else raw_db) or (raw_pg.strip() if isinstance(raw_pg, str) else raw_pg)
     if not url:
         pg_host = os.environ.get('PGHOST')
         pg_port = os.environ.get('PGPORT', '5432')
         pg_user = os.environ.get('PGUSER')
         pg_pass = os.environ.get('PGPASSWORD')
         pg_db = os.environ.get('PGDATABASE')
+        # Warn if present but empty
+        for name, val in [('PGHOST', pg_host), ('PGPORT', pg_port), ('PGUSER', pg_user), ('PGPASSWORD', pg_pass), ('PGDATABASE', pg_db)]:
+            if val is not None and isinstance(val, str) and val.strip() == '':
+                logger.warning(f"{name} is set but empty")
+        # Normalize
+        pg_host = pg_host.strip() if isinstance(pg_host, str) else pg_host
+        pg_port = (pg_port.strip() if isinstance(pg_port, str) else pg_port) or '5432'
+        pg_user = pg_user.strip() if isinstance(pg_user, str) else pg_user
+        pg_pass = pg_pass.strip() if isinstance(pg_pass, str) else pg_pass
+        pg_db = pg_db.strip() if isinstance(pg_db, str) else pg_db
         if all([pg_host, pg_user, pg_db]):
             # Password and port are optional (port defaults to 5432)
             cred = pg_user
