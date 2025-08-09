@@ -93,7 +93,6 @@
                             <button class="list-group-item list-group-item-action active" data-pair="BINANCE:BTCUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">BTC/USD</button>
                             <button class="list-group-item list-group-item-action" data-pair="BINANCE:ETHUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/USD</button>
                             <button class="list-group-item list-group-item-action" data-pair="BINANCE:SOLUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/USD</button>
-                            <button class="list-group-item list-group-item-action" data-pair="BINANCE:SUSD" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SUSD/USD</button>
                             <button class="list-group-item list-group-item-action" data-pair="BINANCE:ETHBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">ETH/BTC</button>
                             <button class="list-group-item list-group-item-action" data-pair="BINANCE:SOLBTC" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/BTC</button>
                             <button class="list-group-item list-group-item-action" data-pair="BINANCE:SOLETH" style="background-color: #1c243e; border: 1px solid #050b16; color: #e0e0e0;">SOL/ETH</button>
@@ -164,61 +163,5 @@
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
-    <script>
-        // Detect if browser is Chrome on iOS
-        const isIOSChrome = /CriOS/i.test(navigator.userAgent);
-        
-        // Use a simpler configuration for Chrome on iOS
-        if (isIOSChrome) {
-            new TradingView.widget({
-                "width": "100%",
-                "height": 350,
-                "symbol": "NASDAQ:AAPL",
-                "interval": "D",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#121726",
-                "enable_publishing": false,
-                "hide_top_toolbar": true,
-                "hide_side_toolbar": true,
-                "allow_symbol_change": true,
-                "container_id": "tradingview_chart",
-                "studies_overrides": {}
-            });
-        } else {
-            // Full configuration for other browsers
-            new TradingView.widget({
-                "width": "100%",
-                "height": 400,
-                "symbol": "NASDAQ:AAPL",
-                "interval": "D",
-                "timezone": "Etc/UTC",
-                "theme": "dark",
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#00ff00",
-                "enable_publishing": false,
-                "allow_symbol_change": true,
-                "studies": [
-                    "MASimple@tv-basicstudies"
-                ],
-                "container_id": "tradingview_chart",
-                "library_path": "/charting_library/",
-                "charts_storage_url": "https://saveload.tradingview.com",
-                "charts_storage_api_version": "1.1",
-                "client_id": "tradingview.com",
-                "user_id": "public_user_id",
-                "fullscreen": false,
-                "autosize": true,
-                "hide_side_toolbar": false,
-                "hide_top_toolbar": false,
-                "withdateranges": true,
-                "save_image": false,
-                "studies_overrides": {}
-            });
-        }
-    </script>
 </body>
 </html>

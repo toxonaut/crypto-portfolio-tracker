@@ -22,27 +22,17 @@ load_dotenv()
 # Get the database URL from environment variable
 database_url = os.environ.get('DATABASE_URL')
 
-# If running on Railway, use the internal connection string
-if 'RAILWAY_ENVIRONMENT' in os.environ:
-    logger.info("Running on Railway - using internal PostgreSQL connection")
-    # Use the internal connection string for better performance and security
-    database_url = "postgresql://postgres:RyWIsfflSCUOVGjjfrBvSVLGfqeGGYet@postgres.railway.internal:5432/railway"
-    logger.info(f"Using internal Railway database connection")
-else:
-    logger.info("Running locally - using external PostgreSQL connection")
-    # Local environment should have DATABASE_URL in .env file
-    if not database_url:
-        logger.warning("DATABASE_URL environment variable not set locally, using default SQLite")
-        database_url = 'sqlite:///portfolio.db'
-    else:
-        logger.info(f"Using external Railway database connection")
+# Require DATABASE_URL from environment for both local and Railway
+if not database_url:
+    logger.error("DATABASE_URL environment variable is not set. Set it in Railway Variables or in a local .env file for development.")
+    raise SystemExit(1)
 
 # If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
 if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
 logger.info(f"Starting Crypto Portfolio Tracker v1.3.0")
-logger.info(f"Using database: {database_url.split('@')[1] if database_url and '@' in database_url else 'Unknown'}")
+logger.info(f"Using database URL: {'postgresql://<redacted>' if database_url else 'Unknown'}")
 
 # Configure the Flask application
 app = Flask(__name__)
@@ -281,66 +271,66 @@ def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
     2. Partial ID match (some IDs might have different formats)
     3. Search in nested structures
     """
-    # Log the target_id we're looking for
-    logger.info(f"Searching for Zerion ID: {target_id}")
+    # Log the target_id at debug level to avoid noisy logs
+    logger.debug(f"Searching for Zerion ID: {target_id}")
     
     # Case 1 – dict: check id, then recurse into values
     if isinstance(blob, dict):
         # Check if this is the target object with exact ID match
         blob_id = blob.get("id")
         if blob_id == target_id:
-            logger.info(f"Found exact ID match: {blob_id}")
+            logger.debug(f"Found exact ID match: {blob_id}")
             try:
                 return blob["attributes"]["quantity"]["numeric"]
             except (KeyError, TypeError):
-                logger.info("Found ID but couldn't extract quantity.numeric")
+                logger.debug("Found ID but couldn't extract quantity.numeric")
                 return None
         
         # Check for partial ID match (Zerion IDs might have different formats)
         if blob_id and isinstance(blob_id, str) and target_id in blob_id:
-            logger.info(f"Found partial ID match: {blob_id} contains {target_id}")
+            logger.debug(f"Found partial ID match: {blob_id} contains {target_id}")
             try:
                 return blob["attributes"]["quantity"]["numeric"]
             except (KeyError, TypeError):
-                logger.info("Found partial ID match but couldn't extract quantity.numeric")
+                logger.debug("Found partial ID match but couldn't extract quantity.numeric")
                 pass
                 
         # Special case for the Zerion API response structure
         if "data" in blob and isinstance(blob["data"], list):
-            logger.info(f"Checking data array with {len(blob['data'])} items")
+            logger.debug(f"Checking data array with {len(blob['data'])} items")
             for i, item in enumerate(blob["data"]):
                 # Try exact match first
                 item_id = item.get("id")
                 if item_id == target_id:
-                    logger.info(f"Found exact ID match in data[{i}]: {item_id}")
+                    logger.debug(f"Found exact ID match in data[{i}]: {item_id}")
                     try:
                         numeric = item["attributes"]["quantity"]["numeric"]
-                        logger.info(f"Extracted quantity.numeric: {numeric}")
+                        logger.debug(f"Extracted quantity.numeric: {numeric}")
                         return numeric
                     except (KeyError, TypeError) as e:
-                        logger.info(f"Found ID but couldn't extract quantity.numeric: {e}")
+                        logger.debug(f"Found ID but couldn't extract quantity.numeric: {e}")
                         pass
                 
                 # Try partial match
                 if item_id and isinstance(item_id, str) and target_id in item_id:
-                    logger.info(f"Found partial ID match in data[{i}]: {item_id} contains {target_id}")
+                    logger.debug(f"Found partial ID match in data[{i}]: {item_id} contains {target_id}")
                     try:
                         numeric = item["attributes"]["quantity"]["numeric"]
-                        logger.info(f"Extracted quantity.numeric: {numeric}")
+                        logger.debug(f"Extracted quantity.numeric: {numeric}")
                         return numeric
                     except (KeyError, TypeError) as e:
-                        logger.info(f"Found partial ID match but couldn't extract quantity.numeric: {e}")
+                        logger.debug(f"Found partial ID match but couldn't extract quantity.numeric: {e}")
                         pass
                 
                 # Also check if target_id contains item_id (reverse partial match)
                 if item_id and isinstance(item_id, str) and item_id in target_id:
-                    logger.info(f"Found reverse partial ID match in data[{i}]: {target_id} contains {item_id}")
+                    logger.debug(f"Found reverse partial ID match in data[{i}]: {target_id} contains {item_id}")
                     try:
                         numeric = item["attributes"]["quantity"]["numeric"]
-                        logger.info(f"Extracted quantity.numeric: {numeric}")
+                        logger.debug(f"Extracted quantity.numeric: {numeric}")
                         return numeric
                     except (KeyError, TypeError) as e:
-                        logger.info(f"Found reverse partial ID match but couldn't extract quantity.numeric: {e}")
+                        logger.debug(f"Found reverse partial ID match but couldn't extract quantity.numeric: {e}")
                         pass
                 
                 # Recursive search

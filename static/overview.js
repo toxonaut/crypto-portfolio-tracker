@@ -1047,7 +1047,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Initialize TradingView widget only on the main page and not on iOS Chrome
         if (!isStatisticsPage) {
             if (!isIOSChrome) {
-                createTradingViewWidget('BTCUSD');
+                createTradingViewWidget('BINANCE:BTCUSD');
                 initializePairSelection();
             } else {
                 // For iOS Chrome, show a message instead of loading TradingView
@@ -1091,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // Set up log scale switch
-        const logScaleSwitch = document.getElementById('logScaleSwitch');
+        const logScaleSwitch = document.getElementById('logScaleToggle');
         if (logScaleSwitch) {
             logScaleSwitch.addEventListener('change', function() {
                 isLogScale = this.checked;
@@ -1106,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // Add event listener for add history button
-        const addHistoryBtn = document.getElementById('addHistoryBtn');
+        const addHistoryBtn = document.getElementById('addHistoryButton');
         if (addHistoryBtn) {
             addHistoryBtn.addEventListener('click', async function() {
                 try {
@@ -1135,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // Add event listener for check history button
-        const checkHistoryBtn = document.getElementById('checkHistoryBtn');
+        const checkHistoryBtn = document.getElementById('checkHistoryButton');
         if (checkHistoryBtn) {
             checkHistoryBtn.addEventListener('click', async function() {
                 try {

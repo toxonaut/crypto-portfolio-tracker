@@ -32,19 +32,10 @@ session_cookie_name = os.environ.get('SESSION_COOKIE_NAME', 'session')
 # Get database connection string
 database_url = os.environ.get('DATABASE_URL')
 
-# If running on Railway, use the internal connection string
-if 'RAILWAY_ENVIRONMENT' in os.environ:
-    logger.info("Running on Railway - using internal PostgreSQL connection")
-    # Use the internal connection string for better performance and security
-    database_url = "postgresql://postgres:RyWIsfflSCUOVGjjfrBvSVLGfqeGGYet@postgres.railway.internal:5432/railway"
-    logger.info(f"Using internal Railway database connection")
-else:
-    logger.info("Running locally - using external PostgreSQL connection")
-    # Local environment should have DATABASE_URL in .env file
-    if not database_url:
-        logger.error("DATABASE_URL environment variable not set")
-    else:
-        logger.info(f"Using external Railway database connection")
+# Require DATABASE_URL from environment for both local and Railway
+if not database_url:
+    logger.error("DATABASE_URL environment variable is not set. Set it in Railway Variables or in a local .env file.")
+    raise SystemExit(1)
 
 # If the URL starts with postgres://, change it to postgresql:// (SQLAlchemy requirement)
 if database_url and database_url.startswith('postgres://'):

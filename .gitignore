@@ -34,3 +34,12 @@ ENV/
 # Logs
 logs/
 *.log
+
+# Databases and backups
+*.db
+*.sqlite
+*.sqlite3
+*.backup
+/data/
+portfolio.db*
+migrations/*.sqlite*
