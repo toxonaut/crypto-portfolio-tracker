@@ -56,7 +56,7 @@ function createTradingViewWidget(symbol) {
 }
 
 function initializePairSelection() {
-    const buttons = document.querySelectorAll('.list-group-item');
+    const buttons = document.querySelectorAll('#pairButtons .list-group-item');
     buttons.forEach(button => {
         button.addEventListener('click', (e) => {
             // Remove active class from all buttons
@@ -65,7 +65,9 @@ function initializePairSelection() {
             e.target.classList.add('active');
             // Update chart
             const pair = e.target.dataset.pair;
-            createTradingViewWidget(pair);
+            if (!isIOSChrome) {
+                createTradingViewWidget(pair);
+            }
         });
     });
 }
@@ -474,6 +476,125 @@ async function updatePortfolio() {
         console.log('Portfolio update complete');
     } catch (error) {
         console.error('Error updating portfolio:', error);
+    }
+}
+
+// Map CoinGecko coin_id to common ticker symbols (extend as needed)
+function getTickerFromCoinId(coinId) {
+    const map = {
+        'bitcoin': 'BTC',
+        'ethereum': 'ETH',
+        'solana': 'SOL',
+        'binancecoin': 'BNB',
+        'ripple': 'XRP',
+        'dogecoin': 'DOGE',
+        'cardano': 'ADA',
+        'polkadot': 'DOT',
+        'chainlink': 'LINK',
+        'litecoin': 'LTC',
+        'tron': 'TRX',
+        'avalanche-2': 'AVAX',
+        'matic-network': 'MATIC',
+        'uniswap': 'UNI',
+        'monero': 'XMR',
+        'wrapped-bitcoin': 'WBTC',
+        'staked-ether': 'STETH',
+        'internet-computer': 'ICP',
+        'near': 'NEAR',
+        'aptos': 'APT',
+        'arbitrum': 'ARB',
+        'optimism': 'OP',
+        'cosmos': 'ATOM',
+        'vechain': 'VET',
+        'render-token': 'RNDR',
+        'fantom': 'FTM',
+        'sui': 'SUI',
+        'hedera-hashgraph': 'HBAR',
+        'algorand': 'ALGO',
+        'aave': 'AAVE',
+        'the-graph': 'GRT',
+    };
+    return map[coinId] || null;
+}
+
+function renderPairButtons() {
+    const container = document.getElementById('pairButtons');
+    if (!container) return;
+
+    // Helper to create a button element
+    const createBtn = (label, pair) => {
+        const btn = document.createElement('button');
+        btn.className = 'list-group-item list-group-item-action';
+        btn.dataset.pair = pair;
+        btn.textContent = label;
+        btn.style.backgroundColor = '#1c243e';
+        btn.style.border = '1px solid #050b16';
+        btn.style.color = '#e0e0e0';
+        return btn;
+    };
+
+    // Helper to create a thin divider between groups
+    const createDivider = () => {
+        const div = document.createElement('div');
+        div.style.height = '8px';
+        return div;
+    };
+
+    container.innerHTML = '';
+
+    try {
+        // Build list from portfolioData if available
+        const entries = portfolioData && portfolioData.data ? Object.entries(portfolioData.data) : [];
+        const sorted = entries.sort((a, b) => b[1].total_value - a[1].total_value);
+
+        const top5 = sorted.slice(0, 5);
+        const next5 = sorted.slice(5, 10);
+
+        // Group 1: USD pairs of top 5 by holdings
+        top5.forEach(([coinId]) => {
+            const ticker = getTickerFromCoinId(coinId);
+            if (!ticker) return; // skip unknown mapping
+            const pair = `BINANCE:${ticker}USD`;
+            container.appendChild(createBtn(`${ticker}/USD`, pair));
+        });
+
+        container.appendChild(createDivider());
+
+        // Group 2: BTC pairs of the next 5 biggest
+        next5.forEach(([coinId]) => {
+            const ticker = getTickerFromCoinId(coinId);
+            if (!ticker || ticker === 'BTC') return; // skip unknowns and BTC/BTC
+            const pair = `BINANCE:${ticker}BTC`;
+            container.appendChild(createBtn(`${ticker}/BTC`, pair));
+        });
+
+        container.appendChild(createDivider());
+
+        // Group 3: static extras
+        container.appendChild(createBtn('SOL/ETH', 'BINANCE:SOLETH'));
+        container.appendChild(createBtn('SPY', 'SPY'));
+        container.appendChild(createBtn('BTC.D', 'CRYPTOCAP:BTC.D'));
+
+        // If nothing was added (empty portfolio or unknown mappings), fallback to defaults
+        if (container.querySelectorAll('.list-group-item').length === 0) {
+            ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
+                .forEach(sym => {
+                    const label = sym === 'CRYPTOCAP:BTC.D' ? 'BTC.D' :
+                                  sym === 'SPY' ? 'SPY' :
+                                  sym.split(':')[1].replace('USD','/USD').replace('BTC','/BTC');
+                    container.appendChild(createBtn(label, sym));
+                });
+        }
+    } catch (e) {
+        console.error('Error rendering pair buttons, falling back to defaults', e);
+        container.innerHTML = '';
+        ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
+            .forEach(sym => {
+                const label = sym === 'CRYPTOCAP:BTC.D' ? 'BTC.D' :
+                              sym === 'SPY' ? 'SPY' :
+                              sym.split(':')[1].replace('USD','/USD').replace('BTC','/BTC');
+                container.appendChild(createBtn(label, sym));
+            });
     }
 }
 
@@ -1043,17 +1164,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('Current page:', isStatisticsPage ? 'Statistics' : 'Overview');
     
     try {
-        // Initialize TradingView widget only on the main page and not on iOS Chrome
-        if (!isStatisticsPage) {
-            if (!isIOSChrome) {
-                createTradingViewWidget('BINANCE:BTCUSD');
-                initializePairSelection();
-            } else {
-                // For iOS Chrome, show a message instead of loading TradingView
-                const tvContainer = document.getElementById('tradingview_chart');
-                if (tvContainer) {
-                    tvContainer.innerHTML = '<div class="alert alert-info">Charts are disabled on iOS Chrome for better performance. Please use Safari for full functionality.</div>';
-                }
+        // For iOS Chrome, show a message instead of loading TradingView
+        if (!isStatisticsPage && isIOSChrome) {
+            const tvContainer = document.getElementById('tradingview_chart');
+            if (tvContainer) {
+                tvContainer.innerHTML = '<div class="alert alert-info">Charts are disabled on iOS Chrome for better performance. Please use Safari for full functionality.</div>';
             }
         }
         
@@ -1070,6 +1185,22 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Update historical changes explicitly
         console.log('Explicitly updating historical changes...');
         updateHistoricalChanges();
+        
+        // Render dynamic TradingView pair buttons and initialize selection
+        if (!isStatisticsPage) {
+            renderPairButtons();
+            initializePairSelection();
+            // Activate the first button and load its chart by default
+            const firstBtn = document.querySelector('#pairButtons .list-group-item');
+            if (firstBtn) {
+                document.querySelectorAll('#pairButtons .list-group-item').forEach(b => b.classList.remove('active'));
+                firstBtn.classList.add('active');
+                const firstPair = firstBtn.dataset.pair;
+                if (!isIOSChrome) {
+                    createTradingViewWidget(firstPair);
+                }
+            }
+        }
         
         console.log('Initialization complete');
         
