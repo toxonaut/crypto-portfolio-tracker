@@ -41,8 +41,7 @@ function createTradingViewWidget(symbol) {
     }
 
     tradingViewWidget = new TradingView.widget({
-        "width": "100%",
-        "height": 500,
+        "autosize": true,
         "symbol": `${symbol}`,
         "interval": "D",
         "timezone": "Etc/UTC",

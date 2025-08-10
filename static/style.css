@@ -71,7 +71,7 @@ body {
 }
 
 #tradingview_chart {
-    height: 400px;
+    height: 500px;
     width: 100%;
     margin-bottom: 1rem;
 }
@@ -130,7 +130,7 @@ body {
             /* Force hardware acceleration */
             -webkit-backface-visibility: hidden;
             backface-visibility: hidden;
-            height: 350px !important;
+            height: 500px !important;
         }
         
         /* Optimize table rendering */
