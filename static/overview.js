@@ -547,26 +547,27 @@ function renderPairButtons() {
         const entries = portfolioData && portfolioData.data ? Object.entries(portfolioData.data) : [];
         const sorted = entries.sort((a, b) => b[1].total_value - a[1].total_value);
 
-        const top5 = sorted.slice(0, 5);
-        const next5 = sorted.slice(5, 10);
-
-        // Group 1: USD pairs of top 5 by holdings
-        top5.forEach(([coinId]) => {
+        // Group 1: USD pairs of the top 5 by holdings (robust to unknown mappings)
+        let usdCount = 0;
+        for (let i = 0; i < sorted.length && usdCount < 5; i++) {
+            const [coinId] = sorted[i];
             const ticker = getTickerFromCoinId(coinId);
-            if (!ticker) return; // skip unknown mapping
-            const pair = `BINANCE:${ticker}USD`;
-            container.appendChild(createBtn(`${ticker}/USD`, pair));
-        });
+            if (!ticker) continue; // skip unknown mapping
+            container.appendChild(createBtn(`${ticker}/USD`, `BINANCE:${ticker}USD`));
+            usdCount++;
+        }
 
         container.appendChild(createDivider());
 
-        // Group 2: BTC pairs of the next 5 biggest
-        next5.forEach(([coinId]) => {
+        // Group 2: BTC pairs of the 5 biggest non-BTC cryptos by dollar value
+        let btcCount = 0;
+        for (let i = 0; i < sorted.length && btcCount < 5; i++) {
+            const [coinId] = sorted[i];
             const ticker = getTickerFromCoinId(coinId);
-            if (!ticker || ticker === 'BTC') return; // skip unknowns and BTC/BTC
-            const pair = `BINANCE:${ticker}BTC`;
-            container.appendChild(createBtn(`${ticker}/BTC`, pair));
-        });
+            if (!ticker || ticker === 'BTC') continue;
+            container.appendChild(createBtn(`${ticker}/BTC`, `BINANCE:${ticker}BTC`));
+            btcCount++;
+        }
 
         container.appendChild(createDivider());
 
