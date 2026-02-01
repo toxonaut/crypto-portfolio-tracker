@@ -6,7 +6,7 @@ document.getElementById('addCoinForm').addEventListener('submit', async (e) => {
     const source = document.getElementById('source').value.trim();
     const apy = parseFloat(document.getElementById('apy')?.value || 0);
     
-    if (!coinId || !source || isNaN(amount) || amount <= 0) {
+    if (!coinId || !source || isNaN(amount)) {
         alert('Please fill all fields correctly');
         return;
     }
@@ -110,7 +110,10 @@ function makeEditable(element, currentValue, onSave) {
     input.className = 'form-control form-control-sm';
     if (input.type === 'number') {
         input.step = 'any';
-        input.min = '0';
+        const isApyField = element.parentElement && element.parentElement.classList.contains('apy-cell');
+        if (isApyField) {
+            input.min = '0';
+        }
     }
     
     // Create save button
@@ -137,8 +140,9 @@ function makeEditable(element, currentValue, onSave) {
         const newValue = input.type === 'number' ? parseFloat(input.value) : input.value.trim();
         // Special handling for Zerion ID - allow empty strings
         const isZerionIdField = element.parentElement && element.parentElement.classList.contains('zerion-id-cell');
+        const isApyField = element.parentElement && element.parentElement.classList.contains('apy-cell');
         
-        if ((input.type === 'number' && !isNaN(newValue) && newValue >= 0) || 
+        if ((input.type === 'number' && !isNaN(newValue) && (!isApyField || newValue >= 0)) || 
             (input.type !== 'number' && (isZerionIdField || newValue !== '')) && 
             newValue !== currentValue) {
             onSave(newValue);

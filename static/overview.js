@@ -162,6 +162,25 @@ async function updateHistoryChart() {
             }
             return value;
         });
+
+        const hasNonPositiveUsd = values.some(v => v <= 0);
+        const hasNonPositiveBtc = btcValues.some(v => v <= 0);
+        const effectiveLogScale = isLogScale && !hasNonPositiveUsd && !hasNonPositiveBtc;
+        if (isLogScale && !effectiveLogScale) {
+            console.warn('Log scale disabled because the dataset contains zero/negative values.');
+            isLogScale = false;
+            const logScaleToggle = document.getElementById('logScaleToggle');
+            if (logScaleToggle) {
+                logScaleToggle.checked = false;
+            }
+            const logScaleSwitch = document.getElementById('logScaleSwitch');
+            if (logScaleSwitch) {
+                logScaleSwitch.checked = false;
+            }
+        }
+
+        const hasNegativeUsd = values.some(v => v < 0);
+        const hasNegativeBtc = btcValues.some(v => v < 0);
         
         // Check if the chart canvas exists
         const chartCanvas = document.getElementById('historyChart');
@@ -284,9 +303,9 @@ async function updateHistoryChart() {
                         }
                     },
                     y: {
-                        type: isLogScale ? 'logarithmic' : 'linear',
+                        type: effectiveLogScale ? 'logarithmic' : 'linear',
                         position: 'left',
-                        beginAtZero: !isLogScale, // Only begin at zero for linear scale
+                        beginAtZero: !effectiveLogScale && !hasNegativeUsd,
                         ticks: {
                             callback: function(value) {
                                 return '$' + Math.round(value);
@@ -298,9 +317,9 @@ async function updateHistoryChart() {
                         }
                     },
                     y1: {
-                        type: isLogScale ? 'logarithmic' : 'linear',
+                        type: effectiveLogScale ? 'logarithmic' : 'linear',
                         position: 'right',
-                        beginAtZero: !isLogScale,
+                        beginAtZero: !effectiveLogScale && !hasNegativeBtc,
                         grid: {
                             drawOnChartArea: false // Only show grid lines for the primary y-axis
                         },
