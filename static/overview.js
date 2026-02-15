@@ -6,6 +6,7 @@ let currentDateRange = '90'; // Default to 3 months
 let isLogScale = false;
 let isDemoMode = false;
 let portfolioData = null; // Global portfolio data
+let historyChartEnabled = false;
 
 // Detect iOS Chrome browser
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -486,8 +487,10 @@ async function updatePortfolio() {
         }).replace(/,/g, "'");
         
         // Update history chart
-        console.log('Updating history chart...');
-        await updateHistoryChart();
+        if (historyChartEnabled) {
+            console.log('Updating history chart...');
+            await updateHistoryChart();
+        }
         
         // Update historical changes
         updateHistoricalChanges();
@@ -1182,6 +1185,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Check if we're on the statistics page
     const isStatisticsPage = window.location.pathname === '/statistics';
     console.log('Current page:', isStatisticsPage ? 'Statistics' : 'Overview');
+    historyChartEnabled = isStatisticsPage;
     
     try {
         // For iOS Chrome, show a message instead of loading TradingView
@@ -1192,12 +1196,14 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         }
         
-        // First, load the history data
-        console.log('Loading history data first...');
-        const historyLoaded = await updateHistoryChart();
-        console.log('History data loaded:', historyLoaded);
-        
-        // Then, load the portfolio data
+        if (isStatisticsPage) {
+            // First, load the history data
+            console.log('Loading history data first...');
+            const historyLoaded = await updateHistoryChart();
+            console.log('History data loaded:', historyLoaded);
+        }
+
+        // Load the portfolio data
         console.log('Loading portfolio data...');
         await updatePortfolio();
         console.log('Portfolio data loaded');
@@ -1235,17 +1241,54 @@ document.addEventListener('DOMContentLoaded', async function() {
                     this.classList.add('active');
                     // Update date range and refresh chart
                     currentDateRange = this.dataset.range;
-                    updateHistoryChart();
+                    if (historyChartEnabled) {
+                        updateHistoryChart();
+                    }
                 });
             });
         }
         
         // Set up log scale switch
-        const logScaleSwitch = document.getElementById('logScaleToggle');
+        const logScaleToggle = document.getElementById('logScaleToggle');
+        if (logScaleToggle) {
+            logScaleToggle.addEventListener('change', function() {
+                isLogScale = this.checked;
+                if (historyChartEnabled) {
+                    updateHistoryChart();
+                }
+            });
+        }
+        const logScaleSwitch = document.getElementById('logScaleSwitch');
         if (logScaleSwitch) {
             logScaleSwitch.addEventListener('change', function() {
                 isLogScale = this.checked;
-                updateHistoryChart();
+                if (historyChartEnabled) {
+                    updateHistoryChart();
+                }
+            });
+        }
+
+        const loadHistoryDataBtn = document.getElementById('loadHistoryDataBtn');
+        if (!isStatisticsPage && loadHistoryDataBtn) {
+            loadHistoryDataBtn.addEventListener('click', async function() {
+                const placeholder = document.getElementById('historyChartPlaceholder');
+                const container = document.getElementById('historyChartContainer');
+
+                if (container) {
+                    container.style.display = '';
+                }
+                if (placeholder) {
+                    placeholder.style.display = 'none';
+                }
+
+                loadHistoryDataBtn.disabled = true;
+                try {
+                    historyChartEnabled = true;
+                    await updateHistoryChart();
+                    updateHistoricalChanges();
+                } finally {
+                    loadHistoryDataBtn.disabled = false;
+                }
             });
         }
         
@@ -1273,7 +1316,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const data = await response.json();
                     if (data.success) {
                         alert('History entry added successfully!');
-                        updateHistoryChart();
+                        if (historyChartEnabled) {
+                            updateHistoryChart();
+                        }
                     } else {
                         alert('Failed to add history entry: ' + data.error);
                     }
@@ -1328,7 +1373,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                     alert(statusMessage);
                     
                     // Update the history chart
-                    updateHistoryChart();
+                    if (historyChartEnabled) {
+                        updateHistoryChart();
+                    }
                 } catch (error) {
                     console.error('Error checking history status:', error);
                     alert('Error checking history status: ' + error.message);
