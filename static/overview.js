@@ -1404,7 +1404,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // Set up auto-refresh with different intervals based on browser
-        const refreshInterval = isIOSChrome ? 300000 : 60000; // 5 minutes for iOS Chrome, 1 minute for others
+        const refreshInterval = isIOSChrome ? 300000 : 120000; // 5 minutes for iOS Chrome, 2 minutes for others
         setInterval(updatePortfolio, refreshInterval);
     } catch (error) {
         console.error('Error during initialization:', error);
