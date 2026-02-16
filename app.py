@@ -300,6 +300,69 @@ def get_coin_prices(coin_ids):
         logger.error(f"Exception fetching market data: {e}")
         return {}
 
+def get_coin_prices_with_error(coin_ids):
+    if not coin_ids:
+        return {}, None
+
+    url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=180&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en"
+    try:
+        response = requests.get(url, timeout=15)
+    except Exception as e:
+        err = f"CoinGecko request failed: {e}"
+        logger.error(err)
+        return {}, err
+
+    if response.status_code != 200:
+        body = (response.text or "")
+        body = body.strip().replace("\n", " ")
+        if len(body) > 300:
+            body = body[:300] + "..."
+        err = f"CoinGecko error {response.status_code}: {body}" if body else f"CoinGecko error {response.status_code}"
+        logger.error(err)
+        return {}, err
+
+    try:
+        market_data = response.json()
+    except Exception as e:
+        err = f"CoinGecko JSON parse failed: {e}"
+        logger.error(err)
+        return {}, err
+
+    coin_data = {}
+    for coin in market_data:
+        if coin.get('id') in coin_ids:
+            price_1h = coin.get('price_change_percentage_1h_in_currency', 0)
+            price_24h = coin.get('price_change_percentage_24h', 0)
+            price_7d = coin.get('price_change_percentage_7d_in_currency', 0)
+            if price_1h is None:
+                price_1h = 0
+            if price_24h is None:
+                price_24h = 0
+            if price_7d is None:
+                price_7d = 0
+            coin_data[coin['id']] = {
+                'usd': coin.get('current_price', 0),
+                'usd_1h_change': price_1h,
+                'usd_24h_change': price_24h,
+                'usd_7d_change': price_7d,
+                'image': coin.get('image', '')
+            }
+
+    missing_coins = [coin_id for coin_id in coin_ids if coin_id not in coin_data]
+    if missing_coins:
+        try:
+            additional_url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(missing_coins)}&vs_currencies=usd&include_24hr_change=true&include_1h_change=true&include_7d_change=true"
+            additional_response = requests.get(additional_url, timeout=15)
+            if additional_response.status_code == 200:
+                additional_data = additional_response.json()
+                for coin_id, data in additional_data.items():
+                    if coin_id in missing_coins:
+                        coin_data[coin_id] = data
+        except Exception as e:
+            logger.error(f"Exception fetching additional coin data: {e}")
+
+    return coin_data, None
+
 def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
     """
     Recursively search for a target_id in the blob and return its quantity.numeric value.
@@ -674,7 +737,7 @@ def get_portfolio():
     coin_ids = list(set(item['coin_id'] for item in portfolio_data))
     
     # Get current prices
-    prices = get_coin_prices(coin_ids)
+    prices, price_error = get_coin_prices_with_error(coin_ids)
     
     # Group portfolio data by coin_id
     grouped_data = {}
@@ -762,7 +825,8 @@ def get_portfolio():
         'success': True,
         'data': grouped_data,
         'total_value': total_value,
-        'total_monthly_yield': total_monthly_yield
+        'total_monthly_yield': total_monthly_yield,
+        'price_error': price_error
     })
 
 @app.route('/history')

@@ -360,6 +360,12 @@ async function updatePortfolio() {
         }
         
         console.log('Portfolio data received:', data);
+
+        const priceApiErrorElement = document.getElementById('priceApiError');
+        if (priceApiErrorElement) {
+            priceApiErrorElement.style.display = 'none';
+            priceApiErrorElement.textContent = '';
+        }
         
         // Store portfolio data in global variable for use in historical changes calculation
         portfolioData = data;
@@ -382,7 +388,15 @@ async function updatePortfolio() {
         const sortedCoins = Object.entries(data.data).sort((a, b) => {
             return b[1].total_value - a[1].total_value;
         });
-        
+
+        let hasAnyPositivePrice = false;
+        for (const [, details] of sortedCoins) {
+            if (typeof details.price === 'number' && details.price > 0) {
+                hasAnyPositivePrice = true;
+                break;
+            }
+        }
+
         // Track bitcoin price for BTC value calculation
         let bitcoinPrice = 0;
         
@@ -496,6 +510,12 @@ async function updatePortfolio() {
         updateHistoricalChanges();
         
         console.log('Portfolio update complete');
+
+        if (priceApiErrorElement && sortedCoins.length > 0 && !hasAnyPositivePrice) {
+            const reason = data.price_error || 'Price API returned no data.';
+            priceApiErrorElement.textContent = `Price data unavailable: ${reason}`;
+            priceApiErrorElement.style.display = 'block';
+        }
     } catch (error) {
         console.error('Error updating portfolio:', error);
     }
