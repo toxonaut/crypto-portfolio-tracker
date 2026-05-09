@@ -247,9 +247,68 @@ def get_history_data():
         logger.error(f"Error fetching history data: {e}")
         return []
 
+def get_forex_rate(base_currency, target_currency):
+    url = f"https://api.frankfurter.app/latest?from={base_currency}&to={target_currency}"
+    try:
+        response = requests.get(url, timeout=15)
+    except Exception as e:
+        err = f"Forex request failed: {e}"
+        logger.error(err)
+        return None, err
+
+    if response.status_code != 200:
+        body = (response.text or "")
+        body = body.strip().replace("\n", " ")
+        if len(body) > 300:
+            body = body[:300] + "..."
+        err = f"Forex error {response.status_code}: {body}" if body else f"Forex error {response.status_code}"
+        logger.error(err)
+        return None, err
+
+    try:
+        data = response.json()
+    except Exception as e:
+        err = f"Forex JSON parse failed: {e}"
+        logger.error(err)
+        return None, err
+
+    rate = data.get("rates", {}).get(target_currency)
+    if rate is None:
+        err = f"Forex rate missing for {base_currency}->{target_currency}"
+        logger.error(err)
+        return None, err
+
+    return rate, None
+
 def get_coin_prices(coin_ids):
     if not coin_ids:
         return {}
+
+    coin_data = {}
+    crypto_coin_ids = []
+    chf_ids = []
+    for coin_id in coin_ids:
+        if coin_id.lower() == "chf":
+            chf_ids.append(coin_id)
+        else:
+            crypto_coin_ids.append(coin_id)
+
+    if chf_ids:
+        rate, err = get_forex_rate("CHF", "USD")
+        if rate is not None:
+            for chf_id in chf_ids:
+                coin_data[chf_id] = {
+                    'usd': rate,
+                    'usd_1h_change': 0,
+                    'usd_24h_change': 0,
+                    'usd_7d_change': 0,
+                    'image': "https://flagcdn.com/w40/ch.png"
+                }
+        else:
+            logger.error(err)
+
+    if not crypto_coin_ids:
+        return coin_data
     
     try:
         # Get data from the markets endpoint which includes more comprehensive information
@@ -258,10 +317,9 @@ def get_coin_prices(coin_ids):
         
         if response.status_code == 200:
             market_data = response.json()
-            # Create a dictionary mapping coin IDs to their market data
-            coin_data = {}
+            crypto_coin_ids_set = set(crypto_coin_ids)
             for coin in market_data:
-                if coin['id'] in coin_ids:
+                if coin['id'] in crypto_coin_ids_set:
                     # Check if the price change percentages exist and are not None
                     price_1h = coin.get('price_change_percentage_1h_in_currency', 0)
                     price_24h = coin.get('price_change_percentage_24h', 0)  
@@ -281,7 +339,7 @@ def get_coin_prices(coin_ids):
                     }
             
             # If any requested coins are missing from the first 100 coins, try to fetch them directly
-            missing_coins = [coin_id for coin_id in coin_ids if coin_id not in coin_data]
+            missing_coins = [coin_id for coin_id in crypto_coin_ids if coin_id not in coin_data]
             if missing_coins:
                 logger.info(f"Fetching additional data for coins not in top 100: {missing_coins}")
                 additional_url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(missing_coins)}&vs_currencies=usd&include_24hr_change=true&include_1h_change=true&include_7d_change=true"
@@ -295,14 +353,42 @@ def get_coin_prices(coin_ids):
             return coin_data
         else:
             logger.error(f"Error fetching market data: {response.status_code}")
-            return {}
+            return coin_data
     except Exception as e:
         logger.error(f"Exception fetching market data: {e}")
-        return {}
+        return coin_data
 
 def get_coin_prices_with_error(coin_ids):
     if not coin_ids:
         return {}, None
+
+    coin_data = {}
+    error_parts = []
+    crypto_coin_ids = []
+    chf_ids = []
+    for coin_id in coin_ids:
+        if coin_id.lower() == "chf":
+            chf_ids.append(coin_id)
+        else:
+            crypto_coin_ids.append(coin_id)
+
+    if chf_ids:
+        rate, err = get_forex_rate("CHF", "USD")
+        if rate is not None:
+            for chf_id in chf_ids:
+                coin_data[chf_id] = {
+                    'usd': rate,
+                    'usd_1h_change': 0,
+                    'usd_24h_change': 0,
+                    'usd_7d_change': 0,
+                    'image': "https://flagcdn.com/w40/ch.png"
+                }
+        else:
+            if err:
+                error_parts.append(err)
+
+    if not crypto_coin_ids:
+        return coin_data, "; ".join(error_parts) if error_parts else None
 
     url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=180&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en"
     try:
@@ -310,7 +396,8 @@ def get_coin_prices_with_error(coin_ids):
     except Exception as e:
         err = f"CoinGecko request failed: {e}"
         logger.error(err)
-        return {}, err
+        error_parts.append(err)
+        return coin_data, "; ".join(error_parts) if error_parts else err
 
     if response.status_code != 200:
         body = (response.text or "")
@@ -319,18 +406,20 @@ def get_coin_prices_with_error(coin_ids):
             body = body[:300] + "..."
         err = f"CoinGecko error {response.status_code}: {body}" if body else f"CoinGecko error {response.status_code}"
         logger.error(err)
-        return {}, err
+        error_parts.append(err)
+        return coin_data, "; ".join(error_parts) if error_parts else err
 
     try:
         market_data = response.json()
     except Exception as e:
         err = f"CoinGecko JSON parse failed: {e}"
         logger.error(err)
-        return {}, err
+        error_parts.append(err)
+        return coin_data, "; ".join(error_parts) if error_parts else err
 
-    coin_data = {}
+    crypto_coin_ids_set = set(crypto_coin_ids)
     for coin in market_data:
-        if coin.get('id') in coin_ids:
+        if coin.get('id') in crypto_coin_ids_set:
             price_1h = coin.get('price_change_percentage_1h_in_currency', 0)
             price_24h = coin.get('price_change_percentage_24h', 0)
             price_7d = coin.get('price_change_percentage_7d_in_currency', 0)
@@ -348,7 +437,7 @@ def get_coin_prices_with_error(coin_ids):
                 'image': coin.get('image', '')
             }
 
-    missing_coins = [coin_id for coin_id in coin_ids if coin_id not in coin_data]
+    missing_coins = [coin_id for coin_id in crypto_coin_ids if coin_id not in coin_data]
     if missing_coins:
         try:
             additional_url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(missing_coins)}&vs_currencies=usd&include_24hr_change=true&include_1h_change=true&include_7d_change=true"
@@ -361,7 +450,7 @@ def get_coin_prices_with_error(coin_ids):
         except Exception as e:
             logger.error(f"Exception fetching additional coin data: {e}")
 
-    return coin_data, None
+    return coin_data, "; ".join(error_parts) if error_parts else None
 
 def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
     """
