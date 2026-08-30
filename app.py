@@ -665,8 +665,8 @@ last_history_check = datetime.datetime.now() - datetime.timedelta(hours=2)  # St
 
 @app.before_request
 def before_request():
-    # Skip authentication for login routes
-    if request.path.startswith('/login') or request.path == '/favicon.ico':
+    # Allow login routes and the public deployment health check.
+    if request.path.startswith('/login') or request.path in ('/favicon.ico', '/health'):
         return
     
     # Check if user is authenticated
@@ -720,6 +720,11 @@ def login_required_except_worker(f):
         # User is authenticated, proceed with the request
         return f(*args, **kwargs)
     return decorated_function
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'}), 200
+
 
 @app.route('/')
 @login_required
