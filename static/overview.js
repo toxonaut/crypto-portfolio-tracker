@@ -356,6 +356,7 @@ async function updatePortfolio() {
         
         if (!data.success) {
             console.error('Portfolio data error:', data.error);
+            if (typeof showExposureError === 'function') showExposureError();
             return;
         }
         
@@ -369,6 +370,7 @@ async function updatePortfolio() {
         
         // Store portfolio data in global variable for use in historical changes calculation
         portfolioData = data;
+        if (typeof renderExposure === 'function') renderExposure(data.data, isDemoMode, data.price_error);
         
         // Update last updated timestamp
         const lastUpdatedElement = document.getElementById('lastUpdated');
@@ -518,6 +520,7 @@ async function updatePortfolio() {
         }
     } catch (error) {
         console.error('Error updating portfolio:', error);
+        if (typeof showExposureError === 'function') showExposureError();
     }
 }
 
@@ -648,6 +651,9 @@ function renderPairButtons() {
 // Function to toggle demo mode
 function toggleDemoMode() {
     isDemoMode = !isDemoMode;
+    if (portfolioData && typeof renderExposure === 'function') {
+        renderExposure(portfolioData.data, isDemoMode, portfolioData.price_error);
+    }
     
     // Update the status message
     const statusElement = document.getElementById('demoModeStatus');

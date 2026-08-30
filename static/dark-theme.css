@@ -75,3 +75,24 @@ body {
     background-color: #0b5ed7;
     border-color: #0a58ca;
 }
+
+.exposure-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2rem;
+}
+.exposure-summary { color: #a7c7ff; font-size: .9rem; overflow-wrap: anywhere; }
+.exposure-list { list-style: none; padding: 0; margin: 0; }
+.exposure-list li { margin-bottom: 1rem; }
+.exposure-label { display: flex; justify-content: space-between; gap: .75rem; font-size: .9rem; }
+.exposure-label > span:first-child { overflow-wrap: anywhere; min-width: 0; }
+.exposure-value { flex-shrink: 0; color: #e0e0e0; font-variant-numeric: tabular-nums; }
+.exposure-track { height: 9px; background: #25314c; border-radius: 5px; margin-top: .4rem; overflow: hidden; }
+.exposure-bar { height: 100%; background: #7ea6ff; border-radius: inherit; }
+#platformExposure .exposure-bar { background: #57d5b1; }
+@media (max-width: 767px) {
+    .exposure-grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+    .exposure-label { flex-wrap: wrap; gap: .2rem .75rem; }
+}
+
+.exposure-description { color: #a7b4cb; }
