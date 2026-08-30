@@ -12,6 +12,7 @@ from typing import Any, Optional
 from authlib.integrations.flask_client import OAuth
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from functools import wraps
+from composition_history import create_composition_blueprint, save_composition
 from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows
 from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data
@@ -222,6 +223,7 @@ app.register_blueprint(create_history_blueprint(db, PortfolioHistory.__table__))
 with app.app_context():
     initialize_snapshot_tables(db.engine)
 app.register_blueprint(create_snapshot_blueprint(db, Portfolio.__table__, PortfolioHistory.__table__))
+app.register_blueprint(create_composition_blueprint(db))
 
 # Initialize OAuth
 oauth = OAuth(app)
@@ -903,14 +905,17 @@ def add_history():
     from snapshot_service import fresh_prices, value_snapshot, SnapshotUnavailable, utcnow
     from types import SimpleNamespace
     try:
-        holdings = [(r.id, r.coin_id, r.amount) for r in Portfolio.query.order_by(Portfolio.id).all()]
+        holdings = [(r.id, r.coin_id, r.source, r.amount) for r in Portfolio.query.order_by(Portfolio.id).all()]
         db.session.rollback()
-        rows = [SimpleNamespace(coin_id=coin, amount=amount) for _, coin, amount in holdings]
+        rows = [SimpleNamespace(coin_id=coin, source=source, amount=amount) for _, coin, source, amount in holdings]
         quotes = fresh_prices({r.coin_id for r in rows if r.amount != 0} | {'bitcoin'})
         values = value_snapshot(rows, quotes)
-        if [(r.id, r.coin_id, r.amount) for r in Portfolio.query.order_by(Portfolio.id).all()] != holdings:
+        if [(r.id, r.coin_id, r.source, r.amount) for r in Portfolio.query.order_by(Portfolio.id).all()] != holdings:
             raise SnapshotUnavailable('Holdings changed during pricing. Please retry.')
-        db.session.add(PortfolioHistory(date=utcnow(), **values))
+        entry = PortfolioHistory(date=utcnow(), **values)
+        db.session.add(entry)
+        db.session.flush()
+        save_composition(db.session, entry.id, entry.date, rows, quotes, values['total_value'])
         db.session.commit()
         return jsonify(success=True)
     except SnapshotUnavailable as error:

@@ -126,3 +126,9 @@ body {
 .exposure-track::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #b8c4d9; }
 .exposure-bar { position: absolute; top: 0; }
 .exposure-bar.exposure-negative, #platformExposure .exposure-bar.exposure-negative { background: #f28b82; }
+
+#priceApiError.alert-info {
+    background-color: #1c243e;
+    border-color: #344361;
+    color: #b7c5df;
+}

@@ -147,3 +147,10 @@ The dashboard requests only held CoinGecko IDs (plus Bitcoin for conversion), wi
 If a nonzero holding lacks a usable quote, portfolio totals and yield are unavailable rather than silently partial. Stale quotes may support an explicitly labeled estimate, but historical comparisons are withheld until all required quotes recover. Exposure and scenario views retain their incomplete-price warnings. Manual and automatic history writes use fresh server-side quotes, never this fallback cache.
 
 Exposure Map uses signed net values: negative balances reduce the asset, platform, and overall total. Negative totals appear left of zero in red. Shares use positive net portfolio value (and may exceed 100%); shares are unavailable if net value is zero or negative. Missing-price positions remain explicitly excluded.
+
+
+### Portfolio composition history
+
+Every new automatic or manual history snapshot also stores an immutable breakdown of asset ID, platform/source name, signed quantity, USD unit price, and USD value. Both records commit together, so failed pricing/storage and worker retries cannot create an incomplete or duplicate composition. Later edits or removal of a position do not rewrite past snapshots. The new table is created additively on startup; no existing history is changed or backfilled because past quantities and prices were not recorded.
+
+The Composition History panel on Overview and Statistics loads only when requested. Select asset or platform grouping and USD or net allocation percentage, then inspect a snapshot's positions. Responses contain at most 200 snapshots, with an Older snapshots button for earlier pages. Load latest returns to the newest page. Negative balances remain deductions, shares may exceed 100%, and shares are unavailable when the net total is not positive. Demo Mode scales recorded quantities and USD position values, without changing unit prices or percentages. Snapshots record holdings at collection time, not every intervening trade; allocation changes combine holdings and market-price changes and are not return attribution.

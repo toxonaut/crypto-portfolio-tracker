@@ -130,11 +130,10 @@ async function updatePortfolio() {
             coinImage.style.width = '24px';
             coinImage.style.height = '24px';
             coinCell.appendChild(coinImage);
-            coinCell.appendChild(document.createTextNode(coinId));
-            const qualityLabel = document.createElement('small');
-            qualityLabel.className = 'd-block text-muted';
-            qualityLabel.textContent = PriceQuality.label(details.price_quality);
-            coinCell.appendChild(qualityLabel);
+            const coinName = document.createElement('span');
+            coinName.textContent = coinId;
+            coinName.title = PriceQuality.label(details.price_quality);
+            coinCell.appendChild(coinName);
             
             // Create other cells
             const totalBalanceCell = document.createElement('td');
@@ -355,6 +354,7 @@ function renderPairButtons() {
 // Function to toggle demo mode
 function toggleDemoMode() {
     isDemoMode = !isDemoMode;
+    if (typeof renderComposition === 'function') renderComposition();
     if (portfolioData && typeof renderExposure === 'function') {
         renderExposure(portfolioData.data, isDemoMode, portfolioData.price_error);
     }

@@ -1,0 +1,22 @@
+<div class="card mb-4" id="compositionPanel">
+    <div class="card-body">
+        <h3>Portfolio Composition History</h3>
+        <p class="exposure-description small">Track recorded holdings by asset or platform. Negative balances reduce net value. Composition is recorded with new snapshots only; older total-value history cannot be reconstructed. Changes reflect both holdings and prices, not investment returns.</p>
+        <div class="history-toolbar">
+            <label>Period <select id="compositionRange" class="form-select history-select"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option><option value="all">All recorded composition</option></select></label>
+            <label>Group by <select id="compositionGroup" class="form-select history-select"><option value="coin_id">Asset</option><option value="source">Platform / location</option></select></label>
+            <label>Show <select id="compositionMetric" class="form-select history-select"><option value="usd">USD value</option><option value="share">% of net value</option></select></label>
+            <button id="loadComposition" type="button" class="btn btn-outline-primary">Load latest</button>
+            <button id="olderComposition" type="button" class="btn btn-outline-secondary" disabled>Older snapshots</button>
+        </div>
+        <p id="compositionStatus" class="exposure-description mt-3" role="status">Composition data loads only when requested.</p>
+        <div id="compositionContent" hidden>
+            <div class="history-canvas"><canvas id="compositionChart" role="img" aria-label="Portfolio composition over time"></canvas></div>
+            <p class="exposure-description small mt-2">Each bar is a recorded snapshot; gaps are not filled. Shares use net value, can exceed 100%, and are unavailable for zero or negative net totals.</p>
+            <label for="compositionSnapshot">Inspect snapshot</label>
+            <select id="compositionSnapshot" class="form-select"></select>
+            <p id="compositionTotal" class="exposure-description mt-2"></p>
+            <div class="table-responsive"><table class="table table-dark"><thead><tr><th>Asset</th><th>Platform / location</th><th>Quantity</th><th>Price (USD)</th><th>Value (USD)</th><th>Net share</th></tr></thead><tbody id="compositionRows"></tbody></table></div>
+        </div>
+    </div>
+</div>

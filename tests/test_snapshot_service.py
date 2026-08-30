@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from snapshot_service import (create_snapshot_blueprint, initialize_snapshot_tables, health, receipts,
                               fresh_prices, SnapshotUnavailable, health_data)
 from worker import run_cycle
+from composition_history import compositions
 
 KEY = 'test-only-dedicated-secret-0123456789'
 
@@ -22,7 +23,7 @@ class SnapshotTests(unittest.TestCase):
         self.env.start()
         self.engine=create_engine('sqlite://')
         metadata=MetaData()
-        self.portfolio=Table('portfolio',metadata,Column('id',Integer,primary_key=True),Column('coin_id',String),Column('amount',Float))
+        self.portfolio=Table('portfolio',metadata,Column('id',Integer,primary_key=True),Column('coin_id',String),Column('source',String,default='Test wallet'),Column('amount',Float))
         self.history=Table('portfolio_history',metadata,Column('id',Integer,primary_key=True),Column('date',DateTime),Column('total_value',Float),Column('btc',Float),Column('actual_btc',Float))
         metadata.create_all(self.engine);initialize_snapshot_tables(self.engine)
         self.session=Session(self.engine)
@@ -51,6 +52,10 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(value['total_value'],230);self.assertEqual(value['btc'],2.3);self.assertEqual(value['actual_btc'],2)
         retry=self.post();self.assertTrue(retry.json['duplicate']);self.assertEqual(retry.json['history_id'],response.json['history_id'])
         self.assertEqual(self.count(self.history),1);self.prices.assert_called_once()
+        self.assertEqual(self.count(compositions),1)
+        composition=self.session.execute(select(compositions)).mappings().one()
+        self.assertEqual(sum(p['value_usd'] for p in composition['positions']),230)
+        self.assertEqual(composition['history_id'],response.json['history_id'])
         self.assertIsNotNone(health_data(self.session)['last_success'])
 
     def test_negative_positions_reduce_net_value(self):
@@ -61,6 +66,13 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(row['total_value'],170)
         self.assertEqual(row['btc'],1.7)
         self.assertEqual(row['actual_btc'],2)
+
+    def test_composition_failure_rolls_back_entire_snapshot(self):
+        with patch('snapshot_service.save_composition',side_effect=RuntimeError('test write failure')):
+            self.assertEqual(self.post().status_code,503)
+        self.assertEqual(self.count(self.history),0)
+        self.assertEqual(self.count(receipts),0)
+        self.assertEqual(self.count(compositions),0)
 
     def test_auth_fails_closed_no_cookie_bypass(self):
         self.assertEqual(self.post('').status_code,401)
@@ -83,6 +95,7 @@ class SnapshotTests(unittest.TestCase):
             self.prices.return_value=prices
             self.assertEqual(self.post().status_code,503)
             self.assertEqual(self.count(self.history),0);self.assertEqual(self.count(receipts),0)
+            self.assertEqual(self.count(compositions),0)
             self.assertIsNotNone(health_data(self.session)['last_error'])
         self.prices.return_value={'bitcoin':100,'ethereum':10}
         self.assertEqual(self.post().status_code,200);self.assertIsNone(health_data(self.session)['last_error'])

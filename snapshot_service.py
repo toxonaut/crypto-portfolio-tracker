@@ -10,6 +10,8 @@ from sqlalchemy import MetaData, Table, Column, Integer, BigInteger, DateTime, S
 from sqlalchemy.exc import IntegrityError
 import requests
 
+from composition_history import compositions, save_composition
+
 metadata = MetaData()
 receipts = Table('worker_snapshot_receipts', metadata,
     Column('slot', BigInteger, primary_key=True),
@@ -164,7 +166,7 @@ def create_snapshot_blueprint(db, portfolio, history, price_reader=fresh_prices)
                 return jsonify(success=True, duplicate=True, history_id=completed['history_id'], interval_seconds=interval)
             set_health(db.session, last_attempt=utcnow())
             db.session.commit()
-            query = select(portfolio.c.id, portfolio.c.coin_id, portfolio.c.amount).order_by(portfolio.c.id)
+            query = select(portfolio.c.id, portfolio.c.coin_id, portfolio.c.source, portfolio.c.amount).order_by(portfolio.c.id)
             rows = db.session.execute(query).all()
             db.session.rollback()  # No database transaction held during network requests.
             ids = {r.coin_id for r in rows if r.amount != 0} | {'bitcoin'}
@@ -176,6 +178,7 @@ def create_snapshot_blueprint(db, portfolio, history, price_reader=fresh_prices)
             completed_at = utcnow()
             inserted = db.session.execute(history.insert().values(date=completed_at, **values))
             history_id = inserted.inserted_primary_key[0]
+            save_composition(db.session, history_id, completed_at, rows, prices, values['total_value'])
             db.session.execute(receipts.insert().values(slot=slot, history_id=history_id, completed_at=completed_at))
             set_health(db.session, last_success=completed_at, last_error=None)
             db.session.commit()  # History, receipt and success are atomic.
@@ -201,6 +204,7 @@ def create_snapshot_blueprint(db, portfolio, history, price_reader=fresh_prices)
 
 def initialize_snapshot_tables(engine):
     metadata.create_all(engine)
+    compositions.create(engine, checkfirst=True)
     with engine.begin() as connection:
         if connection.execute(select(health.c.id).where(health.c.id == 1)).first() is None:
             # Handle simultaneous web process startup without a duplicate-row failure.

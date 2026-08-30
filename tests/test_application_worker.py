@@ -21,6 +21,7 @@ with module.app.app_context():
     module.db.session.commit()
 client=module.app.test_client()
 assert client.get('/health').status_code==200
+assert client.get('/history/composition').status_code==302
 assert client.post('/worker_api/snapshot',json={'slot':int(time.time())//3600*3600}).status_code==401
 reply=SimpleNamespace(status_code=200,json=lambda:{'bitcoin':{'usd':100,'last_updated_at':time.time()}})
 with patch('snapshot_service.requests.get',return_value=reply):
@@ -64,7 +65,14 @@ with patch('snapshot_service.fresh_prices',side_effect=SnapshotUnavailable('Pric
     assert client.post('/add_history',json={}).status_code==503
 with module.app.app_context():
     assert module.PortfolioHistory.query.count()==count
-print('Full application price quality and worker integration passed')
+response=client.get('/history/composition?range=all')
+assert response.status_code==200
+assert len(response.json['data'])==2
+for row in response.json['data']:
+    assert row['positions'][0]['source']=='Test wallet'
+    assert row['positions'][0]['amount']==2
+    assert sum(p['value_usd'] for p in row['positions'])==row['total_value']==200
+print('Full application price quality, worker and composition integration passed')
 '''
         result=subprocess.run([sys.executable,'-c',script],capture_output=True,text=True,timeout=30)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
