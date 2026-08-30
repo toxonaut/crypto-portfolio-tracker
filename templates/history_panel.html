@@ -1,0 +1,33 @@
+<section aria-label="Portfolio history controls" id="historyPanel">
+    <div class="history-toolbar">
+        <label for="historyRange">Period</label>
+        <select id="historyRange" class="form-select history-select">
+            <option value="7">7 days</option><option value="30">1 month</option><option value="90" selected>3 months</option>
+            <option value="180">6 months</option><option value="365">1 year</option><option value="730">2 years</option><option value="all">All history</option>
+        </select>
+        <button type="button" id="loadHistoryDataBtn" class="btn btn-outline-primary">Load Data</button>
+        <label><input type="checkbox" id="historyUsd" checked> USD</label>
+        <label><input type="checkbox" id="historyBtc"> BTC</label>
+        <label><input type="checkbox" id="historyAdjusted"> USD minus recorded flows</label>
+        <label><input type="checkbox" id="historyLog"> Log scale</label>
+    </div>
+    <p id="historyChartStatus" class="exposure-description mt-3" role="status">Choose a period and load the chart. No chart history has been requested.</p>
+    <p id="historyScaleStatus" class="exposure-description small" role="status"></p>
+    <div id="historyChartContainer" class="history-canvas" hidden><canvas id="historyChart" aria-label="Portfolio value over time" role="img"></canvas></div>
+    <div id="historyLedger" hidden>
+        <p class="exposure-description small mt-3">Dashed markers show recorded deposits and withdrawals. The adjusted USD line subtracts net recorded cash flows since the first snapshot in this period. It is not a total-return or profit calculation. Unrecorded flows, fees and rewards are not distinguished. History and ledger dates use server time.</p>
+        <details>
+            <summary>Record a deposit or withdrawal</summary>
+            <p class="exposure-description small">This adds an annotation only; it does not change holdings or create a portfolio snapshot. Record external money entering/leaving the portfolio, not transfers between your own wallets. Enter actual USD amounts, even in Demo Mode.</p>
+            <form id="historyFlowForm" class="history-flow-form">
+                <label>Type<select name="kind" class="form-select"><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option></select></label>
+                <label>When (server time)<input name="datetime" class="form-control" type="datetime-local" step="1" required></label>
+                <label>Actual USD amount<input name="amount_usd" class="form-control" type="number" min="0.00000001" max="1000000000000" step="0.00000001" required></label>
+                <label>Note<input name="note" class="form-control" maxlength="200"></label>
+                <button type="submit" class="btn btn-primary">Save annotation</button>
+            </form>
+        </details>
+        <p id="historyFlowStatus" role="status" class="exposure-description"></p>
+        <ul id="historyFlowList" class="history-flow-list"></ul>
+    </div>
+</section>

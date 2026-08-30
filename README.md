@@ -88,11 +88,27 @@ For production deployment, consider migrating to a proper database system.
 
 The dashboard requests `/history/summary` on each portfolio refresh. Six bounded indexed queries select the nearest snapshots for 24 hours, 7 days, and 30 days, returning at most three comparison records. Snapshots more than 12 hours from their target, or invalid/zero comparison values, show as unavailable. Returns describe portfolio value changes, including deposits and withdrawals.
 
-Full `/history` data loads only when the user requests the chart (on either page), changes an already-loaded chart's range/scale, or adds a history entry with the chart open. Statistics extrema are calculated on chart load. Stored timestamps retain their time component; existing naive server-time conventions are preserved. Startup creates the date index on existing databases (concurrently on PostgreSQL).
+Range-filtered `/history` data loads only when the user requests or refreshes the chart (on either page), changes an already-loaded chart's range, or adds a history entry with the chart open. Scale and currency toggles redraw locally. Statistics extrema are calculated on unsampled records from the selected range. Stored timestamps retain their time component; existing naive server-time conventions are preserved. Startup creates the date index on existing databases (concurrently on PostgreSQL).
 
 Run the summary checks without connecting to the application database:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -p 'test_history_summary.py'
 node --test tests/history-summary.test.cjs
+```
+
+### Portfolio History explorer
+
+- `/history?range=90&max_points=600` filters dates in the database. Supported ranges are 7, 30, 90, 180, 365, 730 days and `all`; point limits are 32–1200. The UI requests 600 points (240 on iPhone Chrome). Small ranges keep every usable snapshot.
+- Larger ranges stream through time buckets, retaining each bucket's endpoints and USD, BTC and adjusted-USD minima/maxima. This bounds response size while preserving peaks and drops, but it does not reproduce every movement. The server still scans records in the selected range.
+- Gaps over three hours break lines; invalid values also break segments. Freshness uses the latest database timestamp, independently of the selected range. Null BTC values remain missing, not zero. All timestamp coordinates retain the existing server-time convention.
+- The new additive `portfolio_cash_flows` table stores explicit USD deposits/withdrawals. Authenticated, CSRF-protected create/delete operations affect annotations only. UI save retries reuse a request ID to avoid duplicate entries. No historical flows are inferred or backfilled.
+- Dashed event markers and the ledger list annotate flows. The optional adjusted USD line subtracts cumulative net recorded flows after the first selected snapshot. It is **not investment return or verified profit**; results depend on complete, correctly dated records and do not distinguish rewards or fees. Transfers between your own locations should not be recorded as external flows. Demo Mode scales display values only; annotation inputs always use actual USD.
+- Responses include at most 500 annotations. If the range contains more, the UI warns and disables the adjusted line until a shorter range is chosen.
+
+Offline checks (SQLite only; no production database access):
+
+```bash
+.venv/bin/python -m unittest discover -s tests -p 'test_history*.py'
+node --test tests/*.test.cjs
 ```

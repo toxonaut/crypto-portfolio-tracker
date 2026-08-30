@@ -51,32 +51,13 @@ function updateHistoricalChanges() {
 function updateHistoryExtremes() {
     const ids = ['largestPercentGain', 'largestDollarGain', 'largestPercentLoss', 'largestDollarLoss'];
     if (!ids.some(id => document.getElementById(id))) return;
-    const rows = historyData.filter(r => Number.isFinite(r.total_value) && r.total_value >= 0)
-        .map(r => ({time: new Date(r.datetime).getTime(), value: r.total_value}))
-        .filter(r => Number.isFinite(r.time)).sort((a,b) => a.time-b.time);
-    const best = Object.fromEntries(ids.map(id => [id, null]));
-    // Nearest earlier sample around 24h, via binary search (hourly data is supported).
-    for (let i=1; i<rows.length; i++) {
-        const target = rows[i].time-86400000;
-        let lo=0, hi=i;
-        while(lo<hi) { const mid=(lo+hi)>>1; if(rows[mid].time<target) lo=mid+1; else hi=mid; }
-        const candidates=[lo-1,lo].filter(j => j>=0 && j<i);
-        const j=candidates.sort((a,b)=>Math.abs(rows[a].time-target)-Math.abs(rows[b].time-target))[0];
-        if(j === undefined || Math.abs(rows[j].time-target)>4*3600000 || rows[j].value<=0) continue;
-        const value=(rows[i].value-rows[j].value)/(isDemoMode?15:1);
-        const percent=(rows[i].value-rows[j].value)/rows[j].value*100;
-        const change={value,percent,date:new Date(rows[i].time).toLocaleString()};
-        for(const id of ids) {
-            const metric=id.includes('Percent')?'percent':'value';
-            const gain=id.includes('Gain');
-            if ((gain ? change[metric]>0 : change[metric]<0) && (!best[id] || (gain ? change[metric]>best[id][metric] : change[metric]<best[id][metric]))) best[id]=change;
-        }
-    }
+    const best = historyChartPayload?.extremes || {};
     for (const id of ids) {
         const element=document.getElementById(id);
         if(!element) continue;
-        const change=best[id];
-        element.textContent=change ? `${id.includes('Percent') ? change.percent.toFixed(2)+'%' : '$'+change.value.toFixed(2)} (${change.date})` : 'Unavailable';
+        const original=best[id];
+        const change=original ? {...original, value: original.value/(isDemoMode ? 15 : 1)} : null;
+        element.textContent=change ? `${id.includes('Percent') ? change.percent.toFixed(2)+'%' : '$'+change.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}).replace(/,/g, "'")} (${change.date})` : 'Unavailable';
     }
 }
 

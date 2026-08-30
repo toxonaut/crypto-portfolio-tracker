@@ -2,8 +2,6 @@
 let historyData = [];
 let historyChart = null;
 let tradingViewWidget = null;
-let currentDateRange = '90'; // Default to 3 months
-let isLogScale = false;
 let isDemoMode = false;
 let portfolioData = null; // Global portfolio data
 let historyChartEnabled = false;
@@ -26,7 +24,10 @@ function formatPriceChange(change) {
 }
 
 function formatValueChange(dollarChange, percentChange, historicalValue) {
-    const formattedDollar = Math.abs(dollarChange) < 1 ? Math.abs(dollarChange).toFixed(2) : Math.round(Math.abs(dollarChange));
+    const decimalPlaces = Math.abs(dollarChange) < 1 ? 2 : 0;
+    const formattedDollar = Math.abs(dollarChange).toLocaleString('en-US', {
+        minimumFractionDigits: decimalPlaces, maximumFractionDigits: decimalPlaces
+    }).replace(/,/g, "'");
     const formattedPercent = Math.abs(percentChange).toFixed(2);
     
     const className = dollarChange >= 0 ? 'price-change-positive' : 'price-change-negative';
@@ -74,281 +75,6 @@ function initializePairSelection() {
 }
 
 // Function to sample data for performance optimization
-function sampleHistoryData(data, maxPoints) {
-    if (!data || data.length <= maxPoints) return data;
-    
-    const result = [];
-    const step = Math.ceil(data.length / maxPoints);
-    
-    for (let i = 0; i < data.length; i += step) {
-        result.push(data[i]);
-    }
-    
-    // Always include the most recent point
-    if (result[result.length - 1] !== data[data.length - 1]) {
-        result.push(data[data.length - 1]);
-    }
-    
-    console.log(`Sampled history data from ${data.length} to ${result.length} points`);
-    return result;
-}
-
-async function updateHistoryChart() {
-    try {
-        console.log('Fetching history data...');
-        const response = await fetch('/history');
-        const data = await response.json();
-        console.log('History API response:', data);
-        
-        if (!data.success) {
-            console.error('History data error:', data.error);
-            return;
-        }
-        
-        // Store the full history data
-        historyData = data.data;
-        console.log('History data stored:', historyData.length, 'entries');
-        
-        if (historyData.length === 0) {
-            console.warn('No history data available');
-            updateHistoryExtremes();
-            return;
-        }
-        
-        console.log('First entry:', historyData[0]);
-        console.log('Last entry:', historyData[historyData.length - 1]);
-        
-        // Filter data based on selected date range
-        let filteredData = historyData;
-        if (currentDateRange !== 'all') {
-            const daysToShow = parseInt(currentDateRange);
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - daysToShow);
-            
-            filteredData = historyData.filter(item => {
-                const itemDate = new Date(item.datetime);
-                return itemDate >= cutoffDate;
-            });
-        }
-        
-        // Apply data sampling for iOS Chrome to prevent crashes
-        if (isIOSChrome) {
-            // Use more aggressive sampling for iOS Chrome
-            const maxDataPoints = 60; // Limit to 60 points for iOS Chrome
-            filteredData = sampleHistoryData(filteredData, maxDataPoints);
-        }
-        
-        // Store raw dates for chart formatting
-        const rawDates = filteredData.map(item => new Date(item.datetime));
-        
-        // Format labels for display
-        const labels = filteredData.map(item => {
-            const date = new Date(item.datetime);
-            return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        });
-        
-        // Apply demo mode division if active
-        const values = filteredData.map(item => {
-            let value = item.total_value;
-            if (isDemoMode) {
-                value = value / 15;
-            }
-            return value;
-        });
-        
-        // Get BTC values for a secondary dataset
-        const btcValues = filteredData.map(item => {
-            let value = item.btc || 0;
-            if (isDemoMode) {
-                value = value / 15;
-            }
-            return value;
-        });
-
-        const hasNonPositiveUsd = values.some(v => v <= 0);
-        const hasNonPositiveBtc = btcValues.some(v => v <= 0);
-        const effectiveLogScale = isLogScale && !hasNonPositiveUsd && !hasNonPositiveBtc;
-        if (isLogScale && !effectiveLogScale) {
-            console.warn('Log scale disabled because the dataset contains zero/negative values.');
-            isLogScale = false;
-            const logScaleToggle = document.getElementById('logScaleToggle');
-            if (logScaleToggle) {
-                logScaleToggle.checked = false;
-            }
-            const logScaleSwitch = document.getElementById('logScaleSwitch');
-            if (logScaleSwitch) {
-                logScaleSwitch.checked = false;
-            }
-        }
-
-        const hasNegativeUsd = values.some(v => v < 0);
-        const hasNegativeBtc = btcValues.some(v => v < 0);
-        
-        // Check if the chart canvas exists
-        const chartCanvas = document.getElementById('historyChart');
-        if (!chartCanvas) {
-            console.warn('History chart canvas not found');
-            return;
-        }
-        
-        if (historyChart) {
-            historyChart.destroy();
-        }
-        
-        const ctx = chartCanvas.getContext('2d');
-        historyChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Portfolio Value (USD)',
-                        data: values,
-                        borderColor: '#0d6efd',
-                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                        fill: isIOSChrome ? false : true, // Disable fill on iOS Chrome
-                        tension: isIOSChrome ? 0 : 0.4, // Disable curve tension on iOS Chrome
-                        pointRadius: isIOSChrome ? 0 : 1, // Disable points on iOS Chrome
-                        yAxisID: 'y'
-                    },
-                    {
-                        label: 'Portfolio Value (BTC)',
-                        data: btcValues,
-                        borderColor: '#f7931a',
-                        backgroundColor: 'rgba(247, 147, 26, 0.1)',
-                        fill: false,
-                        tension: 0.4,
-                        yAxisID: 'y1',
-                        pointRadius: isIOSChrome ? 0 : 1, // Disable points for iOS Chrome
-                        hidden: isIOSChrome ? true : true // Always hidden on iOS Chrome
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                animation: isIOSChrome ? false : true, // Disable animations on iOS Chrome
-                responsiveAnimationDuration: isIOSChrome ? 0 : 1000, // Disable animation duration on iOS Chrome
-                plugins: {
-                    legend: {
-                        position: 'top',
-                    },
-                    title: {
-                        display: true,
-                        text: 'Portfolio Value History'
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45,
-                            autoSkip: isIOSChrome ? true : false, // Enable autoSkip for iOS Chrome to improve performance
-                            callback: function(value, index) {
-                                if (index >= rawDates.length) return '';
-                                
-                                const date = rawDates[index];
-                                const day = date.getDate();
-                                const month = date.getMonth();
-                                const year = date.getFullYear();
-                                const monthName = date.toLocaleString('en-US', { month: 'short' });
-                                
-                                // Show month name for the first entry of each month
-                                if (index === 0) {
-                                    return monthName;
-                                } else {
-                                    const prevDate = rawDates[index - 1];
-                                    if (prevDate.getMonth() !== month || 
-                                        prevDate.getFullYear() !== year) {
-                                        return monthName;
-                                    }
-                                }
-                                
-                                // For day numbers, check if this is the first occurrence of this day in this month
-                                if (day === 10 || day === 20) {
-                                    // Check previous entries in this month to see if we've already shown this day number
-                                    let isFirstOccurrence = true;
-                                    for (let i = 0; i < index; i++) {
-                                        const prevDate = rawDates[i];
-                                        if (prevDate.getDate() === day && 
-                                            prevDate.getMonth() === month && 
-                                            prevDate.getFullYear() === year) {
-                                            isFirstOccurrence = false;
-                                            break;
-                                        }
-                                    }
-                                    
-                                    if (isFirstOccurrence) {
-                                        return day;
-                                    }
-                                }
-                                
-                                // For shorter ranges, also show 5th, 15th, 25th (with same first-occurrence check)
-                                if (filteredData.length <= 60 && (day === 5 || day === 15 || day === 25)) {
-                                    let isFirstOccurrence = true;
-                                    for (let i = 0; i < index; i++) {
-                                        const prevDate = rawDates[i];
-                                        if (prevDate.getDate() === day && 
-                                            prevDate.getMonth() === month && 
-                                            prevDate.getFullYear() === year) {
-                                            isFirstOccurrence = false;
-                                            break;
-                                        }
-                                    }
-                                    
-                                    if (isFirstOccurrence) {
-                                        return day;
-                                    }
-                                }
-                                
-                                return '';
-                            }
-                        }
-                    },
-                    y: {
-                        type: effectiveLogScale ? 'logarithmic' : 'linear',
-                        position: 'left',
-                        beginAtZero: !effectiveLogScale && !hasNegativeUsd,
-                        ticks: {
-                            callback: function(value) {
-                                return '$' + Math.round(value);
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: 'USD Value'
-                        }
-                    },
-                    y1: {
-                        type: effectiveLogScale ? 'logarithmic' : 'linear',
-                        position: 'right',
-                        beginAtZero: !effectiveLogScale && !hasNegativeBtc,
-                        grid: {
-                            drawOnChartArea: false // Only show grid lines for the primary y-axis
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return Math.round(value * 10000) / 10000 + ' BTC';
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: 'BTC Value'
-                        }
-                    }
-                }
-            }
-        });
-        
-        // Summary values never depend on chart data.
-        updateHistoryExtremes();
-        
-        return true;
-    } catch (error) {
-        console.error('Error updating history chart:', error);
-        return false;
-    }
-}
-
 async function updatePortfolio() {
     try {
         console.log('Updating portfolio...');
@@ -677,7 +403,7 @@ function toggleDemoMode() {
     
     // Update the historical changes
     updateHistoricalChanges();
-    if (historyData.length) updateHistoryExtremes();
+    if (historyChartPayload) { renderHistoryChart(); renderHistoryFlows(); updateHistoryExtremes(); }
 }
 
 // Wait for DOM to be fully loaded
@@ -688,6 +414,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const isStatisticsPage = window.location.pathname === '/statistics';
     console.log('Current page:', isStatisticsPage ? 'Statistics' : 'Overview');
     historyChartEnabled = false;
+    initializeHistoryPanel();
     
     try {
         // For iOS Chrome, show a message instead of loading TradingView
@@ -724,74 +451,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         console.log('Initialization complete');
-        
-        // Set up event listeners for date range buttons
-        const dateRangeButtons = document.querySelectorAll('[data-range]');
-        if (dateRangeButtons.length > 0) {
-            dateRangeButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    // Remove active class from all buttons
-                    dateRangeButtons.forEach(btn => btn.classList.remove('active'));
-                    // Add active class to clicked button
-                    this.classList.add('active');
-                    // Update date range and refresh chart
-                    currentDateRange = this.dataset.range;
-                    if (historyChartEnabled) {
-                        updateHistoryChart();
-                    }
-                });
-            });
-        }
-        
-        // Set up log scale switch
-        const logScaleToggle = document.getElementById('logScaleToggle');
-        if (logScaleToggle) {
-            logScaleToggle.addEventListener('change', function() {
-                isLogScale = this.checked;
-                if (historyChartEnabled) {
-                    updateHistoryChart();
-                }
-            });
-        }
-        const logScaleSwitch = document.getElementById('logScaleSwitch');
-        if (logScaleSwitch) {
-            logScaleSwitch.addEventListener('change', function() {
-                isLogScale = this.checked;
-                if (historyChartEnabled) {
-                    updateHistoryChart();
-                }
-            });
-        }
-
-        const loadHistoryDataBtn = document.getElementById('loadHistoryDataBtn');
-        if (loadHistoryDataBtn) {
-            loadHistoryDataBtn.addEventListener('click', async function() {
-                const placeholder = document.getElementById('historyChartPlaceholder');
-                const container = document.getElementById('historyChartContainer');
-
-                if (container) {
-                    container.style.display = '';
-                }
-                if (placeholder) {
-                    placeholder.style.display = 'none';
-                }
-
-                loadHistoryDataBtn.disabled = true;
-                try {
-                    historyChartEnabled = true;
-                    const loaded = await updateHistoryChart();
-                    if (!loaded) {
-                        historyChartEnabled = false;
-                        if (container) container.style.display = 'none';
-                        if (placeholder) placeholder.style.display = '';
-                        loadHistoryDataBtn.textContent = 'No chart data loaded — retry';
-                    }
-                    updateHistoricalChanges();
-                } finally {
-                    loadHistoryDataBtn.disabled = false;
-                }
-            });
-        }
         
         // Add event listener for demo mode toggle
         const toggleDemoModeBtn = document.getElementById('toggleDemoButton') || document.getElementById('toggleDemoModeBtn');

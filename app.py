@@ -13,6 +13,7 @@ from authlib.integrations.flask_client import OAuth
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from functools import wraps
 from history_summary import read_history_summary
+from history_chart import create_history_blueprint, cash_flows
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -212,6 +213,11 @@ with app.app_context():
         logger.info("Creating users table")
         db.create_all()
         logger.info("Users table created")
+
+# Additive ledger only; historical balances are never rewritten.
+with app.app_context():
+    cash_flows.create(db.engine, checkfirst=True)
+app.register_blueprint(create_history_blueprint(db, PortfolioHistory.__table__))
 
 # Initialize OAuth
 oauth = OAuth(app)
@@ -945,26 +951,6 @@ def get_history_summary():
         logger.exception('Unable to load history summary')
         return jsonify({'success': False, 'error': 'History summary unavailable'}), 503
 
-
-@app.route('/history')
-@login_required
-def get_history():
-    history_data = get_history_data()
-    
-    # Format the data for the frontend
-    formatted_data = []
-    for item in history_data:
-        formatted_data.append({
-            'datetime': item['date'],
-            'total_value': item['total_value'],
-            'btc': item['btc'],
-            'actual_btc': item['actual_btc']
-        })
-    
-    return jsonify({
-        'success': True,
-        'data': formatted_data
-    })
 
 @app.route('/api/add_coin', methods=['POST'])
 @login_required
