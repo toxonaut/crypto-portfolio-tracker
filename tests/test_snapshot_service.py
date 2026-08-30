@@ -53,6 +53,15 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(self.count(self.history),1);self.prices.assert_called_once()
         self.assertIsNotNone(health_data(self.session)['last_success'])
 
+    def test_negative_positions_reduce_net_value(self):
+        self.session.execute(self.portfolio.update().where(self.portfolio.c.coin_id=='ethereum').values(amount=-3))
+        self.session.commit()
+        self.assertEqual(self.post().status_code,200)
+        row=self.session.execute(select(self.history)).mappings().one()
+        self.assertEqual(row['total_value'],170)
+        self.assertEqual(row['btc'],1.7)
+        self.assertEqual(row['actual_btc'],2)
+
     def test_auth_fails_closed_no_cookie_bypass(self):
         self.assertEqual(self.post('').status_code,401)
         self.assertEqual(self.post('default_worker_key').status_code,401)

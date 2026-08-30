@@ -94,8 +94,8 @@ def value_snapshot(rows, prices):
         raise SnapshotUnavailable('No portfolio entries are configured.')
     for row in rows:
         amount = row.amount
-        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
-            raise SnapshotUnavailable('A portfolio balance is invalid or negative.')
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not math.isfinite(amount):
+            raise SnapshotUnavailable('A portfolio balance is invalid.')
         if amount == 0:
             continue
         if not valid_positive(prices.get(row.coin_id)):
