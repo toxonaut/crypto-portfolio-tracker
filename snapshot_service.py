@@ -67,7 +67,7 @@ def fresh_prices(coin_ids, http=requests, now=None):
                 prices[coin] = value
         chf_ids = [c for c in coin_ids if c.lower() == 'chf']
         if chf_ids:
-            response = http.get('https://api.frankfurter.app/latest', params={'from': 'CHF', 'to': 'USD'}, timeout=(5, 15), allow_redirects=False)
+            response = http.get('https://api.frankfurter.dev/v1/latest', params={'base': 'CHF', 'symbols': 'USD'}, timeout=(5, 15), allow_redirects=False)
             if response.status_code != 200:
                 raise SnapshotUnavailable(f'Forex provider returned HTTP {response.status_code}.')
             data = response.json()
