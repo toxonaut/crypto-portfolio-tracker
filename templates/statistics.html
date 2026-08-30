@@ -29,7 +29,6 @@
                 </div>
             </div>
         </nav>
-        <div id="workerHealth" class="alert alert-secondary" role="status">Checking automatic history updates…</div>
 
         <div class="card mb-4">
             <div class="card-body">
@@ -74,7 +73,7 @@
                         <h4>Total Value: $<span id="totalValue">0.00</span></h4>
                         <h5>Value in BTC: <span id="btcValue">0.00</span> BTC</h5>
                         <h5>Monthly Yield: $<span id="monthlyYield">0.00</span></h5>
-                        <p class="text-muted small">Last updated: <span id="lastUpdated"></span></p>
+                        <p class="text-muted small">View refreshed: <span id="lastUpdated"></span></p><div id="priceApiError" class="alert alert-info" role="status"></div>
                     </div>
                 </div>
             </div>
@@ -92,8 +91,13 @@
         </div>
     </footer>
 
+    <div class="container pb-3">
+        <div id="workerHealth" class="alert alert-secondary" role="status">Checking automatic history updates…</div>
+    </div>
+
     <script src="{{ url_for('static', filename='history-summary.js') }}"></script>
     <script src="{{ url_for('static', filename='history-chart.js') }}"></script>
+    <script src="{{ url_for('static', filename='price-quality.js') }}"></script>
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
 </body>
 </html>

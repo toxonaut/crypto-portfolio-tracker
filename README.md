@@ -117,7 +117,7 @@ node --test tests/*.test.cjs
 
 The worker now sends a dedicated `X-Worker-Key` to **POST `/worker_api/snapshot`**. It no longer reads browser session cookies or needs database credentials. Configure a matching `WORKER_KEY` of at least 32 characters and `HISTORY_INTERVAL_SECONDS` (default 3600) on the web and worker services. Never use the web session `SECRET_KEY` as the worker credential.
 
-The authenticated server fetches only the required asset prices (plus Bitcoin), validates every nonzero balance, rejects incomplete prices, crypto prices older than 15 minutes, and CHF rates older than seven calendar days, and computes USD/BTC values itself. Negative positions reduce net portfolio value, matching the dashboard. Nonfinite balances are rejected; configured all-zero balances are valid. No cached or partial valuation is silently written. The existing manual Add History route remains separate and is not covered by automatic snapshot validation.
+The authenticated server fetches only the required asset prices (plus Bitcoin), validates every nonzero balance, rejects incomplete prices, crypto prices older than 15 minutes, and CHF rates older than seven calendar days, and computes USD/BTC values itself. Negative positions reduce net portfolio value, matching the dashboard. Nonfinite balances are rejected; configured all-zero balances are valid. No cached or partial valuation is silently written. Manual Add History also recalculates the real portfolio on the server using strict fresh-price validation; browser-provided and demo values are ignored.
 
 A unique UTC schedule slot and an atomic database receipt prevent duplicates across retries, restarts and simultaneous workers. Retries use delays of 5, 10 and 20 seconds, bounded HTTP timeouts, and the same slot. Redirects and rejected credentials fail closed. After an unsuccessful cycle, the worker tries again after a minute. Successful cycles align to the next schedule boundary; shutdown signals stop waits cleanly. Missed slots are not backfilled with fabricated valuations.
 
@@ -138,3 +138,12 @@ Checks (temporary SQLite database and mocked providers; no production writes):
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 node --test tests/*.test.cjs
 ```
+
+
+### Price-data quality
+
+The dashboard requests only held CoinGecko IDs (plus Bitcoin for conversion), with a 60-second process-local cache to reduce provider traffic. Each asset shows its source, provider timestamp, and current/cached/stale/missing status. Crypto quotes older than 15 minutes or quotes retained after a failed refresh are labeled stale. Last-known crypto prices are retained for at most 24 hours; the cache resets on a web-process restart. CHF uses dated daily Frankfurter reference rates, allowing up to seven calendar days for weekends and holidays. Missing percentage changes display a dash, never a fabricated 0%.
+
+If a nonzero holding lacks a usable quote, portfolio totals and yield are unavailable rather than silently partial. Stale quotes may support an explicitly labeled estimate, but historical comparisons are withheld until all required quotes recover. Exposure and scenario views retain their incomplete-price warnings. Manual and automatic history writes use fresh server-side quotes, never this fallback cache.
+
+Exposure Map uses signed net values: negative balances reduce the asset, platform, and overall total. Negative totals appear left of zero in red. Shares use positive net portfolio value (and may exceed 100%); shares are unavailable if net value is zero or negative. Missing-price positions remain explicitly excluded.

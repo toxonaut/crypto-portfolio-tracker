@@ -120,3 +120,9 @@ body {
 .history-flow-list button { margin-left: .75rem; }
 #historyPanel .form-select { background-color: #050b16; color: #e0e0e0; border-color: #444; }
 @media (max-width: 767px) { .history-canvas { height: 300px; } }
+
+/* Signed exposure bars share a centered zero axis. */
+.exposure-track { position: relative; }
+.exposure-track::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #b8c4d9; }
+.exposure-bar { position: absolute; top: 0; }
+.exposure-bar.exposure-negative, #platformExposure .exposure-bar.exposure-negative { background: #f28b82; }

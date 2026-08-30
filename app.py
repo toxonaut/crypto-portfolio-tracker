@@ -304,176 +304,17 @@ def get_forex_rate(base_currency, target_currency):
     return rate, None
 
 def get_coin_prices(coin_ids):
-    if not coin_ids:
-        return {}
+    from price_data import prices
+    return {coin: quote for coin, quote in prices.read(coin_ids).items() if quote['status'] == 'fresh'}
 
-    coin_data = {}
-    crypto_coin_ids = []
-    chf_ids = []
-    for coin_id in coin_ids:
-        if coin_id.lower() == "chf":
-            chf_ids.append(coin_id)
-        else:
-            crypto_coin_ids.append(coin_id)
-
-    if chf_ids:
-        rate, err = get_forex_rate("CHF", "USD")
-        if rate is not None:
-            for chf_id in chf_ids:
-                coin_data[chf_id] = {
-                    'usd': rate,
-                    'usd_1h_change': 0,
-                    'usd_24h_change': 0,
-                    'usd_7d_change': 0,
-                    'image': "https://flagcdn.com/w40/ch.png"
-                }
-        else:
-            logger.error(err)
-
-    if not crypto_coin_ids:
-        return coin_data
-    
-    try:
-        # Get data from the markets endpoint which includes more comprehensive information
-        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=180&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en"
-        response = requests.get(url)
-        
-        if response.status_code == 200:
-            market_data = response.json()
-            crypto_coin_ids_set = set(crypto_coin_ids)
-            for coin in market_data:
-                if coin['id'] in crypto_coin_ids_set:
-                    # Check if the price change percentages exist and are not None
-                    price_1h = coin.get('price_change_percentage_1h_in_currency', 0)
-                    price_24h = coin.get('price_change_percentage_24h', 0)  
-                    price_7d = coin.get('price_change_percentage_7d_in_currency', 0)
-                    
-                    # Ensure we have valid numbers, not None
-                    if price_1h is None: price_1h = 0
-                    if price_24h is None: price_24h = 0
-                    if price_7d is None: price_7d = 0
-                    
-                    coin_data[coin['id']] = {
-                        'usd': coin['current_price'],
-                        'usd_1h_change': price_1h,
-                        'usd_24h_change': price_24h,
-                        'usd_7d_change': price_7d,
-                        'image': coin['image']
-                    }
-            
-            # If any requested coins are missing from the first 100 coins, try to fetch them directly
-            missing_coins = [coin_id for coin_id in crypto_coin_ids if coin_id not in coin_data]
-            if missing_coins:
-                logger.info(f"Fetching additional data for coins not in top 100: {missing_coins}")
-                additional_url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(missing_coins)}&vs_currencies=usd&include_24hr_change=true&include_1h_change=true&include_7d_change=true"
-                additional_response = requests.get(additional_url)
-                if additional_response.status_code == 200:
-                    additional_data = additional_response.json()
-                    for coin_id, data in additional_data.items():
-                        if coin_id in missing_coins:
-                            coin_data[coin_id] = data
-            
-            return coin_data
-        else:
-            logger.error(f"Error fetching market data: {response.status_code}")
-            return coin_data
-    except Exception as e:
-        logger.error(f"Exception fetching market data: {e}")
-        return coin_data
 
 def get_coin_prices_with_error(coin_ids):
-    if not coin_ids:
-        return {}, None
+    from price_data import prices, quality_summary
+    quotes = prices.read(coin_ids)
+    quality = quality_summary(quotes, coin_ids)
+    error = None if quality['fresh'] else 'Some prices are stale or unavailable.'
+    return quotes, error
 
-    coin_data = {}
-    error_parts = []
-    crypto_coin_ids = []
-    chf_ids = []
-    for coin_id in coin_ids:
-        if coin_id.lower() == "chf":
-            chf_ids.append(coin_id)
-        else:
-            crypto_coin_ids.append(coin_id)
-
-    if chf_ids:
-        rate, err = get_forex_rate("CHF", "USD")
-        if rate is not None:
-            for chf_id in chf_ids:
-                coin_data[chf_id] = {
-                    'usd': rate,
-                    'usd_1h_change': 0,
-                    'usd_24h_change': 0,
-                    'usd_7d_change': 0,
-                    'image': "https://flagcdn.com/w40/ch.png"
-                }
-        else:
-            if err:
-                error_parts.append(err)
-
-    if not crypto_coin_ids:
-        return coin_data, "; ".join(error_parts) if error_parts else None
-
-    url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=180&page=1&sparkline=false&price_change_percentage=1h%2C24h%2C7d&locale=en"
-    try:
-        response = requests.get(url, timeout=15)
-    except Exception as e:
-        err = f"CoinGecko request failed: {e}"
-        logger.error(err)
-        error_parts.append(err)
-        return coin_data, "; ".join(error_parts) if error_parts else err
-
-    if response.status_code != 200:
-        body = (response.text or "")
-        body = body.strip().replace("\n", " ")
-        if len(body) > 300:
-            body = body[:300] + "..."
-        err = f"CoinGecko error {response.status_code}: {body}" if body else f"CoinGecko error {response.status_code}"
-        logger.error(err)
-        error_parts.append(err)
-        return coin_data, "; ".join(error_parts) if error_parts else err
-
-    try:
-        market_data = response.json()
-    except Exception as e:
-        err = f"CoinGecko JSON parse failed: {e}"
-        logger.error(err)
-        error_parts.append(err)
-        return coin_data, "; ".join(error_parts) if error_parts else err
-
-    crypto_coin_ids_set = set(crypto_coin_ids)
-    for coin in market_data:
-        if coin.get('id') in crypto_coin_ids_set:
-            price_1h = coin.get('price_change_percentage_1h_in_currency', 0)
-            price_24h = coin.get('price_change_percentage_24h', 0)
-            price_7d = coin.get('price_change_percentage_7d_in_currency', 0)
-            if price_1h is None:
-                price_1h = 0
-            if price_24h is None:
-                price_24h = 0
-            if price_7d is None:
-                price_7d = 0
-            coin_data[coin['id']] = {
-                'usd': coin.get('current_price', 0),
-                'usd_1h_change': price_1h,
-                'usd_24h_change': price_24h,
-                'usd_7d_change': price_7d,
-                'image': coin.get('image', '')
-            }
-
-    missing_coins = [coin_id for coin_id in crypto_coin_ids if coin_id not in coin_data]
-    if missing_coins:
-        try:
-            additional_url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(missing_coins)}&vs_currencies=usd&include_24hr_change=true&include_1h_change=true&include_7d_change=true"
-            additional_response = requests.get(additional_url, timeout=15)
-            if additional_response.status_code == 200:
-                additional_data = additional_response.json()
-                for coin_id, data in additional_data.items():
-                    if coin_id in missing_coins:
-                        coin_data[coin_id] = data
-        except Exception as e:
-            logger.error(f"Exception fetching additional coin data: {e}")
-
-    return coin_data, "; ".join(error_parts) if error_parts else None
 
 def get_quantity_numeric(blob: Any, target_id: str) -> Optional[str]:
     """
@@ -807,7 +648,11 @@ def get_portfolio():
     coin_ids = list(set(item['coin_id'] for item in portfolio_data))
     
     # Get current prices
-    prices, price_error = get_coin_prices_with_error(coin_ids)
+    from price_data import prices as price_service, quality_summary
+    prices = price_service.read(set(coin_ids) | {'bitcoin'})
+    required = {item['coin_id'] for item in portfolio_data if item['amount'] != 0}
+    quality = quality_summary(prices, required)
+    price_error = None if quality['fresh'] else 'Some prices are stale or unavailable.'
     
     # Group portfolio data by coin_id
     grouped_data = {}
@@ -861,10 +706,10 @@ def get_portfolio():
         
         if coin_id in prices:
             price_data = prices[coin_id]
-            price = price_data.get('usd', 0)
-            hourly_change = price_data.get('usd_1h_change', 0)
-            daily_change = price_data.get('usd_24h_change', 0)
-            seven_day_change = price_data.get('usd_7d_change', 0)
+            price = price_data.get('usd') or 0
+            hourly_change = price_data.get('usd_1h_change')
+            daily_change = price_data.get('usd_24h_change')
+            seven_day_change = price_data.get('usd_7d_change')
         
         coin_total_value = 0
         coin_monthly_yield = 0
@@ -883,7 +728,11 @@ def get_portfolio():
         # Set the total value and monthly yield for this coin
         grouped_data[coin_id]['total_value'] = coin_total_value
         grouped_data[coin_id]['monthly_yield'] = coin_monthly_yield
-        grouped_data[coin_id]['price'] = price
+        grouped_data[coin_id]['price_quality'] = {k: prices[coin_id].get(k) for k in ('status', 'source', 'as_of', 'fetched_at', 'cached')}
+        grouped_data[coin_id]['price'] = prices[coin_id]['usd']
+        if prices[coin_id]['usd'] is None and any(v['amount'] != 0 for v in coin_data['sources'].values()):
+            grouped_data[coin_id]['total_value'] = None
+            grouped_data[coin_id]['monthly_yield'] = None
         grouped_data[coin_id]['hourly_change'] = hourly_change
         grouped_data[coin_id]['daily_change'] = daily_change
         grouped_data[coin_id]['seven_day_change'] = seven_day_change
@@ -894,8 +743,10 @@ def get_portfolio():
     return jsonify({
         'success': True,
         'data': grouped_data,
-        'total_value': total_value,
-        'total_monthly_yield': total_monthly_yield,
+        'total_value': total_value if quality['complete'] else None,
+        'total_monthly_yield': total_monthly_yield if quality['complete'] else None,
+        'price_quality': quality,
+        'bitcoin_price': prices['bitcoin']['usd'] if prices['bitcoin']['status'] == 'fresh' else None,
         'price_error': price_error
     })
 
@@ -1048,85 +899,27 @@ def delete_coin(coin_id):
 @app.route('/add_history', methods=['POST'])
 @login_required
 def add_history():
+    # Never trust a formatted, demo-scaled, or incomplete browser valuation.
+    from snapshot_service import fresh_prices, value_snapshot, SnapshotUnavailable, utcnow
+    from types import SimpleNamespace
     try:
-        data = request.get_json()
-        logger.info(f"Received add_history request with data: {data}")
-        
-        if not data or 'total_value' not in data:
-            logger.error("Invalid data received in add_history request")
-            return jsonify({'success': False, 'error': 'Invalid data'}), 400
-        
-        # Validate total_value
-        total_value = float(data['total_value'])
-        if not math.isfinite(total_value):
-            logger.error(f"Invalid total_value: {total_value}")
-            return jsonify({'success': False, 'error': 'Total value must be a finite number'}), 400
-            
-        # Check if BTC values were provided in the request
-        btc_value = data.get('btc_value', 0)
-        actual_btc = data.get('actual_btc', 0)
-        
-        # If BTC values were not provided, calculate them
-        if btc_value == 0 or actual_btc == 0:
-            # Get portfolio data to calculate Bitcoin price and amount
-            portfolio_data = get_portfolio_data()
-            coin_ids = list(set(item['coin_id'] for item in portfolio_data))
-            prices = get_coin_prices(coin_ids)
-            
-            # Initialize variables
-            bitcoin_price = 0
-            actual_bitcoin_amount = 0
-            
-            # Find Bitcoin in the portfolio
-            for item in portfolio_data:
-                if item['coin_id'] == 'bitcoin':
-                    actual_bitcoin_amount += item['amount']
-            
-            # Get Bitcoin price
-            if 'bitcoin' in prices:
-                bitcoin_price = prices['bitcoin'].get('usd', 0)
-            
-            # Calculate total value in BTC
-            if bitcoin_price > 0:
-                btc_value = total_value / bitcoin_price
-            else:
-                logger.error("Cannot calculate BTC value: Bitcoin price is 0")
-                return jsonify({'success': False, 'error': 'Bitcoin price is 0'}), 400
-                
-            actual_btc = actual_bitcoin_amount
-                
-            logger.info(f"Calculated Bitcoin price: {bitcoin_price}, BTC value: {btc_value}, Actual BTC: {actual_btc}")
-        else:
-            # Validate provided BTC values
-            try:
-                btc_value = float(btc_value)
-                actual_btc = float(actual_btc)
-            except (TypeError, ValueError):
-                logger.error(f"Invalid btc_value/actual_btc: btc_value={btc_value}, actual_btc={actual_btc}")
-                return jsonify({'success': False, 'error': 'BTC values must be numeric'}), 400
-
-            if not math.isfinite(btc_value):
-                logger.error(f"Invalid btc_value: {btc_value}")
-                return jsonify({'success': False, 'error': 'BTC value must be a finite number'}), 400
-                
-            logger.info(f"Using provided BTC value: {btc_value}, Actual BTC: {actual_btc}")
-        
-        new_entry = PortfolioHistory(
-            date=datetime.datetime.now(),
-            total_value=total_value,
-            btc=btc_value,
-            actual_btc=actual_btc
-        )
-        
-        db.session.add(new_entry)
+        holdings = [(r.id, r.coin_id, r.amount) for r in Portfolio.query.order_by(Portfolio.id).all()]
+        db.session.rollback()
+        rows = [SimpleNamespace(coin_id=coin, amount=amount) for _, coin, amount in holdings]
+        quotes = fresh_prices({r.coin_id for r in rows if r.amount != 0} | {'bitcoin'})
+        values = value_snapshot(rows, quotes)
+        if [(r.id, r.coin_id, r.amount) for r in Portfolio.query.order_by(Portfolio.id).all()] != holdings:
+            raise SnapshotUnavailable('Holdings changed during pricing. Please retry.')
+        db.session.add(PortfolioHistory(date=utcnow(), **values))
         db.session.commit()
-        
-        logger.info(f"Manually added history entry with total value: {data['total_value']}, BTC value: {btc_value}")
-        
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"Error in add_history: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify(success=True)
+    except SnapshotUnavailable as error:
+        db.session.rollback()
+        return jsonify(success=False, error=str(error)), 503
+    except Exception:
+        db.session.rollback()
+        logger.exception('Manual snapshot failed')
+        return jsonify(success=False, error='Snapshot could not be saved.'), 503
 
 @app.route('/debug_db')
 @login_required

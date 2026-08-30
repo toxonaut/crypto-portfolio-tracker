@@ -16,6 +16,7 @@ console.log('Browser detection:', { isIOS, isChrome, isIOSChrome });
 
 // Format price change percentage
 function formatPriceChange(change) {
+    if (!Number.isFinite(change)) return '<span class="text-muted">—</span>';
     const formattedChange = Math.abs(change).toFixed(2);
     const sign = change >= 0 ? '+' : '-';
     const className = change >= 0 ? 'price-change-positive' : 'price-change-negative';
@@ -82,14 +83,8 @@ async function updatePortfolio() {
         const response = await fetch('/portfolio');
         const data = await response.json();
         
-        if (!data.success) {
-            console.error('Portfolio data error:', data.error);
-            showHistoricalChangesError();
-            if (typeof showExposureError === 'function') showExposureError();
-            if (typeof showScenarioError === 'function') showScenarioError();
-            return;
-        }
-        
+        if (!data.success) throw new Error('Portfolio refresh failed');
+
         console.log('Portfolio data received:', data);
 
         const priceApiErrorElement = document.getElementById('priceApiError');
@@ -111,7 +106,7 @@ async function updatePortfolio() {
         }
         
         // Get the total monthly yield from the API response
-        let totalMonthlyYield = data.total_monthly_yield || 0;
+        let totalMonthlyYield = data.total_monthly_yield;
         
         // Clear the table
         const portfolioTable = document.getElementById('portfolioTableBody');
@@ -122,24 +117,8 @@ async function updatePortfolio() {
             return b[1].total_value - a[1].total_value;
         });
 
-        let hasAnyPositivePrice = false;
-        for (const [, details] of sortedCoins) {
-            if (typeof details.price === 'number' && details.price > 0) {
-                hasAnyPositivePrice = true;
-                break;
-            }
-        }
-
-        // Track bitcoin price for BTC value calculation
-        let bitcoinPrice = 0;
-        
         // Add rows for each coin
         for (const [coinId, details] of sortedCoins) {
-            // Store Bitcoin price for BTC value calculation
-            if (coinId === 'bitcoin') {
-                bitcoinPrice = details.price;
-            }
-            
             const row = document.createElement('tr');
             
             // Create coin cell with image and name
@@ -152,6 +131,10 @@ async function updatePortfolio() {
             coinImage.style.height = '24px';
             coinCell.appendChild(coinImage);
             coinCell.appendChild(document.createTextNode(coinId));
+            const qualityLabel = document.createElement('small');
+            qualityLabel.className = 'd-block text-muted';
+            qualityLabel.textContent = PriceQuality.label(details.price_quality);
+            coinCell.appendChild(qualityLabel);
             
             // Create other cells
             const totalBalanceCell = document.createElement('td');
@@ -163,11 +146,8 @@ async function updatePortfolio() {
             
             const priceCell = document.createElement('td');
             // Format with apostrophes as thousands separators and 2 decimal places
-            priceCell.textContent = '$' + details.price.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).replace(/,/g, "'");
-            
+            priceCell.textContent = Number.isFinite(details.price) ? '$' + PriceQuality.money(details.price) : 'Unavailable';
+
             const hourlyChangeCell = document.createElement('td');
             hourlyChangeCell.innerHTML = formatPriceChange(details.hourly_change);
             
@@ -183,11 +163,8 @@ async function updatePortfolio() {
                 value = value / 15;
             }
             // Format with apostrophes as thousands separators and 2 decimal places
-            valueCell.textContent = '$' + value.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).replace(/,/g, "'");
-            
+            valueCell.textContent = Number.isFinite(details.total_value) ? '$' + PriceQuality.money(value) : 'Unavailable';
+
             // Append all cells to the row
             row.appendChild(coinCell);
             row.appendChild(totalBalanceCell);
@@ -208,18 +185,15 @@ async function updatePortfolio() {
             totalValue = totalValue / 15;
         }
         // Format with apostrophes as thousands separators and 2 decimal places
-        totalValueElement.textContent = totalValue.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).replace(/,/g, "'");
-        
+        totalValueElement.textContent = PriceQuality.money(Number.isFinite(data.total_value) ? totalValue : null);
+
         // Update BTC value
         const btcValueElement = document.getElementById('btcValue');
-        if (bitcoinPrice > 0) {
-            const btcValue = totalValue / bitcoinPrice;
+        if (data.bitcoin_price > 0 && Number.isFinite(data.total_value)) {
+            const btcValue = totalValue / data.bitcoin_price;
             btcValueElement.textContent = btcValue.toFixed(8);
         } else {
-            btcValueElement.textContent = '0.00';
+            btcValueElement.textContent = 'Unavailable';
         }
         
         // Update monthly yield
@@ -228,11 +202,8 @@ async function updatePortfolio() {
             totalMonthlyYield = totalMonthlyYield / 15;
         }
         // Format with apostrophes as thousands separators and 2 decimal places
-        monthlyYieldElement.textContent = totalMonthlyYield.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).replace(/,/g, "'");
-        
+        monthlyYieldElement.textContent = PriceQuality.money(Number.isFinite(data.total_monthly_yield) ? totalMonthlyYield : null);
+
         // Refresh only the small summary; chart data loads solely on demand.
         await updateHistorySummary();
         
@@ -241,13 +212,16 @@ async function updatePortfolio() {
         
         console.log('Portfolio update complete');
 
-        if (priceApiErrorElement && sortedCoins.length > 0 && !hasAnyPositivePrice) {
-            const reason = data.price_error || 'Price API returned no data.';
-            priceApiErrorElement.textContent = `Price data unavailable: ${reason}`;
+        if (priceApiErrorElement) {
+            priceApiErrorElement.textContent = PriceQuality.summary(data.price_quality);
+            priceApiErrorElement.className = data.price_quality?.fresh ? 'alert alert-info mt-3' : 'alert alert-warning mt-3';
             priceApiErrorElement.style.display = 'block';
         }
     } catch (error) {
         console.error('Error updating portfolio:', error);
+        portfolioData = null;
+        const warning = document.getElementById('priceApiError');
+        if (warning) { warning.textContent = 'Refresh failed. Displayed figures are from the previous refresh and may be stale.'; warning.style.display = 'block'; warning.className = 'alert alert-warning'; }
         showHistoricalChangesError();
         if (typeof showExposureError === 'function') showExposureError();
         if (typeof showScenarioError === 'function') showScenarioError();
@@ -469,9 +443,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({
-                            total_value: parseFloat(document.getElementById('totalValue').innerText)
-                        })
+                        body: JSON.stringify({})
                     });
                     
                     const data = await response.json();

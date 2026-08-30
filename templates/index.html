@@ -35,7 +35,6 @@
                 </div>
             </div>
         </nav>
-        <div id="workerHealth" class="alert alert-secondary" role="status">Checking automatic history updates…</div>
 
         <div class="card mb-4">
             <div class="card-body">
@@ -45,7 +44,7 @@
                         <h4>Total Value: $<span id="totalValue">0.00</span></h4>
                         <h5>Value in BTC: <span id="btcValue">0.00</span> BTC</h5>
                         <h5>Monthly Yield: $<span id="monthlyYield">0.00</span></h5>
-                        <p class="text-muted small">Last updated: <span id="lastUpdated"></span></p>
+                        <p class="text-muted small">View refreshed: <span id="lastUpdated"></span></p>
                     </div>
                     <div class="col-md-6">
                         <h3 class="card-title">Historical Changes</h3>
@@ -99,7 +98,7 @@
         <div class="card mb-4">
             <div class="card-body">
                 <h3 class="card-title" id="exposureHeading">Exposure Map</h3>
-                <p class="exposure-description small">See where your holdings are concentrated, by asset and platform / location.</p>
+                <p class="exposure-description small">Net holdings by asset and platform / location, after subtracting negative balances.</p>
                 <section id="exposureMap" aria-labelledby="exposureHeading">
                     <p id="exposureStatus" role="status">Waiting for portfolio data…</p>
                     <div class="exposure-grid">
@@ -167,12 +166,17 @@
         </div>
     </footer>
 
+    <div class="container pb-3">
+        <div id="workerHealth" class="alert alert-secondary" role="status">Checking automatic history updates…</div>
+    </div>
+
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='exposure.js') }}"></script>
     <script src="{{ url_for('static', filename='scenario.js') }}"></script>
     <script src="{{ url_for('static', filename='history-summary.js') }}"></script>
     <script src="{{ url_for('static', filename='history-chart.js') }}"></script>
+    <script src="{{ url_for('static', filename='price-quality.js') }}"></script>
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
 </body>
 </html>
