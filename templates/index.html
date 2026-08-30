@@ -59,9 +59,9 @@
                     </div>
                     <div class="col-md-6">
                         <h3 class="card-title">Historical Changes</h3>
-                        <h4>24h Change: <span id="change24h">$0.00 (0.00%)</span></h4>
-                        <h5>7d Change: <span id="change7d">$0.00 (0.00%)</span></h5>
-                        <h5>1m Change: <span id="change30d">$0.00 (0.00%)</span></h5>
+                        <h4>24h Change: <span id="change24h">Loading…</span></h4>
+                        <h5>7d Change: <span id="change7d">Loading…</span></h5>
+                        <h5>1m Change: <span id="change30d">Loading…</span></h5>
                     </div>
                 </div>
                 <div class="table-responsive">
@@ -98,6 +98,36 @@
                 </section>
             </div>
         </div>
+
+        <section class="card mb-4" aria-labelledby="scenarioHeading" id="scenarioLab">
+            <div class="card-body">
+                <div class="scenario-header">
+                    <div><h3 id="scenarioHeading">Scenario Lab</h3><p class="exposure-description">Explore what-if changes without editing your holdings.</p></div>
+                    <button type="button" class="btn btn-outline-primary" id="scenarioReset" disabled>Reset to latest portfolio</button>
+                </div>
+                <p id="scenarioStatus" role="status">Waiting for portfolio data…</p>
+                <div id="scenarioContent" hidden>
+                    <div class="scenario-results" aria-live="polite" aria-atomic="true">
+                        <div><span>Scenario value</span><strong id="scenarioValue"></strong><small id="scenarioBaseline"></small></div>
+                        <div><span>Market impact</span><strong id="scenarioImpact"></strong><small>Excludes your added contribution</small></div>
+                        <div><span>Estimated monthly income</span><strong id="scenarioIncome"></strong><small id="scenarioIncomeChange"></small></div>
+                    </div>
+                    <div class="exposure-grid mt-4">
+                        <div><h4 class="h5">Asset price changes</h4><div id="scenarioAssets"></div></div>
+                        <div>
+                            <label for="scenarioContribution">One-time contribution (USD, shown units)</label>
+                            <input id="scenarioContribution" class="form-control mt-2" type="number" min="0" max="1000000000" step="any" value="0" aria-describedby="scenarioContributionHelp scenarioInputError">
+                            <p id="scenarioContributionHelp" class="exposure-description small mt-2">Allocated proportionally across included positions at baseline prices, before price changes. In Demo Mode, enter demo dollars.</p>
+                            <p id="scenarioInputError" class="text-warning" role="alert"></p>
+                            <label for="scenarioYield">Yield multiplier: <output id="scenarioYieldLabel" for="scenarioYield">100%</output></label>
+                            <input id="scenarioYield" class="form-range" type="range" min="0" max="200" step="5" value="100">
+                            <p class="exposure-description small">100% keeps your existing APYs; 50% halves them. Positions with zero APY stay at zero.</p>
+                        </div>
+                    </div>
+                    <p class="exposure-description small mb-0">Instant what-if snapshot, not a forecast. Prices change after the contribution; income uses the resulting position values × adjusted APY ÷ 12, matching the dashboard estimate. No compounding, fees, taxes, or execution. Baseline stays fixed until reset; assumptions are discarded on page reload.</p>
+                </div>
+            </div>
+        </section>
 
         <div class="card mb-4">
             <div class="card-body">
@@ -174,6 +204,8 @@
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='exposure.js') }}"></script>
+    <script src="{{ url_for('static', filename='scenario.js') }}"></script>
+    <script src="{{ url_for('static', filename='history-summary.js') }}"></script>
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
 </body>
 </html>

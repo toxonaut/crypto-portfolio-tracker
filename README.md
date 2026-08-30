@@ -10,6 +10,18 @@ A web application for tracking cryptocurrency portfolios with real-time price up
 - TradingView charts integration
 - Editable portfolio entries
 - Responsive design
+- Exposure map by asset and platform/location
+- Scenario Lab: per-asset price shocks, proportional one-time contributions, and yield multipliers, with a fixed baseline and no changes to saved holdings
+
+### Scenario Lab checks
+
+Run the calculation tests with Node.js 18 or later:
+
+```bash
+node --test tests/scenario.test.cjs
+```
+
+Scenario contributions buy positions proportionally at baseline prices before the selected price shocks. Estimated monthly income uses scenario values multiplied by adjusted APY divided by 12; it does not model compounding, fees, or taxes. Reset uses the most recently loaded portfolio. Assumptions remain in memory only and are discarded on reload.
 
 ## Local Development
 
@@ -71,3 +83,16 @@ The application currently uses JSON files for data storage:
 - `portfolio_history.json`: Stores historical portfolio values
 
 For production deployment, consider migrating to a proper database system.
+
+### Historical change summaries
+
+The dashboard requests `/history/summary` on each portfolio refresh. Six bounded indexed queries select the nearest snapshots for 24 hours, 7 days, and 30 days, returning at most three comparison records. Snapshots more than 12 hours from their target, or invalid/zero comparison values, show as unavailable. Returns describe portfolio value changes, including deposits and withdrawals.
+
+Full `/history` data loads only when the user requests the chart (on either page), changes an already-loaded chart's range/scale, or adds a history entry with the chart open. Statistics extrema are calculated on chart load. Stored timestamps retain their time component; existing naive server-time conventions are preserved. Startup creates the date index on existing databases (concurrently on PostgreSQL).
+
+Run the summary checks without connecting to the application database:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -p 'test_history_summary.py'
+node --test tests/history-summary.test.cjs
+```

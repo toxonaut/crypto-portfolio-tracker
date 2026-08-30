@@ -12,6 +12,7 @@ from typing import Any, Optional
 from authlib.integrations.flask_client import OAuth
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from functools import wraps
+from history_summary import read_history_summary
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -138,6 +139,7 @@ class Portfolio(db.Model):
         }
 
 class PortfolioHistory(db.Model):
+    __table_args__ = (db.Index('ix_portfolio_history_date', 'date'),)
     __tablename__ = 'portfolio_history'  # Explicitly set lowercase table name
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     date = db.Column(db.DateTime, nullable=False)
@@ -148,7 +150,7 @@ class PortfolioHistory(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'date': self.date.strftime('%Y-%m-%d'),
+            'date': self.date.isoformat(),
             'total_value': self.total_value,
             'btc': self.btc if self.btc is not None else 0,
             'actual_btc': self.actual_btc if self.actual_btc is not None else 0
@@ -168,6 +170,17 @@ class WorkerStatus(db.Model):
             'is_authenticated': self.is_authenticated,
             'last_error': self.last_error
         }
+
+# Existing databases need this index too (create_all does not migrate existing tables).
+# PostgreSQL concurrent creation avoids blocking history writes during deployment.
+with app.app_context():
+    with db.engine.connect().execution_options(isolation_level='AUTOCOMMIT') as connection:
+        if db.inspect(connection).has_table('portfolio_history'):
+            concurrent = 'CONCURRENTLY ' if connection.dialect.name == 'postgresql' else ''
+            connection.execute(db.text(
+                f'CREATE INDEX {concurrent}IF NOT EXISTS ix_portfolio_history_date '
+                'ON portfolio_history (date)'
+            ))
 
 # User model for authentication
 class User(UserMixin, db.Model):
@@ -922,6 +935,16 @@ def get_portfolio():
         'total_monthly_yield': total_monthly_yield,
         'price_error': price_error
     })
+
+@app.route('/history/summary')
+@login_required
+def get_history_summary():
+    try:
+        return jsonify({'success': True, 'data': read_history_summary(db.session, PortfolioHistory.__table__)})
+    except Exception:
+        logger.exception('Unable to load history summary')
+        return jsonify({'success': False, 'error': 'History summary unavailable'}), 503
+
 
 @app.route('/history')
 @login_required

@@ -96,3 +96,16 @@ body {
 }
 
 .exposure-description { color: #a7b4cb; }
+
+.scenario-header { display: flex; justify-content: space-between; align-items: start; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.scenario-results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.scenario-results > div { background: #1c243e; border: 1px solid #344361; border-radius: 8px; padding: 1rem; overflow-wrap: anywhere; }
+.scenario-results span, .scenario-results small { display: block; color: #b7c5df; }
+.scenario-results strong { display: block; font-size: 1.6rem; color: #e0eaff; margin: .35rem 0; font-variant-numeric: tabular-nums; }
+.scenario-control { margin-bottom: 1rem; }
+.scenario-control label { overflow-wrap: anywhere; }
+#scenarioLab output { font-variant-numeric: tabular-nums; color: #69dfba; }
+#scenarioLab input[type="range"] { accent-color: #7ea6ff; }
+@media (max-width: 767px) {
+    .scenario-results { grid-template-columns: minmax(0, 1fr); }
+}

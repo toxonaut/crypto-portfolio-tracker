@@ -111,6 +111,7 @@ async function updateHistoryChart() {
         
         if (historyData.length === 0) {
             console.warn('No history data available');
+            updateHistoryExtremes();
             return;
         }
         
@@ -338,8 +339,8 @@ async function updateHistoryChart() {
             }
         });
         
-        // Update historical changes after chart is updated
-        updateHistoricalChanges();
+        // Summary values never depend on chart data.
+        updateHistoryExtremes();
         
         return true;
     } catch (error) {
@@ -356,7 +357,9 @@ async function updatePortfolio() {
         
         if (!data.success) {
             console.error('Portfolio data error:', data.error);
+            showHistoricalChangesError();
             if (typeof showExposureError === 'function') showExposureError();
+            if (typeof showScenarioError === 'function') showScenarioError();
             return;
         }
         
@@ -371,6 +374,7 @@ async function updatePortfolio() {
         // Store portfolio data in global variable for use in historical changes calculation
         portfolioData = data;
         if (typeof renderExposure === 'function') renderExposure(data.data, isDemoMode, data.price_error);
+        if (typeof updateScenarioLab === 'function') updateScenarioLab(data.data, isDemoMode, data.price_error);
         
         // Update last updated timestamp
         const lastUpdatedElement = document.getElementById('lastUpdated');
@@ -384,7 +388,7 @@ async function updatePortfolio() {
         
         // Clear the table
         const portfolioTable = document.getElementById('portfolioTableBody');
-        portfolioTable.innerHTML = '';
+        if (portfolioTable) portfolioTable.innerHTML = '';
         
         // Sort coins by value (descending)
         const sortedCoins = Object.entries(data.data).sort((a, b) => {
@@ -467,7 +471,7 @@ async function updatePortfolio() {
             row.appendChild(valueCell);
             
             // Add the row to the table
-            portfolioTable.appendChild(row);
+            if (portfolioTable) portfolioTable.appendChild(row);
         }
         
         // Update total value
@@ -502,11 +506,8 @@ async function updatePortfolio() {
             maximumFractionDigits: 2
         }).replace(/,/g, "'");
         
-        // Update history chart
-        if (historyChartEnabled) {
-            console.log('Updating history chart...');
-            await updateHistoryChart();
-        }
+        // Refresh only the small summary; chart data loads solely on demand.
+        await updateHistorySummary();
         
         // Update historical changes
         updateHistoricalChanges();
@@ -520,7 +521,9 @@ async function updatePortfolio() {
         }
     } catch (error) {
         console.error('Error updating portfolio:', error);
+        showHistoricalChangesError();
         if (typeof showExposureError === 'function') showExposureError();
+        if (typeof showScenarioError === 'function') showScenarioError();
     }
 }
 
@@ -655,6 +658,10 @@ function toggleDemoMode() {
         renderExposure(portfolioData.data, isDemoMode, portfolioData.price_error);
     }
     
+    if (portfolioData && typeof updateScenarioLab === 'function') {
+        updateScenarioLab(portfolioData.data, isDemoMode, portfolioData.price_error);
+    }
+
     // Update the status message
     const statusElement = document.getElementById('demoModeStatus');
     if (statusElement) {
@@ -670,542 +677,7 @@ function toggleDemoMode() {
     
     // Update the historical changes
     updateHistoricalChanges();
-}
-
-// Calculate historical changes based on history data
-function calculateHistoricalChanges() {
-    // For iOS Chrome, use a simplified calculation to prevent crashes
-    if (isIOSChrome) {
-        console.log('Using simplified historical changes calculation for iOS Chrome');
-        return {
-            currentValue: portfolioData ? portfolioData.total_value : 0,
-            currentDate: new Date().toISOString(),
-            value24hAgo: 0,
-            value7dAgo: 0,
-            value30dAgo: 0,
-            change24h: { value: 0, percent: 0, date: '' },
-            change7d: { value: 0, percent: 0, date: '' },
-            change30d: { value: 0, percent: 0, date: '' },
-            largestPercentGain: { value: 0, percent: 0, date: '' },
-            largestDollarGain: { value: 0, percent: 0, date: '' },
-            largestPercentLoss: { value: 0, percent: 0, date: '' },
-            largestDollarLoss: { value: 0, percent: 0, date: '' }
-        };
-    }
-    
-    console.log('Calculating historical changes...');
-    
-    if (!historyData || historyData.length === 0) {
-        console.error('No history data available for calculating changes');
-        return {
-            currentValue: 0,
-            currentDate: '',
-            value24hAgo: 0,
-            value7dAgo: 0,
-            value30dAgo: 0,
-            change24h: { value: 0, percent: 0, date: '' },
-            change7d: { value: 0, percent: 0, date: '' },
-            change30d: { value: 0, percent: 0, date: '' },
-            largestPercentGain: { value: 0, percent: 0, date: '' },
-            largestDollarGain: { value: 0, percent: 0, date: '' },
-            largestPercentLoss: { value: 0, percent: 0, date: '' },
-            largestDollarLoss: { value: 0, percent: 0, date: '' }
-        };
-    }
-    
-    console.log('History data available:', historyData.length, 'entries');
-    
-    // Sort history data by date (newest first)
-    const sortedData = [...historyData].sort((a, b) => {
-        return new Date(b.datetime) - new Date(a.datetime);
-    });
-    
-    // Get the current value from the portfolio data, not from history
-    let currentValue = 0;
-    let currentDate = new Date(); // Use current date/time
-    
-    // Get the total portfolio value from the global portfolioData
-    if (portfolioData && portfolioData.total_value) {
-        currentValue = portfolioData.total_value;
-        console.log('Current value from portfolio data:', currentValue);
-    } else if (sortedData.length > 0) {
-        // Fallback to most recent history entry if portfolio data is not available
-        currentValue = sortedData[0].total_value;
-        currentDate = new Date(sortedData[0].datetime);
-        console.log('Fallback: Current value from most recent history entry:', currentValue, 'from', currentDate);
-    } else {
-        console.error('No valid current value available');
-        return {
-            currentValue: 0,
-            currentDate: '',
-            value24hAgo: 0,
-            value7dAgo: 0,
-            value30dAgo: 0,
-            change24h: { value: 0, percent: 0, date: '' },
-            change7d: { value: 0, percent: 0, date: '' },
-            change30d: { value: 0, percent: 0, date: '' },
-            largestPercentGain: { value: 0, percent: 0, date: '' },
-            largestDollarGain: { value: 0, percent: 0, date: '' },
-            largestPercentLoss: { value: 0, percent: 0, date: '' },
-            largestDollarLoss: { value: 0, percent: 0, date: '' }
-        };
-    }
-    
-    // Apply demo mode scaling if needed
-    if (isDemoMode) {
-        currentValue = currentValue / 15;
-    }
-    
-    // We need at least 2 data points to calculate changes
-    if (sortedData.length < 2) {
-        console.error('Not enough history data to calculate changes');
-        return {
-            currentValue: 0,
-            currentDate: '',
-            value24hAgo: 0,
-            value7dAgo: 0,
-            value30dAgo: 0,
-            change24h: { value: 0, percent: 0, date: '' },
-            change7d: { value: 0, percent: 0, date: '' },
-            change30d: { value: 0, percent: 0, date: '' },
-            largestPercentGain: { value: 0, percent: 0, date: '' },
-            largestDollarGain: { value: 0, percent: 0, date: '' },
-            largestPercentLoss: { value: 0, percent: 0, date: '' },
-            largestDollarLoss: { value: 0, percent: 0, date: '' }
-        };
-    }
-    
-    // Find values from 24h ago, 7d ago, and 30d ago
-    const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    // Find the closest data points to our target times
-    let value24hAgo = null;
-    let value7dAgo = null;
-    let value30dAgo = null;
-    let date24hAgo = null;
-    let date7dAgo = null;
-    let date30dAgo = null;
-
-    // Log the target times for debugging
-    console.log('Current time:', now);
-    console.log('Target times for comparison:');
-    console.log('24h ago:', oneDayAgo);
-    console.log('7d ago:', sevenDaysAgo);
-    console.log('30d ago:', thirtyDaysAgo);
-
-    console.log('Available history entries:');
-    sortedData.forEach((entry, index) => {
-        const entryDate = new Date(entry.datetime);
-        console.log(`Entry ${index}: ${entryDate} - Value: ${entry.total_value}`);
-    });
-
-    // COMPLETELY NEW APPROACH: Find the entry closest to 24 hours ago based on actual hours difference
-    let closestEntry24h = null;
-    let closestHoursDiff24h = Infinity;
-
-    // Skip the most recent entry (which we're using as current value)
-    for (let i = 1; i < sortedData.length; i++) {
-        const entry = sortedData[i];
-        const entryDate = new Date(entry.datetime);
-        
-        // Calculate how many hours ago this entry was created
-        const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
-        
-        // We want the entry closest to 24 hours ago
-        const distanceFrom24h = Math.abs(hoursDiff - 24);
-        
-        console.log(`Entry ${i}: ${entryDate} - ${hoursDiff.toFixed(2)} hours ago, distance from 24h: ${distanceFrom24h.toFixed(2)}`);
-        
-        if (distanceFrom24h < closestHoursDiff24h) {
-            closestHoursDiff24h = distanceFrom24h;
-            closestEntry24h = entry;
-            value24hAgo = entry.total_value;
-            date24hAgo = entryDate;
-        }
-    }
-
-    // For 7d and 30d, we'll use a similar approach
-    let closestEntry7d = null;
-    let closestHoursDiff7d = Infinity;
-    let closestEntry30d = null;
-    let closestHoursDiff30d = Infinity;
-
-    for (let i = 1; i < sortedData.length; i++) {
-        const entry = sortedData[i];
-        const entryDate = new Date(entry.datetime);
-        
-        // Calculate how many hours ago this entry was created
-        const hoursDiff = (now - entryDate) / (1000 * 60 * 60);
-        
-        // We want the entry closest to 7 days ago (168 hours)
-        const distanceFrom7d = Math.abs(hoursDiff - 168);
-        if (distanceFrom7d < closestHoursDiff7d) {
-            closestHoursDiff7d = distanceFrom7d;
-            closestEntry7d = entry;
-            value7dAgo = entry.total_value;
-            date7dAgo = entryDate;
-        }
-        
-        // We want the entry closest to 30 days ago (720 hours)
-        const distanceFrom30d = Math.abs(hoursDiff - 720);
-        if (distanceFrom30d < closestHoursDiff30d) {
-            closestHoursDiff30d = distanceFrom30d;
-            closestEntry30d = entry;
-            value30dAgo = entry.total_value;
-            date30dAgo = entryDate;
-        }
-    }
-
-    if (date24hAgo) {
-        const hoursSince = (now - date24hAgo) / (1000 * 60 * 60);
-        console.log('Using entry from', date24hAgo, 'with value', value24hAgo, 'for 24h comparison');
-        console.log('This entry is', hoursSince.toFixed(2), 'hours old');
-        console.log('This is', closestHoursDiff24h.toFixed(2), 'hours away from exactly 24h');
-        
-        // Add a warning if the entry is too far from 24 hours
-        if (closestHoursDiff24h > 12) {
-            console.log(`WARNING: The closest entry to 24h ago is ${closestHoursDiff24h.toFixed(2)} hours away from 24h!`);
-            console.log('This suggests the worker process might not be adding history entries regularly.');
-        }
-    }
-
-    if (date7dAgo) {
-        const hoursSince = (now - date7dAgo) / (1000 * 60 * 60);
-        console.log('Using entry from', date7dAgo, 'with value', value7dAgo, 'for 7d comparison');
-        console.log('This entry is', hoursSince.toFixed(2), 'hours old');
-        console.log('This is', closestHoursDiff7d.toFixed(2), 'hours away from exactly 7d');
-    }
-
-    if (date30dAgo) {
-        const hoursSince = (now - date30dAgo) / (1000 * 60 * 60);
-        console.log('Using entry from', date30dAgo, 'with value', value30dAgo, 'for 30d comparison');
-        console.log('This entry is', hoursSince.toFixed(2), 'hours old');
-        console.log('This is', closestHoursDiff30d.toFixed(2), 'hours away from exactly 30d');
-    }
-    
-    // Apply demo mode scaling to historical values if needed
-    if (isDemoMode) {
-        if (value24hAgo !== null) value24hAgo = value24hAgo / 15;
-        if (value7dAgo !== null) value7dAgo = value7dAgo / 15;
-        if (value30dAgo !== null) value30dAgo = value30dAgo / 15;
-    }
-    
-    // Calculate dollar and percentage changes
-    let dollarChange24h = 0;
-    let percentChange24h = 0;
-    let formattedDate24h = '';
-    
-    if (value24hAgo !== null && value24hAgo !== 0) {
-        dollarChange24h = currentValue - value24hAgo;
-        percentChange24h = ((currentValue - value24hAgo) / value24hAgo) * 100;
-        
-        // Format the date for display
-        if (date24hAgo) {
-            const month = date24hAgo.toLocaleString('en-US', { month: 'short' });
-            const day = date24hAgo.getDate();
-            const hours = date24hAgo.getHours().toString().padStart(2, '0');
-            const minutes = date24hAgo.getMinutes().toString().padStart(2, '0');
-            formattedDate24h = `${month}-${day}, ${hours}:${minutes}`;
-        }
-        
-        console.log('24h change calculation:');
-        console.log('Current value:', currentValue);
-        console.log('24h ago value:', value24hAgo, 'from', date24hAgo);
-        console.log('Dollar change:', dollarChange24h);
-        console.log('Percent change:', percentChange24h);
-        
-        // Check for unreasonable changes (both positive and negative)
-        if (Math.abs(percentChange24h) > 100) {
-            console.log(`Detected extreme percentage change for 24h (${percentChange24h.toFixed(2)}%), capping at ±100%`);
-            if (percentChange24h > 0) {
-                percentChange24h = 100;
-                dollarChange24h = value24hAgo; // 100% increase
-            } else {
-                percentChange24h = -100;
-                dollarChange24h = -value24hAgo; // 100% decrease
-            }
-        }
-    }
-    
-    let dollarChange7d = 0;
-    let percentChange7d = 0;
-    let formattedDate7d = '';
-    
-    if (value7dAgo !== null && value7dAgo !== 0) {
-        dollarChange7d = currentValue - value7dAgo;
-        percentChange7d = ((currentValue - value7dAgo) / value7dAgo) * 100;
-        
-        // Format the date for 7d display
-        if (date7dAgo) {
-            const month = date7dAgo.toLocaleString('en-US', { month: 'short' });
-            const day = date7dAgo.getDate();
-            const hours = date7dAgo.getHours().toString().padStart(2, '0');
-            const minutes = date7dAgo.getMinutes().toString().padStart(2, '0');
-            formattedDate7d = `${month}-${day}, ${hours}:${minutes}`;
-        }
-        
-        console.log('7d change calculation:');
-        console.log('Current value:', currentValue);
-        console.log('7d ago value:', value7dAgo, 'from', date7dAgo);
-        console.log('Dollar change:', dollarChange7d);
-        console.log('Percent change:', percentChange7d);
-        
-        // Check for unreasonable changes
-        if (Math.abs(percentChange7d) > 200) {
-            console.log(`Detected extreme percentage change for 7d (${percentChange7d.toFixed(2)}%), capping at ±200%`);
-            if (percentChange7d > 0) {
-                percentChange7d = 200;
-                dollarChange7d = value7dAgo * 2; // 200% increase
-            } else {
-                percentChange7d = -200;
-                dollarChange7d = -value7dAgo * 2; // 200% decrease
-            }
-        }
-    }
-    
-    let dollarChange30d = 0;
-    let percentChange30d = 0;
-    let formattedDate30d = '';
-    
-    if (value30dAgo !== null && value30dAgo !== 0) {
-        dollarChange30d = currentValue - value30dAgo;
-        percentChange30d = ((currentValue - value30dAgo) / value30dAgo) * 100;
-        
-        // Format the date for 30d display
-        if (date30dAgo) {
-            const month = date30dAgo.toLocaleString('en-US', { month: 'short' });
-            const day = date30dAgo.getDate();
-            const hours = date30dAgo.getHours().toString().padStart(2, '0');
-            const minutes = date30dAgo.getMinutes().toString().padStart(2, '0');
-            formattedDate30d = `${month}-${day}, ${hours}:${minutes}`;
-        }
-        
-        console.log('30d change calculation:');
-        console.log('Current value:', currentValue);
-        console.log('30d ago value:', value30dAgo, 'from', date30dAgo);
-        console.log('Dollar change:', dollarChange30d);
-        console.log('Percent change:', percentChange30d);
-        
-        // Check for unreasonable changes
-        if (Math.abs(percentChange30d) > 500) {
-            console.log(`Detected extreme percentage change for 30d (${percentChange30d.toFixed(2)}%), capping at ±500%`);
-            if (percentChange30d > 0) {
-                percentChange30d = 500;
-                dollarChange30d = value30dAgo * 5; // 500% increase
-            } else {
-                percentChange30d = -500;
-                dollarChange30d = -value30dAgo * 5; // 500% decrease
-            }
-        }
-    }
-    
-    // Initialize largest changes
-    let largestPercentGain = { value: 0, percent: 0, date: '' };
-    let largestDollarGain = { value: 0, percent: 0, date: '' };
-    let largestPercentLoss = { value: 0, percent: 0, date: '' };
-    let largestDollarLoss = { value: 0, percent: 0, date: '' };
-    
-    // We need at least 2 data points to calculate changes
-    if (sortedData.length >= 2) {
-        // Calculate all 24h changes between consecutive data points
-        for (let i = 0; i < sortedData.length - 1; i++) {
-            const laterDate = new Date(sortedData[i].datetime);
-            const earlierDate = new Date(sortedData[i + 1].datetime);
-            
-            // Check if these entries are roughly 24h apart (between 20-28 hours to account for some variance)
-            const hoursDiff = (laterDate - earlierDate) / (1000 * 60 * 60);
-            if (hoursDiff >= 20 && hoursDiff <= 28) {
-                let laterValue = sortedData[i].total_value;
-                let earlierValue = sortedData[i + 1].total_value;
-                
-                // Apply demo mode scaling if needed
-                if (isDemoMode) {
-                    laterValue = laterValue / 15;
-                    earlierValue = earlierValue / 15;
-                }
-                
-                const dollarChange = laterValue - earlierValue;
-                const percentChange = earlierValue !== 0 ? ((laterValue - earlierValue) / earlierValue) * 100 : 0;
-                const dateStr = laterDate.toISOString().split('T')[0]; // Just the date part
-                
-                // Update largest percentage gain
-                if (percentChange > 0 && percentChange > largestPercentGain.percent) {
-                    largestPercentGain = {
-                        value: dollarChange,
-                        percent: percentChange,
-                        date: dateStr
-                    };
-                }
-                
-                // Update largest dollar gain
-                if (dollarChange > 0 && dollarChange > largestDollarGain.value) {
-                    largestDollarGain = {
-                        value: dollarChange,
-                        percent: percentChange,
-                        date: dateStr
-                    };
-                }
-                
-                // Update largest percentage loss (note: percentChange will be negative)
-                if (percentChange < 0 && percentChange < largestPercentLoss.percent) {
-                    largestPercentLoss = {
-                        value: dollarChange,
-                        percent: percentChange,
-                        date: dateStr
-                    };
-                }
-                
-                // Update largest dollar loss (note: dollarChange will be negative)
-                if (dollarChange < 0 && dollarChange < largestDollarLoss.value) {
-                    largestDollarLoss = {
-                        value: dollarChange,
-                        percent: percentChange,
-                        date: dateStr
-                    };
-                }
-            }
-        }
-    }
-    
-    // Format current date for display
-    let formattedCurrentDate = '';
-    if (currentDate) {
-        const month = currentDate.toLocaleString('en-US', { month: 'short' });
-        const day = currentDate.getDate();
-        const hours = currentDate.getHours().toString().padStart(2, '0');
-        const minutes = currentDate.getMinutes().toString().padStart(2, '0');
-        formattedCurrentDate = `${month}-${day}, ${hours}:${minutes}`;
-    }
-
-    // Return the changes
-    return {
-        currentValue: currentValue,
-        currentDate: formattedCurrentDate,
-        value24hAgo: value24hAgo || 0,
-        value7dAgo: value7dAgo || 0,
-        value30dAgo: value30dAgo || 0,
-        change24h: { value: dollarChange24h, percent: percentChange24h, date: formattedDate24h },
-        change7d: { value: dollarChange7d, percent: percentChange7d, date: formattedDate7d },
-        change30d: { value: dollarChange30d, percent: percentChange30d, date: formattedDate30d },
-        largestPercentGain: largestPercentGain,
-        largestDollarGain: largestDollarGain,
-        largestPercentLoss: largestPercentLoss,
-        largestDollarLoss: largestDollarLoss
-    };
-}
-
-// Format just a percentage value with sign and color
-function formatPercentOnly(percent) {
-    const formattedPercent = Math.abs(percent).toFixed(2);
-    const sign = percent >= 0 ? '+' : '-';
-    const className = percent >= 0 ? 'price-change-positive' : 'price-change-negative';
-    
-    return `<span class="${className}">${sign}${formattedPercent}%</span>`;
-}
-
-// Format just a dollar value with sign and color
-function formatDollarOnly(value) {
-    const formattedValue = Math.abs(value) < 1 ? Math.abs(value).toFixed(2) : Math.round(Math.abs(value));
-    const sign = value >= 0 ? '+' : '-';
-    const className = value >= 0 ? 'price-change-positive' : 'price-change-negative';
-    
-    return `<span class="${className}">${sign}$${formattedValue}</span>`;
-}
-
-// Update the historical changes display
-function updateHistoricalChanges() {
-    const changes = calculateHistoricalChanges();
-    
-    // Find all elements that need to be updated
-    const change24hElements = document.querySelectorAll('#change24h');
-    const change7dElements = document.querySelectorAll('#change7d');
-    const change30dElements = document.querySelectorAll('#change30d');
-    
-    // Find the extreme change elements
-    const largestPercentGainElement = document.getElementById('largestPercentGain');
-    const largestDollarGainElement = document.getElementById('largestDollarGain');
-    const largestPercentLossElement = document.getElementById('largestPercentLoss');
-    const largestDollarLossElement = document.getElementById('largestDollarLoss');
-    
-    // Update all instances of each element
-    change24hElements.forEach(element => {
-        let formattedChange = formatValueChange(changes.change24h.value, changes.change24h.percent);
-        
-        // Add debug information showing both values and dates
-        const debugInfo = `
-            <div class="debug-info" style="font-size: 0.8rem; margin-top: 5px; color: #6c757d;">
-                <div>Current: $${changes.currentValue.toFixed(2)} (${changes.currentDate})</div>
-                <div>24h ago: $${changes.value24hAgo.toFixed(2)} (${changes.change24h.date})</div>
-                <div>Raw diff: $${(changes.currentValue - changes.value24hAgo).toFixed(2)}</div>
-            </div>
-        `;
-        
-        if (changes.change24h.date) {
-            // Make sure the date is clearly visible by using a different approach
-            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change24h.date})</span>${debugInfo}`;
-        } else {
-            element.innerHTML = `${formattedChange}${debugInfo}`;
-        }
-    });
-    
-    change7dElements.forEach(element => {
-        let formattedChange = formatValueChange(changes.change7d.value, changes.change7d.percent);
-        if (changes.change7d.date) {
-            // Make sure the date is clearly visible by using a different approach
-            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change7d.date})</span>`;
-        } else {
-            element.innerHTML = formattedChange;
-        }
-    });
-    
-    change30dElements.forEach(element => {
-        let formattedChange = formatValueChange(changes.change30d.value, changes.change30d.percent);
-        if (changes.change30d.date) {
-            // Make sure the date is clearly visible by using a different approach
-            element.innerHTML = `${formattedChange} <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.change30d.date})</span>`;
-        } else {
-            element.innerHTML = formattedChange;
-        }
-    });
-    
-    // Update largest percentage gain
-    if (largestPercentGainElement) {
-        let formattedChange = formatPercentOnly(changes.largestPercentGain.percent);
-        if (changes.largestPercentGain.date) {
-            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestPercentGain.date})</span>`;
-        }
-        largestPercentGainElement.innerHTML = formattedChange;
-    }
-    
-    // Update largest dollar gain
-    if (largestDollarGainElement) {
-        let formattedChange = formatDollarOnly(changes.largestDollarGain.value);
-        if (changes.largestDollarGain.date) {
-            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestDollarGain.date})</span>`;
-        }
-        largestDollarGainElement.innerHTML = formattedChange;
-    }
-    
-    // Update largest percentage loss
-    if (largestPercentLossElement) {
-        let formattedChange = formatPercentOnly(changes.largestPercentLoss.percent);
-        if (changes.largestPercentLoss.date) {
-            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestPercentLoss.date})</span>`;
-        }
-        largestPercentLossElement.innerHTML = formattedChange;
-    }
-    
-    // Update largest dollar loss
-    if (largestDollarLossElement) {
-        let formattedChange = formatDollarOnly(changes.largestDollarLoss.value);
-        if (changes.largestDollarLoss.date) {
-            formattedChange += ` <span class="text-muted" style="display: inline-block; margin-left: 5px;">(${changes.largestDollarLoss.date})</span>`;
-        }
-        largestDollarLossElement.innerHTML = formattedChange;
-    }
+    if (historyData.length) updateHistoryExtremes();
 }
 
 // Wait for DOM to be fully loaded
@@ -1215,7 +687,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Check if we're on the statistics page
     const isStatisticsPage = window.location.pathname === '/statistics';
     console.log('Current page:', isStatisticsPage ? 'Statistics' : 'Overview');
-    historyChartEnabled = isStatisticsPage;
+    historyChartEnabled = false;
     
     try {
         // For iOS Chrome, show a message instead of loading TradingView
@@ -1226,13 +698,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         }
         
-        if (isStatisticsPage) {
-            // First, load the history data
-            console.log('Loading history data first...');
-            const historyLoaded = await updateHistoryChart();
-            console.log('History data loaded:', historyLoaded);
-        }
-
         // Load the portfolio data
         console.log('Loading portfolio data...');
         await updatePortfolio();
@@ -1299,7 +764,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         const loadHistoryDataBtn = document.getElementById('loadHistoryDataBtn');
-        if (!isStatisticsPage && loadHistoryDataBtn) {
+        if (loadHistoryDataBtn) {
             loadHistoryDataBtn.addEventListener('click', async function() {
                 const placeholder = document.getElementById('historyChartPlaceholder');
                 const container = document.getElementById('historyChartContainer');
@@ -1314,7 +779,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 loadHistoryDataBtn.disabled = true;
                 try {
                     historyChartEnabled = true;
-                    await updateHistoryChart();
+                    const loaded = await updateHistoryChart();
+                    if (!loaded) {
+                        historyChartEnabled = false;
+                        if (container) container.style.display = 'none';
+                        if (placeholder) placeholder.style.display = '';
+                        loadHistoryDataBtn.textContent = 'No chart data loaded — retry';
+                    }
                     updateHistoricalChanges();
                 } finally {
                     loadHistoryDataBtn.disabled = false;
@@ -1323,13 +794,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // Add event listener for demo mode toggle
-        const toggleDemoModeBtn = document.getElementById('toggleDemoButton');
+        const toggleDemoModeBtn = document.getElementById('toggleDemoButton') || document.getElementById('toggleDemoModeBtn');
         if (toggleDemoModeBtn) {
             toggleDemoModeBtn.addEventListener('click', toggleDemoMode);
         }
         
         // Add event listener for add history button
-        const addHistoryBtn = document.getElementById('addHistoryButton');
+        const addHistoryBtn = document.getElementById('addHistoryButton') || document.getElementById('addHistoryBtn');
         if (addHistoryBtn) {
             addHistoryBtn.addEventListener('click', async function() {
                 try {
@@ -1346,6 +817,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const data = await response.json();
                     if (data.success) {
                         alert('History entry added successfully!');
+                        await updateHistorySummary();
                         if (historyChartEnabled) {
                             updateHistoryChart();
                         }
@@ -1360,52 +832,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         
         // Add event listener for check history button
-        const checkHistoryBtn = document.getElementById('checkHistoryButton');
+        const checkHistoryBtn = document.getElementById('checkHistoryButton') || document.getElementById('checkHistoryBtn');
         if (checkHistoryBtn) {
             checkHistoryBtn.addEventListener('click', async function() {
                 try {
-                    // Fetch history data
-                    const response = await fetch('/history');
-                    const data = await response.json();
-                    
-                    if (!data.success) {
-                        alert('Failed to get history data: ' + data.error);
-                        return;
-                    }
-                    
-                    // Get the most recent entries
-                    const entries = data.data;
-                    
-                    if (entries.length === 0) {
-                        alert('No history entries found in the database.');
-                        return;
-                    }
-                    
-                    // Sort entries by date (newest first)
-                    entries.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
-                    
-                    // Get the most recent entry
-                    const latestEntry = entries[0];
-                    const latestDate = new Date(latestEntry.datetime);
-                    const now = new Date();
-                    const hoursSinceLatest = (now - latestDate) / (1000 * 60 * 60);
-                    
-                    // Format the status message
-                    let statusMessage = `Latest entry: ${latestDate.toLocaleString()} (${hoursSinceLatest.toFixed(1)} hours ago)\n`;
-                    statusMessage += `Total entries: ${entries.length}\n`;
-                    
-                    if (hoursSinceLatest > 1.5) {
-                        statusMessage += `WARNING: No recent entries in the last hour. The scheduler may not be working properly.`;
-                    } else {
-                        statusMessage += `Status: History tracking appears to be working correctly.`;
-                    }
-                    
-                    alert(statusMessage);
-                    
-                    // Update the history chart
-                    if (historyChartEnabled) {
-                        updateHistoryChart();
-                    }
+                    await updateHistorySummary();
+                    alert(historySummaryError ? 'History summary unavailable.' :
+                        'Comparison snapshots available: ' + Object.values(historySummary.comparisons).filter(Boolean).length + ' of 3.');
                 } catch (error) {
                     console.error('Error checking history status:', error);
                     alert('Error checking history status: ' + error.message);
