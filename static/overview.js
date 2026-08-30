@@ -599,6 +599,10 @@ function renderPairButtons() {
             usdCount++;
         }
 
+        // Always offer PAX Gold and Zcash against US dollars.
+        container.appendChild(createBtn('PAXG/USD', 'KRAKEN:PAXGUSD'));
+        container.appendChild(createBtn('ZEC/USD', 'KRAKEN:ZECUSD'));
+
         container.appendChild(createDivider());
 
         // Group 2: BTC pairs of the 5 biggest non-BTC cryptos by dollar value
@@ -620,7 +624,7 @@ function renderPairButtons() {
 
         // If nothing was added (empty portfolio or unknown mappings), fallback to defaults
         if (container.querySelectorAll('.list-group-item').length === 0) {
-            ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
+            ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','KRAKEN:PAXGUSD','KRAKEN:ZECUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
                 .forEach(sym => {
                     const label = sym === 'CRYPTOCAP:BTC.D' ? 'BTC.D' :
                                   sym === 'SPY' ? 'SPY' :
@@ -631,7 +635,7 @@ function renderPairButtons() {
     } catch (e) {
         console.error('Error rendering pair buttons, falling back to defaults', e);
         container.innerHTML = '';
-        ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
+        ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','KRAKEN:PAXGUSD','KRAKEN:ZECUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
             .forEach(sym => {
                 const label = sym === 'CRYPTOCAP:BTC.D' ? 'BTC.D' :
                               sym === 'SPY' ? 'SPY' :
