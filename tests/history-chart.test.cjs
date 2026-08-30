@@ -8,10 +8,14 @@ vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/history-chart.js'
 test('server timestamps have identical coordinates with or without UTC suffix',()=>{
  assert.equal(context.historyTime('2026-08-30T12:00:00'),context.historyTime('2026-08-30T12:00:00Z'));
 });
-test('gap markers interrupt lines and missing BTC stays null',()=>{
+test('recording gaps retain only the actual endpoints for a straight connection',()=>{
+ const points=context.historyCoordinates([{datetime:'2026-08-29T12:00:00',total_value:100,segment:0},{datetime:'2026-08-30T12:00:00',total_value:120,segment:1}],'total_value');
+ assert.equal(points.length,2);assert.equal(points[0].y,100);assert.equal(points[1].y,120);
+ assert.equal(points[1].x-points[0].x,86400000);
+});
+test('missing BTC values remain null instead of becoming zero',()=>{
  const points=context.historyCoordinates([{datetime:'2026-08-29T12:00:00',btc:1,segment:0},{datetime:'2026-08-30T12:00:00',btc:null,segment:1}],'btc');
- assert.equal(points.length,3);assert.equal(points[1].y,null);assert.equal(points[2].y,null);
- assert.ok(points[1].x>points[0].x&&points[1].x<points[2].x);
+ assert.equal(points.length,2);assert.equal(points[1].y,null);
 });
 test('demo coordinates scale amounts without changing dates',()=>{
  context.isDemoMode=true;

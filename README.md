@@ -101,7 +101,7 @@ node --test tests/history-summary.test.cjs
 
 - `/history?range=90&max_points=600` filters dates in the database. Supported ranges are 7, 30, 90, 180, 365, 730 days and `all`; point limits are 32–1200. The UI requests 600 points (240 on iPhone Chrome). Small ranges keep every usable snapshot.
 - Larger ranges stream through time buckets, retaining each bucket's endpoints and USD, BTC and adjusted-USD minima/maxima. This bounds response size while preserving peaks and drops, but it does not reproduce every movement. The server still scans records in the selected range.
-- Gaps over three hours break lines; invalid values also break segments. Freshness uses the latest database timestamp, independently of the selected range. Null BTC values remain missing, not zero. All timestamp coordinates retain the existing server-time convention.
+- Gaps over three hours are flagged, while straight lines connect the last available point before a gap to the first one after it. These connections do not imply observations during the gap. Freshness uses the latest database timestamp, independently of the selected range. Null BTC values remain missing, not zero; the chart connects the surrounding available BTC points. All timestamp coordinates retain the existing server-time convention.
 - The new additive `portfolio_cash_flows` table stores explicit USD deposits/withdrawals. Authenticated, CSRF-protected create/delete operations affect annotations only. UI save retries reuse a request ID to avoid duplicate entries. No historical flows are inferred or backfilled.
 - Dashed event markers and the ledger list annotate flows. The optional adjusted USD line subtracts cumulative net recorded flows after the first selected snapshot. It is **not investment return or verified profit**; results depend on complete, correctly dated records and do not distinguish rewards or fees. Transfers between your own locations should not be recorded as external flows. Demo Mode scales display values only; annotation inputs always use actual USD.
 - Responses include at most 500 annotations. If the range contains more, the UI warns and disables the adjusted line until a shorter range is chosen.
@@ -110,5 +110,31 @@ Offline checks (SQLite only; no production database access):
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -p 'test_history*.py'
+node --test tests/*.test.cjs
+```
+
+### Automatic snapshots without session cookies
+
+The worker now sends a dedicated `X-Worker-Key` to **POST `/worker_api/snapshot`**. It no longer reads browser session cookies or needs database credentials. Configure a matching `WORKER_KEY` of at least 32 characters and `HISTORY_INTERVAL_SECONDS` (default 3600) on the web and worker services. Never use the web session `SECRET_KEY` as the worker credential.
+
+The authenticated server fetches only the required asset prices (plus Bitcoin), validates every nonzero balance, rejects incomplete prices, crypto prices older than 15 minutes, and CHF rates older than seven calendar days, and computes USD/BTC values itself. Negative/nonfinite balances are rejected for operator review; configured all-zero balances are valid. No cached or partial valuation is silently written. The existing manual Add History route remains separate and is not covered by automatic snapshot validation.
+
+A unique UTC schedule slot and an atomic database receipt prevent duplicates across retries, restarts and simultaneous workers. Retries use delays of 5, 10 and 20 seconds, bounded HTTP timeouts, and the same slot. Redirects and rejected credentials fail closed. After an unsuccessful cycle, the worker tries again after a minute. Successful cycles align to the next schedule boundary; shutdown signals stop waits cleanly. Missed slots are not backfilled with fabricated valuations.
+
+Additive tables `worker_snapshot_receipts` and `worker_snapshot_health` preserve old history and store the last attempt, last success and sanitized error. The dashboard warns after two missed intervals or when no automatic success exists. Wrong credentials cannot update health; a dead/misconfigured worker is detected through overdue successes. No external email/SMS notifications are enabled. `/worker_status` requires a normal user login, and `/debug_worker` is now read-only. Legacy worker routes and insecure default-key fallbacks were removed.
+
+One-time Railway rollout:
+
+1. Authenticate the Railway CLI with `railway login`.
+2. Run `python3 scripts/configure_railway_worker.py`. It reuses a suitable existing worker credential or generates one, sends it via stdin (not command-line arguments), stages matching configuration on both services, and verifies equality without printing secrets. It does not trigger deployments.
+3. Push the tested commit to the connected GitHub branch and verify both deployments.
+4. Verify a successful `/worker_api/snapshot` result and the dashboard's latest automatic success. Existing `SESSION_COOKIE` variables are ignored and can be removed after the successful rollout; they never need refreshing again.
+
+To rotate credentials, stage the same new value on both services and deploy both. Until configured, the worker exits with an error and the API rejects snapshot requests. Do not deploy the replacement worker before staging its key.
+
+Checks (temporary SQLite database and mocked providers; no production writes):
+
+```bash
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 node --test tests/*.test.cjs
 ```

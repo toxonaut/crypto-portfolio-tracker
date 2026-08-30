@@ -14,11 +14,6 @@ def setup_database():
     Create all database tables if they don't exist.
     """
     try:
-        # When running on Railway, always use the internal connection string
-        database_url = "postgresql://postgres:RyWIsfflSCUOVGjjfrBvSVLGfqeGGYet@postgres.railway.internal:5432/railway"
-        
-        logger.info(f"Setting up database using internal Railway connection: postgres.railway.internal:5432/railway")
-        
         with app.app_context():
             # Create all tables
             db.create_all()

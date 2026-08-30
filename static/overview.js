@@ -76,6 +76,7 @@ function initializePairSelection() {
 
 // Function to sample data for performance optimization
 async function updatePortfolio() {
+    await updateWorkerHealth();
     try {
         console.log('Updating portfolio...');
         const response = await fetch('/portfolio');

@@ -11,7 +11,6 @@ function historyCoordinates(rows, field) {
     const points=[];
     for (let i=0; i<rows.length; i++) {
         const row=rows[i];
-        if (i && row.segment !== rows[i-1].segment) points.push({x:(historyTime(rows[i-1].datetime)+historyTime(row.datetime))/2,y:null});
         points.push({x:historyTime(row.datetime), y:Number.isFinite(row[field]) ? row[field]/(isDemoMode?15:1) : null});
     }
     return points;
@@ -40,7 +39,7 @@ async function updateHistoryChart() {
         let status=`${meta.returned_count} of ${meta.source_count} snapshots shown for ${meta.range === 'all' ? 'all history' : meta.range+' days'}. Latest record: ${meta.latest?.replace('T',' ') || 'none'} (server time).`;
         if(meta.sampled) status+=' Sampled by time bucket, preserving peaks, drops and endpoints.';
         if(meta.stale) status+=' History is stale: no recent snapshot.';
-        if(meta.gap_count) status+=` ${meta.gap_count} recording gap(s) over ${meta.gap_threshold_hours} hours; lines break at gaps.`;
+        if(meta.gap_count) status+=` ${meta.gap_count} recording gap(s) over ${meta.gap_threshold_hours} hours; straight lines connect the available points across gaps.`;
         if(meta.invalid_count) status+=` ${meta.invalid_count} invalid snapshot(s) excluded.`;
         if(!payload.data.length) status+=' No usable snapshots in this period. Choose a longer period or refresh later.';
         if(meta.flows_truncated) status+=' More than 500 annotations in this range: showing the first 500, with adjusted view disabled. Choose a shorter period.';
@@ -79,7 +78,7 @@ function renderHistoryChart() {
         {label:'Portfolio USD',data:historyCoordinates(rows,'total_value'),borderColor:'#7ea6ff',hidden:!usd,yAxisID:'usd'},
         {label:'Portfolio BTC',data:historyCoordinates(rows,'btc'),borderColor:'#ffb55b',hidden:!btc,yAxisID:'btc'},
         {label:'USD minus recorded flows',data:historyCoordinates(rows,'adjusted_usd'),borderColor:'#5eddb6',hidden:!adjusted,yAxisID:'usd'}
-    ].map(d=>({...d,spanGaps:false,tension:0,pointRadius:rows.length===1?4:0,pointHitRadius:8,borderWidth:2}));
+    ].map(d=>({...d,spanGaps:true,tension:0,pointRadius:rows.length===1?4:0,pointHitRadius:8,borderWidth:2}));
     const visible=datasets.filter(d=>!d.hidden);
     const logRequested=document.getElementById('historyLog').checked;
     const log=logRequested && visible.every(d=>d.data.every(p=>p.y===null || p.y>0));

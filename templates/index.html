@@ -15,17 +15,6 @@
 </head>
 <body>
     <div class="container mt-5">
-        {% if worker_auth_issue %}
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <strong>Worker Authentication Error:</strong> The worker process cannot authenticate with the web application. History tracking is not working.
-            {% if worker_error %}
-            <p><small>Error: {{ worker_error }}</small></p>
-            {% endif %}
-            <p>Please update the worker's session cookie by logging in manually and setting the SESSION_COOKIE environment variable.</p>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endif %}
-        
         <nav class="navbar navbar-expand-lg navbar-light mb-4" style="background-color: #121726;">
             <div class="container-fluid">
                 <a class="navbar-brand" style="font-size: 1.75rem;" href="/">
@@ -46,6 +35,7 @@
                 </div>
             </div>
         </nav>
+        <div id="workerHealth" class="alert alert-secondary" role="status">Checking automatic history updates…</div>
 
         <div class="card mb-4">
             <div class="card-body">

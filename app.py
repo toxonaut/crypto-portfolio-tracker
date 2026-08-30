@@ -14,6 +14,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from functools import wraps
 from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows
+from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -218,6 +219,9 @@ with app.app_context():
 with app.app_context():
     cash_flows.create(db.engine, checkfirst=True)
 app.register_blueprint(create_history_blueprint(db, PortfolioHistory.__table__))
+with app.app_context():
+    initialize_snapshot_tables(db.engine)
+app.register_blueprint(create_snapshot_blueprint(db, Portfolio.__table__, PortfolioHistory.__table__))
 
 # Initialize OAuth
 oauth = OAuth(app)
@@ -684,6 +688,9 @@ last_history_check = datetime.datetime.now() - datetime.timedelta(hours=2)  # St
 
 @app.before_request
 def before_request():
+    # The snapshot blueprint enforces its own service authentication (or login for status).
+    if request.blueprint == 'snapshot_worker':
+        return
     # Allow login routes and the public deployment health check.
     if request.path.startswith('/login') or request.path in ('/favicon.ico', '/health'):
         return
@@ -718,28 +725,6 @@ def check_history_interval():
         except Exception as e:
             logger.error(f"Error in request-based history check: {str(e)}", exc_info=True)
 
-# Add a custom decorator to allow worker requests to bypass authentication
-def login_required_except_worker(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Check if this is a request from the worker process
-        worker_key = request.headers.get('X-Worker-Key')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        # If the worker key matches, allow the request without authentication
-        if worker_key and worker_key == expected_key:
-            logger.info("Worker request authenticated via X-Worker-Key")
-            return f(*args, **kwargs)
-        
-        # Otherwise, check if the user is logged in
-        if not current_user.is_authenticated:
-            logger.warning("User not authenticated and no valid worker key provided")
-            return redirect(url_for('login'))
-            
-        # User is authenticated, proceed with the request
-        return f(*args, **kwargs)
-    return decorated_function
-
 @app.route('/health')
 def health():
     return jsonify({'status': 'ok'}), 200
@@ -748,35 +733,7 @@ def health():
 @app.route('/')
 @login_required
 def index():
-    db_type = "PostgreSQL"
-    
-    # Check worker status
-    worker_auth_issue = False
-    worker_error = None
-    
-    try:
-        # Check if the worker_status table exists before querying
-        inspector = db.inspect(db.engine)
-        tables = inspector.get_table_names()
-        
-        if 'worker_status' in tables:
-            worker_status = WorkerStatus.query.first()
-            
-            if worker_status:
-                # Check if the worker status is recent (within the last 2 hours)
-                two_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=2)
-                if worker_status.last_check >= two_hours_ago and not worker_status.is_authenticated:
-                    worker_auth_issue = True
-                    worker_error = worker_status.last_error
-    except Exception as e:
-        logger.error(f"Error checking worker status: {e}")
-        # Don't show an error to the user if we can't check worker status
-    
-    return render_template('index.html', 
-                           version="1.3.0", 
-                           db_type=db_type, 
-                           worker_auth_issue=worker_auth_issue,
-                           worker_error=worker_error)
+    return render_template('index.html', version="1.3.0", db_type="PostgreSQL")
 
 @app.route('/login')
 def login():
@@ -842,7 +799,7 @@ def edit_portfolio():
     return render_template('edit_portfolio.html', version="1.3.0", db_type=db_type)
 
 @app.route('/portfolio')
-@login_required_except_worker
+@login_required
 def get_portfolio():
     portfolio_data = get_portfolio_data()
     
@@ -1089,7 +1046,7 @@ def delete_coin(coin_id):
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/add_history', methods=['POST'])
-@login_required_except_worker
+@login_required
 def add_history():
     try:
         data = request.get_json()
@@ -1274,59 +1231,8 @@ def initialize_bitcoin_data():
 @app.route('/debug_worker', methods=['GET'])
 @login_required
 def debug_worker():
-    """
-    Debug endpoint to check worker status and manually trigger history addition
-    """
-    try:
-        # Get the current portfolio data
-        portfolio_data = get_portfolio_data()
-        
-        # Get unique coin IDs
-        coin_ids = list(set(item['coin_id'] for item in portfolio_data))
-        
-        # Get current prices
-        prices = get_coin_prices(coin_ids)
-        
-        # Calculate total value
-        total_value = 0
-        for item in portfolio_data:
-            coin_id = item['coin_id']
-            amount = item['amount']
-            
-            if coin_id in prices:
-                price = prices[coin_id].get('usd', 0)
-                item_value = amount * price
-                total_value += item_value
-        
-        # Add a new history entry
-        new_entry = PortfolioHistory(
-            date=datetime.datetime.now(),
-            total_value=total_value
-        )
-        
-        db.session.add(new_entry)
-        db.session.commit()
-        
-        # Get the most recent history entries
-        recent_entries = PortfolioHistory.query.order_by(PortfolioHistory.date.desc()).limit(10).all()
-        recent_entries_data = [entry.to_dict() for entry in recent_entries]
-        
-        return jsonify({
-            'success': True,
-            'message': f'Added new history entry with value: {total_value}',
-            'recent_entries': recent_entries_data,
-            'worker_info': {
-                'environment': os.environ.get('RAILWAY_ENVIRONMENT', 'local'),
-                'server_time': datetime.datetime.now().isoformat(),
-                'database_url': app.config['SQLALCHEMY_DATABASE_URI'].split('@')[1] if '@' in app.config['SQLALCHEMY_DATABASE_URI'] else 'hidden'
-            }
-        })
-    except Exception as e:
-        logger.error(f"Error in debug_worker: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+    # Status inspection must never create snapshots.
+    return jsonify({'success': True, 'data': health_data(db.session)})
 
 @app.route('/fix_sequence', methods=['GET'])
 @login_required
@@ -1649,547 +1555,6 @@ def debug_history():
             'success': False,
             'error': str(e)
         })
-
-@app.route('/api/debug_worker_key')
-def api_debug_worker_key():
-    """
-    Debug endpoint to check the worker key configuration
-    """
-    try:
-        worker_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        # Don't show the actual key for security reasons
-        key_status = 'custom' if worker_key != 'default_worker_key' else 'default'
-        
-        return jsonify({
-            'success': True,
-            'worker_key_status': key_status,
-            'worker_key_length': len(worker_key),
-            'worker_key_set': worker_key != 'default_worker_key'
-        })
-    except Exception as e:
-        logger.error(f"Error in api_debug_worker_key: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# Worker-specific endpoints that bypass authentication for internal worker requests
-@app.route('/worker_portfolio')
-def worker_portfolio():
-    """
-    Worker-specific endpoint to get portfolio data without authentication
-    """
-    # Check for worker key in headers
-    worker_key = request.headers.get('X-Worker-Key')
-    expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-    
-    if worker_key != expected_key:
-        logger.error(f"Unauthorized worker request: Invalid worker key")
-        return jsonify({
-            'success': False,
-            'error': 'Unauthorized'
-        }), 401
-    
-    try:
-        # Get portfolio data
-        portfolio_data = get_portfolio_data()
-        
-        # Get unique coin IDs
-        coin_ids = list(set(item['coin_id'] for item in portfolio_data))
-        
-        # Get current prices
-        prices = get_coin_prices(coin_ids)
-        
-        # Group portfolio data by coin_id
-        grouped_data = {}
-        total_value = 0
-        total_monthly_yield = 0
-        
-        # First, group all entries by coin_id
-        for item in portfolio_data:
-            coin_id = item['coin_id']
-            source = item['source']
-            amount = item['amount']
-            apy = item.get('apy', 0)
-            
-            # Initialize coin data if not exists
-            if coin_id not in grouped_data:
-                # Default image if none is available from CoinGecko
-                image_url = "https://assets.coingecko.com/coins/images/1/small/bitcoin.png"
-                
-                # If we have data from CoinGecko, use their image URL
-                if coin_id in prices and 'image' in prices[coin_id]:
-                    image_url = prices[coin_id]['image']
-                
-                grouped_data[coin_id] = {
-                    'total_amount': 0,
-                    'sources': {},
-                    'price': 0,
-                    'total_value': 0,
-                    'hourly_change': 0,
-                    'daily_change': 0,
-                    'seven_day_change': 0,
-                    'monthly_yield': 0,
-                    'image': image_url
-                }
-            
-            # Add source data to the coin
-            grouped_data[coin_id]['sources'][source] = {
-                'amount': amount,
-                'apy': apy,
-                'zerion_id': item.get('zerion_id', '')
-            }
-            
-            # Add to the total amount for this coin
-            grouped_data[coin_id]['total_amount'] += amount
-    
-        # Calculate total values and monthly yield
-        for coin_id, coin_data in grouped_data.items():
-            price = 0
-            hourly_change = None
-            daily_change = None
-            seven_day_change = None
-            
-            if coin_id in prices:
-                price_data = prices[coin_id]
-                price = price_data.get('usd', 0)
-                hourly_change = price_data.get('usd_1h_change', 0)
-                daily_change = price_data.get('usd_24h_change', 0)
-                seven_day_change = price_data.get('usd_7d_change', 0)
-            
-            coin_total_value = 0
-            coin_monthly_yield = 0
-            
-            for source, source_data in coin_data['sources'].items():
-                amount = source_data['amount']
-                apy = source_data.get('apy', 0)
-                value = amount * price
-                coin_total_value += value
-                
-                # Calculate monthly yield for this source
-                yearly_yield = value * (apy / 100)
-                monthly_yield = yearly_yield / 12
-                coin_monthly_yield += monthly_yield
-            
-            # Set the total value and monthly yield for this coin
-            grouped_data[coin_id]['total_value'] = coin_total_value
-            grouped_data[coin_id]['monthly_yield'] = coin_monthly_yield
-            grouped_data[coin_id]['price'] = price
-            grouped_data[coin_id]['hourly_change'] = hourly_change
-            grouped_data[coin_id]['daily_change'] = daily_change
-            grouped_data[coin_id]['seven_day_change'] = seven_day_change
-            total_value += coin_total_value
-            total_monthly_yield += coin_monthly_yield
-        
-        # Return formatted data
-        return jsonify({
-            'success': True,
-            'data': grouped_data,
-            'total_value': total_value,
-            'total_monthly_yield': total_monthly_yield
-        })
-    except Exception as e:
-        logger.error(f"Error in worker_portfolio: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
-
-@app.route('/worker_add_history', methods=['POST'])
-def worker_add_history():
-    """
-    Worker-specific endpoint to add a history entry without authentication
-    """
-    # Check for worker key in headers
-    worker_key = request.headers.get('X-Worker-Key')
-    expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-    
-    if worker_key != expected_key:
-        logger.error(f"Unauthorized worker request: Invalid worker key")
-        return jsonify({
-            'success': False,
-            'error': 'Unauthorized'
-        }), 401
-    
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({
-                'success': False,
-                'error': 'No data provided'
-            }), 400
-        
-        total_value = data.get('total_value')
-        btc_value = data.get('btc_value')
-        actual_btc = data.get('actual_btc')
-        
-        if not total_value:
-            return jsonify({
-                'success': False,
-                'error': 'total_value is required'
-            }), 400
-        
-        # Create a new history entry
-        new_entry = PortfolioHistory(
-            date=datetime.datetime.now(),
-            total_value=total_value,
-            btc=btc_value,
-            actual_btc=actual_btc
-        )
-        
-        db.session.add(new_entry)
-        db.session.commit()
-        
-        logger.info(f"Added history entry: {total_value} USD, {btc_value} BTC, {actual_btc} actual BTC")
-        
-        return jsonify({
-            'success': True,
-            'message': 'History entry added successfully',
-            'entry_id': new_entry.id
-        })
-    except Exception as e:
-        logger.error(f"Error in worker_add_history: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
-
-@app.route('/api/worker_key_check')
-def api_worker_key_check():
-    """
-    Simple endpoint to check if the worker key is valid
-    This endpoint doesn't require authentication but requires a valid worker key
-    """
-    try:
-        worker_key = request.headers.get('X-Worker-Key')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        if worker_key and worker_key == expected_key:
-            return jsonify({
-                'success': True,
-                'message': 'Worker key is valid'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid or missing worker key'
-            }), 401
-    except Exception as e:
-        logger.error(f"Error in api_worker_key_check: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/test')
-def api_test():
-    """
-    Simple test endpoint that bypasses all authentication
-    """
-    try:
-        worker_key = request.headers.get('X-Worker-Key', 'not-provided')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        # Mask the keys for security
-        masked_worker_key = f"{worker_key[:3]}...{worker_key[-3:]}" if len(worker_key) > 6 else worker_key
-        masked_expected_key = f"{expected_key[:3]}...{expected_key[-3:]}" if len(expected_key) > 6 else expected_key
-        
-        return jsonify({
-            'success': True,
-            'message': 'API test endpoint',
-            'worker_key_provided': worker_key != 'not-provided',
-            'worker_key_matches': worker_key == expected_key,
-            'masked_worker_key': masked_worker_key,
-            'masked_expected_key': masked_expected_key,
-            'environment_variables': list(os.environ.keys())
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/portfolio')
-def api_portfolio():
-    """
-    API endpoint to get portfolio data
-    This endpoint requires a valid worker key
-    """
-    try:
-        # Check if the worker key is valid
-        worker_key = request.headers.get('X-Worker-Key')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        if not worker_key or worker_key != expected_key:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid or missing worker key'
-            }), 401
-        
-        # Get the portfolio data
-        portfolio_data = get_portfolio_data()
-        return jsonify(portfolio_data)
-    except Exception as e:
-        logger.error(f"Error in api_portfolio: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/add_history', methods=['POST'])
-def api_add_history():
-    """
-    API endpoint to add a history entry
-    This endpoint requires a valid worker key
-    """
-    try:
-        # Check if the worker key is valid
-        worker_key = request.headers.get('X-Worker-Key')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        if not worker_key or worker_key != expected_key:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid or missing worker key'
-            }), 401
-        
-        # Get the data from the request
-        data = request.get_json()
-        if not data:
-            return jsonify({
-                'success': False,
-                'message': 'No data provided'
-            }), 400
-        
-        # Extract the values
-        total_value = data.get('total_value')
-        btc_value = data.get('btc_value')
-        actual_btc = data.get('actual_btc')
-        
-        if total_value is None:
-            return jsonify({
-                'success': False,
-                'message': 'Missing total_value'
-            }), 400
-        
-        # Create a new history entry
-        new_history = PortfolioHistory(
-            date=datetime.datetime.now(),
-            total_value=total_value,
-            btc=btc_value,
-            actual_btc=actual_btc
-        )
-        
-        # Add to the database
-        db.session.add(new_history)
-        db.session.commit()
-        
-        logger.info(f"Added history entry: total_value={total_value}, btc={btc_value}, actual_btc={actual_btc}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'History entry added successfully',
-            'id': new_history.id
-        })
-    except Exception as e:
-        logger.error(f"Error in api_add_history: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# Create a separate Blueprint for worker API that bypasses authentication
-from flask import Blueprint
-
-worker_api = Blueprint('worker_api', __name__, url_prefix='/worker_api')
-
-@worker_api.route('/test')
-def worker_test():
-    """
-    Test endpoint for worker API
-    """
-    try:
-        worker_key = request.headers.get('X-Worker-Key', 'not-provided')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        # Mask the keys for security
-        masked_worker_key = f"{worker_key[:3]}...{worker_key[-3:]}" if len(worker_key) > 6 else worker_key
-        masked_expected_key = f"{expected_key[:3]}...{expected_key[-3:]}" if len(expected_key) > 6 else expected_key
-        
-        return jsonify({
-            'success': True,
-            'message': 'Worker API test endpoint',
-            'worker_key_provided': worker_key != 'not-provided',
-            'worker_key_matches': worker_key == expected_key,
-            'masked_worker_key': masked_worker_key,
-            'masked_expected_key': masked_expected_key,
-            'environment_variables': list(os.environ.keys())
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@worker_api.route('/portfolio')
-def worker_portfolio():
-    """
-    Get portfolio data for worker
-    """
-    try:
-        # Check if the worker key is valid
-        worker_key = request.headers.get('X-Worker-Key')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        if not worker_key or worker_key != expected_key:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid or missing worker key'
-            }), 401
-        
-        # Get the portfolio data
-        portfolio_data = get_portfolio_data()
-        return jsonify(portfolio_data)
-    except Exception as e:
-        logger.error(f"Error in worker_portfolio: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@worker_api.route('/add_history', methods=['POST'])
-def worker_add_history():
-    """
-    Add history entry for worker
-    """
-    try:
-        # Check if the worker key is valid
-        worker_key = request.headers.get('X-Worker-Key')
-        expected_key = os.environ.get('WORKER_KEY', 'default_worker_key')
-        
-        if not worker_key or worker_key != expected_key:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid or missing worker key'
-            }), 401
-        
-        # Get the data from the request
-        data = request.get_json()
-        if not data:
-            return jsonify({
-                'success': False,
-                'message': 'No data provided'
-            }), 400
-        
-        # Extract the values
-        total_value = data.get('total_value')
-        btc_value = data.get('btc_value')
-        actual_btc = data.get('actual_btc')
-        
-        if total_value is None:
-            return jsonify({
-                'success': False,
-                'message': 'Missing total_value'
-            }), 400
-        
-        # Create a new history entry
-        new_history = PortfolioHistory(
-            date=datetime.datetime.now(),
-            total_value=total_value,
-            btc=btc_value,
-            actual_btc=actual_btc
-        )
-        
-        # Add to the database
-        db.session.add(new_history)
-        db.session.commit()
-        
-        logger.info(f"Added history entry: total_value={total_value}, btc={btc_value}, actual_btc={actual_btc}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'History entry added successfully',
-            'id': new_history.id
-        })
-    except Exception as e:
-        logger.error(f"Error in worker_add_history: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# API endpoint to update worker status
-@app.route('/api/update_worker_status', methods=['POST'])
-def api_update_worker_status():
-    """
-    API endpoint to update worker status
-    This endpoint requires a valid worker key
-    """
-    try:
-        # Get the request data
-        data = request.json
-        
-        # Validate the request data
-        if not data:
-            return jsonify({
-                'success': False,
-                'error': 'No data provided'
-            }), 400
-            
-        # Check if the worker_status table exists
-        inspector = db.inspect(db.engine)
-        tables = inspector.get_table_names()
-        
-        if 'worker_status' not in tables:
-            # Create the worker_status table if it doesn't exist
-            logger.info("Creating worker_status table from API endpoint")
-            with db.engine.connect() as connection:
-                connection.execute(db.text("""
-                CREATE TABLE worker_status (
-                    id SERIAL PRIMARY KEY,
-                    last_check TIMESTAMP NOT NULL,
-                    is_authenticated BOOLEAN DEFAULT FALSE,
-                    last_error VARCHAR(500)
-                )
-                """))
-                connection.commit()
-                logger.info("Successfully created worker_status table from API endpoint")
-        
-        # Get the worker status
-        worker_status = WorkerStatus.query.first()
-        
-        # If no worker status exists, create one
-        if not worker_status:
-            worker_status = WorkerStatus(
-                last_check=datetime.datetime.now(),
-                is_authenticated=data.get('is_authenticated', False),
-                last_error=data.get('last_error')
-            )
-            db.session.add(worker_status)
-        else:
-            # Update the worker status
-            worker_status.last_check = datetime.datetime.now()
-            worker_status.is_authenticated = data.get('is_authenticated', False)
-            worker_status.last_error = data.get('last_error')
-            
-        # Commit the changes
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'data': worker_status.to_dict()
-        })
-    except Exception as e:
-        logger.error(f"Error in api_update_worker_status: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# Register the blueprint
-app.register_blueprint(worker_api)
 
 if __name__ == '__main__':
     # Only run the development server when running locally
