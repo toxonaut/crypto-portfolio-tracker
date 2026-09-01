@@ -43,3 +43,5 @@ logs/
 /data/
 portfolio.db*
 migrations/*.sqlite*
+# Local exchange credentials (never commit)
+.kraken_credentials.txt

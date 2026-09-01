@@ -157,3 +157,11 @@ The Composition History panel on Overview and Statistics loads only when request
 
 
 Scenario Lab uses signed position values. Negative balances reduce the baseline, respond to the same asset price shock as positive balances, and generate negative income when they carry a positive APY. Contributions are allocated proportionally across gross positive holdings only, so a small or negative net portfolio cannot amplify a contribution and liabilities are never increased. Scenarios remain available for zero or negative net portfolios when valid priced positions exist.
+
+### Experimental Kraken portfolio
+
+`/experimental-portfolio` is a login-protected, read-only view linked from the top navigation. The browser receives positions and calculated values but never API credentials or request signatures. The server calls only Kraken Spot REST `POST /0/private/Balance` with the private key; Kraken's public `AssetPairs` and `Ticker` endpoints supply USD prices. Balance responses cache for 30 seconds and asset-pair metadata for one hour. The Refresh button explicitly bypasses the balance cache.
+
+Create `.kraken_credentials.txt` beside `app.py` with `KRAKEN_API_KEY=...` and `KRAKEN_PRIVATE_KEY=...`, or set the same environment variables. The local file is Git-ignored and should have owner-only permissions. The API key needs only Kraken's **Funds permissions – Query** permission; trading and withdrawal permissions are unnecessary and should remain disabled. Private keys are used solely to generate the HMAC-SHA512 `API-Sign` header and are never transmitted.
+
+Nonzero balances are displayed under their Kraken balance codes, including reward/staking suffixes. Direct Kraken USD pairs and inverse USD pairs are valued from the latest public ticker close; USD cash is valued at $1. Assets without a Kraken Spot USD price are labeled unpriced. In that case the page displays the known subtotal but withholds a potentially misleading complete portfolio total. The experimental portfolio is isolated from the manually maintained portfolio, history, exposure map, and Scenario Lab.

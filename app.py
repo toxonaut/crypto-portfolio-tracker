@@ -16,6 +16,7 @@ from composition_history import create_composition_blueprint, save_composition
 from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows
 from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data
+from kraken_portfolio import portfolio as kraken_portfolio, KrakenUnavailable
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -640,6 +641,22 @@ def statistics():
 def edit_portfolio():
     db_type = "PostgreSQL"
     return render_template('edit_portfolio.html', version="1.3.0", db_type=db_type)
+
+@app.route('/experimental-portfolio')
+@login_required
+def experimental_portfolio():
+    return render_template('experimental_portfolio.html')
+
+@app.route('/api/experimental/kraken-portfolio')
+@login_required
+def get_kraken_portfolio():
+    try:
+        return jsonify(success=True, data=kraken_portfolio.read(force=request.args.get('refresh') == '1'))
+    except KrakenUnavailable as error:
+        return jsonify(success=False, error=str(error)), 503
+    except Exception:
+        logger.exception('Unexpected Kraken portfolio error')
+        return jsonify(success=False, error='Kraken portfolio is temporarily unavailable.'), 503
 
 @app.route('/portfolio')
 @login_required
