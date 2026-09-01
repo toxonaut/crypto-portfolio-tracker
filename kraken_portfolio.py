@@ -40,6 +40,14 @@ def parse_number(value):
     return number if math.isfinite(number) else None
 
 
+def aggregate_balances(balances):
+    aggregated={}
+    for raw,amount in balances.items():
+        asset=normalize_asset(raw)
+        aggregated[asset]=aggregated.get(asset,0)+amount
+    return {asset:amount for asset,amount in aggregated.items() if amount != 0}
+
+
 class KrakenPortfolio:
     def __init__(self, http=requests, clock=time.time, credentials=None):
         self.http, self.clock, self.credentials = http, clock, credentials
@@ -122,18 +130,18 @@ class KrakenPortfolio:
         with self.lock:
             now=self.clock()
             if not force and self.cached is not None and now-self.cache_time < 30: return self.cached
-            key,secret=self._credentials();balances=self._balances(key,secret);prices=self._prices(balances)
+            key,secret=self._credentials();balances=aggregate_balances(self._balances(key,secret));prices=self._prices(balances)
             positions=[]
-            for raw,amount in balances.items():
-                asset=normalize_asset(raw);quote=prices.get(asset);price=quote[0] if quote else None
-                positions.append({'raw_asset':raw,'asset':asset,'balance':amount,'price_usd':price,
+            for asset,amount in balances.items():
+                quote=prices.get(asset);price=quote[0] if quote else None
+                positions.append({'asset':asset,'balance':amount,'price_usd':price,
                     'value_usd':amount*price if price is not None else None,'price_pair':quote[1] if quote else None,
                     'status':'priced' if quote else 'unpriced'})
-            positions.sort(key=lambda p:(p['value_usd'] is None,-abs(p['value_usd'] or 0),p['asset'],p['raw_asset']))
+            positions.sort(key=lambda p:(p['value_usd'] is None,-abs(p['value_usd'] or 0),p['asset']))
             unpriced=sorted(set(p['asset'] for p in positions if p['value_usd'] is None))
             known=sum(p['value_usd'] for p in positions if p['value_usd'] is not None)
             hidden=sum(1 for p in positions if p['value_usd'] is not None and abs(p['value_usd']) < 10)
-            visible=[{k:v for k,v in p.items() if k!='raw_asset'} for p in positions if p['value_usd'] is None or abs(p['value_usd']) >= 10]
+            visible=[p for p in positions if p['value_usd'] is None or abs(p['value_usd']) >= 10]
             result={'positions':visible,'known_value_usd':known,'total_value_usd':known if not unpriced else None,
                 'unpriced_assets':unpriced,'complete':not unpriced,'as_of':dt.datetime.fromtimestamp(now,dt.timezone.utc).isoformat()}
             result['hidden_small_positions']=hidden

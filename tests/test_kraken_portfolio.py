@@ -1,7 +1,7 @@
 import math
 import unittest
 from unittest.mock import Mock
-from kraken_portfolio import KrakenPortfolio, KrakenUnavailable, sign_request, normalize_asset
+from kraken_portfolio import KrakenPortfolio, KrakenUnavailable, sign_request, normalize_asset, aggregate_balances
 
 class Reply:
     def __init__(self,data,status=200):self.data=data;self.status_code=status
@@ -29,6 +29,17 @@ class KrakenPortfolioTests(unittest.TestCase):
         clock.return_value+=31;http.post.return_value=Reply({'error':[],'result':{'ZUSD':'1'}})
         self.assertEqual(service.read()['total_value_usd'],1);self.assertEqual(http.post.call_count,2)
         nonces=[call.kwargs['data']['nonce'] for call in http.post.call_args_list];self.assertLess(int(nonces[0]),int(nonces[1]))
+
+    def test_spot_and_earn_balances_are_combined_before_valuation(self):
+        http=Mock();http.post.return_value=Reply({'error':[],'result':{'XETH':'2','ETH.F':'3','SOL':'4','SOL.F':'-4'}})
+        pairs={'XETHZUSD':{'base':'XETH','quote':'ZUSD','altname':'ETHUSD','status':'online'}}
+        ticker={'XETHZUSD':{'c':['10','1']}}
+        http.get.side_effect=[Reply({'error':[],'result':pairs}),Reply({'error':[],'result':ticker})]
+        result=KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'a','KRAKEN_PRIVATE_KEY':'Yg=='}).read()
+        self.assertEqual(result['positions'],[{'asset':'ETH','balance':5,'price_usd':10,'value_usd':50,'price_pair':'ETHUSD','status':'priced'}])
+        self.assertEqual(result['total_value_usd'],50)
+        self.assertEqual(result['unpriced_assets'],[])
+        self.assertEqual(aggregate_balances({'XXBT':1,'XBT':2,'XBT.F':3}),{'BTC':6})
     def test_unpriced_assets_make_total_explicitly_unavailable(self):
         http=Mock();http.post.return_value=Reply({'error':[],'result':{'MYSTERY':'4','ZUSD':'3'}})
         http.get.return_value=Reply({'error':[],'result':{}})
