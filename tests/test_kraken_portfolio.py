@@ -36,22 +36,23 @@ class KrakenPortfolioTests(unittest.TestCase):
         ticker={'XETHZUSD':{'c':['10','1']}}
         http.get.side_effect=[Reply({'error':[],'result':pairs}),Reply({'error':[],'result':ticker})]
         result=KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'a','KRAKEN_PRIVATE_KEY':'Yg=='}).read()
-        self.assertEqual(result['positions'],[{'asset':'ETH','balance':5,'price_usd':10,'value_usd':50,'price_pair':'ETHUSD','status':'priced'}])
+        self.assertEqual(result['positions'],[{'asset':'ETH','origin':'Kraken','balance':5,'price_usd':10,'value_usd':50,'price_pair':'ETHUSD','status':'priced'}])
         self.assertEqual(result['total_value_usd'],50)
         self.assertEqual(result['unpriced_assets'],[])
         self.assertEqual(aggregate_balances({'XXBT':1,'XBT':2,'XBT.F':3}),{'BTC':6})
 
     def test_market_data_enrichment_uses_only_curated_coingecko_matches(self):
-        base={'positions':[{'asset':'BTC'},{'asset':'AAPLx'}],'known_value_usd':1}
+        base={'positions':[{'asset':'BTC'},{'asset':'HYPE'},{'asset':'AAPLx'}],'known_value_usd':1}
         requested=[]
         def read(ids):
             requested.extend(ids)
-            return {'bitcoin':{'image':'https://example.test/btc.png','status':'fresh','usd_1h_change':1,'usd_24h_change':-2,'usd_7d_change':3}}
+            return {'bitcoin':{'image':'https://example.test/btc.png','status':'fresh'},'hyperliquid':{'image':'https://example.test/hype.png','status':'fresh'}}
         result=enrich_market_data(base,read)
-        self.assertEqual(requested,['bitcoin']);self.assertNotIn('market_data',base['positions'][0])
-        self.assertEqual(result['positions'][0]['market_data']['change_24h'],-2)
-        self.assertIsNone(result['positions'][1]['market_data']['coin_id'])
-        self.assertEqual(result['positions'][1]['market_data']['status'],'unavailable')
+        self.assertEqual(set(requested),{'bitcoin','hyperliquid'});self.assertNotIn('market_data',base['positions'][0])
+        self.assertEqual(result['positions'][0]['market_data']['image'],'https://example.test/btc.png')
+        self.assertEqual(result['positions'][1]['market_data']['coin_id'],'hyperliquid')
+        self.assertIsNone(result['positions'][2]['market_data']['coin_id'])
+        self.assertEqual(result['positions'][2]['market_data']['status'],'unavailable')
     def test_unpriced_assets_make_total_explicitly_unavailable(self):
         http=Mock();http.post.return_value=Reply({'error':[],'result':{'MYSTERY':'4','ZUSD':'3'}})
         http.get.return_value=Reply({'error':[],'result':{}})
@@ -80,6 +81,6 @@ class KrakenPortfolioTests(unittest.TestCase):
         with self.assertRaisesRegex(KrakenUnavailable,'Invalid key') as raised:
             KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'sensitive-public','KRAKEN_PRIVATE_KEY':'c2Vuc2l0aXZl'}).read()
         self.assertNotIn('sensitive',str(raised.exception))
-        for raw,expected in [('XXBT','BTC'),('XETH','ETH'),('ZUSD','USD'),('ETH.F','ETH'),('SOL','SOL')]:self.assertEqual(normalize_asset(raw),expected)
+        for raw,expected in [('XXBT','BTC'),('XETH','ETH'),('XZEC','ZEC'),('ZUSD','USD'),('ETH.F','ETH'),('SOL','SOL')]:self.assertEqual(normalize_asset(raw),expected)
 
 if __name__=='__main__':unittest.main()

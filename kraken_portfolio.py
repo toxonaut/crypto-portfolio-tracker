@@ -19,7 +19,7 @@ COINGECKO_IDS = {
     'AAVE':'aave','ADA':'cardano','ALGO':'algorand','APE':'apecoin','ARB':'arbitrum',
     'ATOM':'cosmos','AVAX':'avalanche-2','BCH':'bitcoin-cash','BTC':'bitcoin',
     'DAI':'dai','DOGE':'dogecoin','DOT':'polkadot','ETC':'ethereum-classic','ETH':'ethereum',
-    'FIL':'filecoin','ICP':'internet-computer','LINK':'chainlink','LTC':'litecoin',
+    'FIL':'filecoin','HYPE':'hyperliquid','ICP':'internet-computer','LINK':'chainlink','LTC':'litecoin',
     'MATIC':'matic-network','NEAR':'near','OP':'optimism','PAXG':'pax-gold','PEPE':'pepe',
     'SHIB':'shiba-inu','SOL':'solana','SUI':'sui','TRX':'tron','UNI':'uniswap',
     'USDC':'usd-coin','USDT':'tether','XLM':'stellar','XMR':'monero','XRP':'ripple',
@@ -40,7 +40,7 @@ def sign_request(path, payload, secret):
 
 def normalize_asset(raw):
     base = raw.split('.', 1)[0]
-    aliases = {'XXBT':'BTC','XBT':'BTC','XETH':'ETH','ZEUR':'EUR','ZUSD':'USD','ZGBP':'GBP','ZJPY':'JPY','ZCAD':'CAD','ZCHF':'CHF','ZAUD':'AUD'}
+    aliases = {'XXBT':'BTC','XBT':'BTC','XETH':'ETH','XZEC':'ZEC','ZEUR':'EUR','ZUSD':'USD','ZGBP':'GBP','ZJPY':'JPY','ZCAD':'CAD','ZCHF':'CHF','ZAUD':'AUD'}
     return aliases.get(base, base)
 
 
@@ -66,9 +66,7 @@ def enrich_market_data(result, quote_reader):
         coin_id=COINGECKO_IDS.get(position.get('asset'));quote=quotes.get(coin_id,{}) if coin_id else {}
         position['market_data']={
             'coin_id':coin_id,'image':quote.get('image') or None,'source':'CoinGecko' if coin_id else None,
-            'status':quote.get('status') if coin_id else 'unavailable',
-            'change_1h':quote.get('usd_1h_change'),'change_24h':quote.get('usd_24h_change'),
-            'change_7d':quote.get('usd_7d_change')
+            'status':quote.get('status') if coin_id else 'unavailable'
         }
     return {**result,'positions':positions}
 
@@ -159,7 +157,7 @@ class KrakenPortfolio:
             positions=[]
             for asset,amount in balances.items():
                 quote=prices.get(asset);price=quote[0] if quote else None
-                positions.append({'asset':asset,'balance':amount,'price_usd':price,
+                positions.append({'asset':asset,'origin':'Kraken','balance':amount,'price_usd':price,
                     'value_usd':amount*price if price is not None else None,'price_pair':quote[1] if quote else None,
                     'status':'priced' if quote else 'unpriced'})
             positions.sort(key=lambda p:(p['value_usd'] is None,-abs(p['value_usd'] or 0),p['asset']))
