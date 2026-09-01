@@ -1,5 +1,7 @@
 function krakenNumber(value, digits=8) { return Number.isFinite(value) ? value.toLocaleString('en-US',{maximumFractionDigits:digits}).replace(/,/g,"'") : 'Unavailable'; }
 function krakenMoney(value) { return Number.isFinite(value) ? (value<0?'-$':'$')+Math.abs(value).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/,/g,"'") : 'Unavailable'; }
+function krakenChange(value) { return Number.isFinite(value) ? `${value>=0?'+':''}${value.toFixed(2)}%` : 'Unavailable'; }
+function changeCell(value) { const cell=document.createElement('td');cell.textContent=krakenChange(value);if(Number.isFinite(value))cell.classList.add(value>=0?'price-change-positive':'price-change-negative');else cell.classList.add('text-muted');return cell; }
 function renderKrakenPortfolio(data) {
     document.getElementById('krakenSummary').hidden=false;
     document.getElementById('krakenTotal').textContent=krakenMoney(data.total_value_usd);
@@ -9,8 +11,13 @@ function renderKrakenPortfolio(data) {
     const body=document.getElementById('krakenRows');body.replaceChildren();
     for(const position of data.positions) {
         const row=document.createElement('tr');
-        const cells=[position.asset,krakenNumber(position.balance),krakenMoney(position.price_usd),krakenMoney(position.value_usd),position.price_pair||'No Kraken USD pair'];
-        for(const value of cells){const cell=document.createElement('td');cell.textContent=value;if(position.status==='unpriced')cell.classList.add('text-warning');row.appendChild(cell);}
+        const market=position.market_data||{},assetCell=document.createElement('td'),identity=document.createElement('div');identity.classList.add('kraken-asset');
+        if(market.image){const icon=document.createElement('img');icon.src=market.image;icon.alt='';icon.classList.add('coin-logo');identity.appendChild(icon);}
+        else {const fallback=document.createElement('span');fallback.classList.add('kraken-asset-fallback');fallback.textContent=position.asset.slice(0,2).toUpperCase();identity.appendChild(fallback);}
+        const name=document.createElement('span');name.textContent=position.asset;name.title=`Kraken price: ${position.price_pair||'No USD pair'}${market.coin_id?`; market changes: CoinGecko (${market.status||'unknown'})`:'; CoinGecko market changes unavailable'}`;identity.appendChild(name);assetCell.appendChild(identity);row.appendChild(assetCell);
+        for(const value of [krakenNumber(position.balance),krakenMoney(position.price_usd)]){const cell=document.createElement('td');cell.textContent=value;if(position.status==='unpriced')cell.classList.add('text-warning');row.appendChild(cell);}
+        row.appendChild(changeCell(market.change_1h));row.appendChild(changeCell(market.change_24h));row.appendChild(changeCell(market.change_7d));
+        const valueCell=document.createElement('td');valueCell.textContent=krakenMoney(position.value_usd);if(position.status==='unpriced')valueCell.classList.add('text-warning');row.appendChild(valueCell);
         body.appendChild(row);
     }
 }
@@ -23,4 +30,4 @@ async function loadKrakenPortfolio(force=false) {
     finally{if(id===krakenRequest)button.disabled=false;}
 }
 if(typeof document!=='undefined')document.addEventListener('DOMContentLoaded',()=>{document.getElementById('krakenRefresh').addEventListener('click',()=>loadKrakenPortfolio(true));loadKrakenPortfolio();});
-if(typeof module!=='undefined'&&module.exports)module.exports={krakenNumber,krakenMoney,renderKrakenPortfolio};
+if(typeof module!=='undefined'&&module.exports)module.exports={krakenNumber,krakenMoney,krakenChange,renderKrakenPortfolio};

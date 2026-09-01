@@ -16,7 +16,7 @@ from composition_history import create_composition_blueprint, save_composition
 from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows
 from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data
-from kraken_portfolio import portfolio as kraken_portfolio, KrakenUnavailable
+from kraken_portfolio import portfolio as kraken_portfolio, KrakenUnavailable, enrich_market_data
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -651,7 +651,9 @@ def experimental_portfolio():
 @login_required
 def get_kraken_portfolio():
     try:
-        return jsonify(success=True, data=kraken_portfolio.read(force=request.args.get('refresh') == '1'))
+        from price_data import prices as price_service
+        data=kraken_portfolio.read(force=request.args.get('refresh') == '1')
+        return jsonify(success=True, data=enrich_market_data(data, price_service.read))
     except KrakenUnavailable as error:
         return jsonify(success=False, error=str(error)), 503
     except Exception:

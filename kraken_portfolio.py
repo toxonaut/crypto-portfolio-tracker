@@ -15,6 +15,16 @@ from dotenv import dotenv_values
 BASE_URL = 'https://api.kraken.com'
 BALANCE_PATH = '/0/private/Balance'
 CREDENTIAL_FILE = Path(__file__).with_name('.kraken_credentials.txt')
+COINGECKO_IDS = {
+    'AAVE':'aave','ADA':'cardano','ALGO':'algorand','APE':'apecoin','ARB':'arbitrum',
+    'ATOM':'cosmos','AVAX':'avalanche-2','BCH':'bitcoin-cash','BTC':'bitcoin',
+    'DAI':'dai','DOGE':'dogecoin','DOT':'polkadot','ETC':'ethereum-classic','ETH':'ethereum',
+    'FIL':'filecoin','ICP':'internet-computer','LINK':'chainlink','LTC':'litecoin',
+    'MATIC':'matic-network','NEAR':'near','OP':'optimism','PAXG':'pax-gold','PEPE':'pepe',
+    'SHIB':'shiba-inu','SOL':'solana','SUI':'sui','TRX':'tron','UNI':'uniswap',
+    'USDC':'usd-coin','USDT':'tether','XLM':'stellar','XMR':'monero','XRP':'ripple',
+    'ZEC':'zcash'
+}
 
 class KrakenUnavailable(Exception): pass
 
@@ -46,6 +56,21 @@ def aggregate_balances(balances):
         asset=normalize_asset(raw)
         aggregated[asset]=aggregated.get(asset,0)+amount
     return {asset:amount for asset,amount in aggregated.items() if amount != 0}
+
+
+def enrich_market_data(result, quote_reader):
+    positions=[dict(position) for position in result.get('positions',[])]
+    ids={COINGECKO_IDS[position['asset']] for position in positions if position.get('asset') in COINGECKO_IDS}
+    quotes=quote_reader(ids) if ids else {}
+    for position in positions:
+        coin_id=COINGECKO_IDS.get(position.get('asset'));quote=quotes.get(coin_id,{}) if coin_id else {}
+        position['market_data']={
+            'coin_id':coin_id,'image':quote.get('image') or None,'source':'CoinGecko' if coin_id else None,
+            'status':quote.get('status') if coin_id else 'unavailable',
+            'change_1h':quote.get('usd_1h_change'),'change_24h':quote.get('usd_24h_change'),
+            'change_7d':quote.get('usd_7d_change')
+        }
+    return {**result,'positions':positions}
 
 
 class KrakenPortfolio:
