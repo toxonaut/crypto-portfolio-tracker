@@ -85,6 +85,14 @@
                         <div id="tradingview_chart" style="background-color: #1e1e1e;"></div>
                     </div>
                 </div>
+                <section class="market-chart-grid" id="marketChartGrid" aria-label="Market overview charts">
+                    <article><h4>BTC/USD</h4><div id="marketChartBtc" class="market-mini-chart"></div></article>
+                    <article><h4>ETH/USD</h4><div id="marketChartEth" class="market-mini-chart"></div></article>
+                    <article><h4>SOL/USD</h4><div id="marketChartSol" class="market-mini-chart"></div></article>
+                    <article><h4>PAXG/USD</h4><div id="marketChartPaxg" class="market-mini-chart"></div></article>
+                    <article><h4>ZEC/USD</h4><div id="marketChartZec" class="market-mini-chart"></div></article>
+                    <article><h4>SPY</h4><div id="marketChartSpy" class="market-mini-chart"></div></article>
+                </section>
             </div>
         </div>
 
@@ -127,7 +135,7 @@
                         <div>
                             <label for="scenarioContribution">One-time contribution (USD, shown units)</label>
                             <input id="scenarioContribution" class="form-control mt-2" type="number" min="0" max="1000000000" step="any" value="0" aria-describedby="scenarioContributionHelp scenarioInputError">
-                            <p id="scenarioContributionHelp" class="exposure-description small mt-2">Allocated proportionally across included positions at baseline prices, before price changes. In Demo Mode, enter demo dollars.</p>
+                            <p id="scenarioContributionHelp" class="exposure-description small mt-2">Allocated proportionally across positive holdings at baseline prices, before price changes. Negative balances are never increased by a contribution. In Demo Mode, enter demo dollars.</p>
                             <p id="scenarioInputError" class="text-warning" role="alert"></p>
                             <label for="scenarioYield">Yield multiplier: <output id="scenarioYieldLabel" for="scenarioYield">100%</output></label>
                             <input id="scenarioYield" class="form-range" type="range" min="0" max="200" step="5" value="100">
@@ -179,6 +187,7 @@
     <script src="{{ url_for('static', filename='history-summary.js') }}"></script>
     <script src="{{ url_for('static', filename='history-chart.js') }}"></script>
     <script src="{{ url_for('static', filename='price-quality.js') }}"></script>
+    <script src="{{ url_for('static', filename='market-charts.js') }}"></script>
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
     <script src="{{ url_for('static', filename='composition.js') }}"></script>
 </body>

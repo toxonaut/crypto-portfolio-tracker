@@ -7,7 +7,7 @@ function scenarioPositions(portfolio) {
         for (const position of Object.values(details.sources || {})) {
             if (position.amount === 0) continue;
             const value = position.amount * details.price;
-            if (!Number.isFinite(position.amount) || position.amount <= 0 ||
+            if (!Number.isFinite(position.amount) ||
                 !Number.isFinite(details.price) || details.price <= 0 || !Number.isFinite(value)) {
                 excluded++;
                 continue;
@@ -22,17 +22,22 @@ function scenarioPositions(portfolio) {
 
 function calculateScenario(positions, changes, contribution, yieldMultiplier) {
     const baseline = positions.reduce((sum, p) => sum + p.value, 0);
+    const grossPositive = positions.reduce((sum, p) => sum + Math.max(p.value, 0), 0);
+    const contributionApplied = grossPositive > 0 ? contribution : 0;
     let value = 0;
     let income = 0;
     let baselineIncome = 0;
     for (const p of positions) {
-        const allocation = baseline > 0 ? contribution * p.value / baseline : 0;
+        // Contributions buy positive holdings proportionally; they never increase
+        // a liability or use the (potentially small/negative) net value as a weight.
+        const allocation = p.value > 0 && grossPositive > 0 ? contribution * p.value / grossPositive : 0;
         const projected = (p.value + allocation) * (1 + (changes.get(p.coin) || 0) / 100);
         value += projected;
         income += projected * p.apy / 100 * yieldMultiplier / 12;
         baselineIncome += p.value * p.apy / 100 / 12;
     }
-    return {baseline, baselineIncome, value, income, impact: value - baseline - contribution};
+    return {baseline, grossPositive, contributionApplied, baselineIncome, value, income,
+        impact: value - baseline - contributionApplied, positionCount: positions.length};
 }
 
 const scenarioState = {latest: null, baseline: null, demo: false, changes: new Map(), contribution: 0, yieldMultiplier: 1, stale: false};
@@ -113,18 +118,19 @@ function renderScenarioResults() {
     const baseline = scenarioState.baseline;
     if (!baseline) return;
     const result = calculateScenario(baseline.data.positions, scenarioState.changes, scenarioState.contribution, scenarioState.yieldMultiplier);
-    const money = value => '$' + (value / (scenarioState.demo ? 15 : 1)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const money = value => (value < 0 ? '-$' : '$') + (Math.abs(value) / (scenarioState.demo ? 15 : 1)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}).replace(/,/g, "'");
     const text = (id, value) => { document.getElementById(id).textContent = value; };
-    document.getElementById('scenarioContent').hidden = result.baseline <= 0;
-    let status = result.baseline > 0 ? `Baseline captured at ${baseline.time}.` : 'No priced, positive holdings available. Reset after portfolio data becomes available.';
+    document.getElementById('scenarioContent').hidden = result.positionCount === 0;
+    let status = result.positionCount ? `Signed baseline captured at ${baseline.time}. Negative balances are deductions.` : 'No priced holdings available. Reset after portfolio data becomes available.';
     if (scenarioState.demo) status += ' Demo values shown (divided by 15).';
-    if (baseline.data.excluded) status += ` ${baseline.data.excluded} position(s) excluded due to missing prices, invalid amounts, or negative balances.`;
+    if (baseline.data.excluded) status += ` ${baseline.data.excluded} position(s) excluded due to missing prices or invalid amounts.`;
+    if (scenarioState.contribution > 0 && result.grossPositive <= 0) status += ' The contribution is not applied because there are no positive holdings to allocate it to.';
     if (baseline.data.unknownYield) status += ` ${baseline.data.unknownYield} position(s) have missing or invalid APY; assumed 0%.`;
     if (baseline.priceError) status += ' Baseline price provider reported an error; prices may be incomplete or cached.';
     if (scenarioState.stale) status += ' Portfolio refresh failed; baseline and reset data may be stale.';
     text('scenarioStatus', status);
     text('scenarioValue', money(result.value));
-    text('scenarioBaseline', `Baseline ${money(result.baseline)} + contribution ${money(scenarioState.contribution)}`);
+    text('scenarioBaseline', `Baseline ${money(result.baseline)} + contribution ${money(result.contributionApplied)}`);
     text('scenarioImpact', `${result.impact > 0 ? '+' : ''}${money(result.impact)}`);
     text('scenarioIncome', money(result.income));
     text('scenarioIncomeChange', `Baseline ${money(result.baselineIncome)} / month`);

@@ -411,6 +411,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Render dynamic TradingView pair buttons and initialize selection
         if (!isStatisticsPage) {
+            initializeMarketOverviewCharts();
             renderPairButtons();
             initializePairSelection();
             // Activate the first button and load its chart by default

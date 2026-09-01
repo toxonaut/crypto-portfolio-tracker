@@ -76,6 +76,24 @@ body {
     margin-bottom: 1rem;
 }
 
+.market-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.market-chart-grid article {
+    min-width: 0;
+    padding: .75rem;
+    border: 1px solid #344361;
+    border-radius: 8px;
+    background: #121726;
+}
+.market-chart-grid h4 { margin: 0 0 .5rem; font-size: 1rem; }
+.market-mini-chart { width: 100%; height: 280px; }
+@media (max-width: 991px) { .market-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 575px) { .market-chart-grid { grid-template-columns: minmax(0, 1fr); } }
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
     .container {

@@ -36,11 +36,37 @@ test('multiple locations retain their individual yields and never mutate holding
     assert.equal(calculateScenario(parsed.positions,new Map(),300,1).income,2);
     assert.equal(JSON.stringify(data),before);
 });
-test('missing prices, debt, zero balances and unknown APYs are explicit', () => {
+test('missing prices, zero balances and unknown APYs are explicit', () => {
     const parsed=scenarioPositions({a:{price:100,sources:{x:{amount:1},y:{amount:0},z:{amount:-1}}},b:{price:0,sources:{x:{amount:2}}}});
-    assert.equal(parsed.excluded,2);
-    assert.equal(parsed.unknownYield,1);
-    assert.equal(parsed.positions.length,1);
+    assert.equal(parsed.excluded,1);
+    assert.equal(parsed.unknownYield,2);
+    assert.equal(parsed.positions.length,2);
     assert.equal(calculateScenario(parsed.positions,new Map(),0,1).income,0);
     assert.equal(calculateScenario([],new Map(),0,1).value,0);
+});
+test('negative balances reduce baseline, respond to prices, and produce negative yield', () => {
+    const parsed=scenarioPositions({bitcoin:{price:100,sources:{Wallet:{amount:10,apy:12},Loan:{amount:-2,apy:6}}}});
+    const unchanged=calculateScenario(parsed.positions,new Map(),0,1);
+    assert.equal(unchanged.baseline,800);
+    assert.equal(unchanged.value,800);
+    assert.equal(unchanged.baselineIncome,9);
+    assert.equal(unchanged.income,9);
+    const up=calculateScenario(parsed.positions,new Map([['bitcoin',50]]),0,1);
+    assert.equal(up.value,1200);
+    assert.equal(up.impact,400);
+    assert.equal(up.income,13.5);
+});
+test('contributions go only to positive holdings and never grow liabilities', () => {
+    const signed=[{coin:'asset',value:1000,apy:0},{coin:'debt',value:-900,apy:0}];
+    const r=calculateScenario(signed,new Map([['asset',10],['debt',20]]),100,1);
+    assert.equal(r.baseline,100);
+    assert.equal(r.grossPositive,1000);
+    assert.equal(r.contributionApplied,100);
+    assert.equal(r.value,130);
+    assert.equal(r.impact,-70);
+    const debtOnly=calculateScenario([{coin:'debt',value:-200,apy:12}],new Map(),100,1);
+    assert.equal(debtOnly.value,-200);
+    assert.equal(debtOnly.contributionApplied,0);
+    assert.equal(debtOnly.impact,0);
+    assert.equal(debtOnly.income,-2);
 });
