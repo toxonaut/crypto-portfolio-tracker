@@ -22,7 +22,9 @@ class KrakenPortfolioTests(unittest.TestCase):
         result=service.read()
         self.assertEqual(http.post.call_args.args[0],'https://api.kraken.com/0/private/Balance')
         self.assertNotIn('key',str(result).lower());self.assertEqual(result['total_value_usd'],282.5);self.assertTrue(result['complete'])
-        self.assertEqual([(p['raw_asset'],p['value_usd']) for p in result['positions']],[('XXBT',200),('ZUSD',50),('ETH.F',30),('ZCHF',2.5)])
+        self.assertEqual([(p['asset'],p['value_usd']) for p in result['positions']],[('BTC',200),('USD',50),('ETH',30)])
+        self.assertEqual(result['hidden_small_positions'],1)
+        self.assertTrue(all('raw_asset' not in p for p in result['positions']))
         self.assertEqual(service.read(),result);self.assertEqual(http.post.call_count,1)
         clock.return_value+=31;http.post.return_value=Reply({'error':[],'result':{'ZUSD':'1'}})
         self.assertEqual(service.read()['total_value_usd'],1);self.assertEqual(http.post.call_count,2)
@@ -32,7 +34,22 @@ class KrakenPortfolioTests(unittest.TestCase):
         http.get.return_value=Reply({'error':[],'result':{}})
         result=KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'a','KRAKEN_PRIVATE_KEY':'Yg=='}).read()
         self.assertIsNone(result['total_value_usd']);self.assertEqual(result['known_value_usd'],3)
-        self.assertEqual(result['unpriced_assets'],['MYSTERY']);self.assertFalse(result['complete'])
+        self.assertEqual(result['unpriced_assets'],['MYSTERY']);self.assertFalse(result['complete']);self.assertEqual(result['hidden_small_positions'],1)
+    def test_tokenized_stock_uses_kraken_asset_class_and_filters_dust(self):
+        http=Mock();http.post.return_value=Reply({'error':[],'result':{'AAPLx.T':'0.1','MSFTx.T':'0.01'}})
+        standard=Reply({'error':[],'result':{}})
+        stocks=Reply({'error':[],'result':{
+            'AAPLxUSD':{'base':'AAPLx','quote':'ZUSD','altname':'AAPLxUSD','status':'online'},
+            'MSFTxUSD':{'base':'MSFTx','quote':'ZUSD','altname':'MSFTxUSD','status':'online'}}})
+        tickers=Reply({'error':[],'result':{'AAPLxUSD':{'c':['250','1']},'MSFTxUSD':{'c':['300','1']}}})
+        http.get.side_effect=[standard,stocks,tickers]
+        result=KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'a','KRAKEN_PRIVATE_KEY':'Yg=='}).read()
+        self.assertEqual(result['total_value_usd'],28)
+        self.assertEqual([(p['asset'],p['price_usd'],p['value_usd']) for p in result['positions']],[('AAPLx',250,25)])
+        self.assertEqual(result['hidden_small_positions'],1)
+        self.assertEqual(http.get.call_args_list[1].kwargs['params'],{'aclass':'tokenized_asset'})
+        self.assertEqual(http.get.call_args_list[2].kwargs['params']['asset_class'],'tokenized_asset')
+
     def test_provider_and_configuration_fail_closed_without_secret_leak(self):
         with self.assertRaisesRegex(KrakenUnavailable,'not configured'):
             KrakenPortfolio(Mock(),lambda:1,{}).read()

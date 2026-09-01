@@ -44,7 +44,7 @@ class KrakenPortfolio:
     def __init__(self, http=requests, clock=time.time, credentials=None):
         self.http, self.clock, self.credentials = http, clock, credentials
         self.lock=threading.Lock();self.last_nonce=0;self.cached=None;self.cache_time=0
-        self.pairs=None;self.pair_time=0
+        self.pair_cache={}
 
     def _credentials(self):
         values = self.credentials if self.credentials is not None else {**dotenv_values(CREDENTIAL_FILE), **os.environ}
@@ -76,36 +76,46 @@ class KrakenPortfolio:
             if isinstance(asset,str) and amount is not None and amount != 0: balances[asset]=amount
         return balances
 
-    def _asset_pairs(self):
+    def _asset_pairs(self, asset_class='currency'):
         now=self.clock()
-        if self.pairs is not None and now-self.pair_time < 3600: return self.pairs
-        response=self.http.get(BASE_URL+'/0/public/AssetPairs',timeout=(5,20),allow_redirects=False)
-        self.pairs=self._json(response,'Kraken asset-pairs API');self.pair_time=now
-        return self.pairs
+        cached=self.pair_cache.get(asset_class)
+        if cached and now-cached[0] < 3600: return cached[1]
+        params={'aclass':asset_class} if asset_class!='currency' else None
+        response=self.http.get(BASE_URL+'/0/public/AssetPairs',params=params,timeout=(5,20),allow_redirects=False)
+        pairs=self._json(response,'Kraken asset-pairs API');self.pair_cache[asset_class]=(now,pairs)
+        return pairs
 
     def _prices(self, balances):
         assets={normalize_asset(asset) for asset in balances}
         selected={}
-        for result_key,info in self._asset_pairs().items():
-            if not isinstance(info,dict) or info.get('status') not in (None,'online'): continue
-            base,quote=info.get('base'),info.get('quote')
-            normalized_base = normalize_asset(base) if isinstance(base, str) else None
-            normalized_quote = normalize_asset(quote) if isinstance(quote, str) else None
-            if normalized_base in assets and normalized_quote=='USD': selected.setdefault(normalized_base,(result_key,info.get('altname'),False))
-            elif normalized_base=='USD' and normalized_quote in assets: selected.setdefault(normalized_quote,(result_key,info.get('altname'),True))
-        pairs=[key for key,_,_ in selected.values()]
+        classes=['currency']
+        if any(asset.endswith('x') for asset in assets): classes.append('tokenized_asset')
         tickers={}
-        if pairs:
-            response=self.http.get(BASE_URL+'/0/public/Ticker',params={'pair':','.join(pairs)},timeout=(5,20),allow_redirects=False)
-            tickers=self._json(response,'Kraken ticker API')
+        for asset_class in classes:
+            class_selected={}
+            for result_key,info in self._asset_pairs(asset_class).items():
+                if not isinstance(info,dict) or info.get('status') not in (None,'online'): continue
+                base,quote=info.get('base'),info.get('quote')
+                normalized_base = normalize_asset(base) if isinstance(base, str) else None
+                normalized_quote = normalize_asset(quote) if isinstance(quote, str) else None
+                pair_name=info.get('altname') or result_key
+                if normalized_base in assets and normalized_quote=='USD': class_selected.setdefault(normalized_base,(pair_name,result_key,False))
+                elif normalized_base=='USD' and normalized_quote in assets: class_selected.setdefault(normalized_quote,(pair_name,result_key,True))
+            if class_selected:
+                params={'pair':','.join(pair for pair,_,_ in class_selected.values())}
+                if asset_class!='currency': params['asset_class']=asset_class
+                response=self.http.get(BASE_URL+'/0/public/Ticker',params=params,timeout=(5,20),allow_redirects=False)
+                result=self._json(response,'Kraken ticker API')
+                for asset,(pair,result_key,inverse) in class_selected.items():
+                    ticker=result.get(pair) or result.get(result_key) or result.get(pair.replace('USD','/USD')) or {}
+                    close=ticker.get('c') if isinstance(ticker,dict) else None
+                    price=parse_number(close[0] if isinstance(close,list) and close else None)
+                    if price is not None and price>0: selected[asset]=(price,pair,inverse)
         prices={}
         for asset in assets:
             if asset=='USD': prices[asset]=(1.0,'USD')
             elif asset in selected:
-                key,alt,inverse=selected[asset];ticker=tickers.get(key) or tickers.get(alt) or {}
-                close=ticker.get('c') if isinstance(ticker,dict) else None
-                price=parse_number(close[0] if isinstance(close,list) and close else None)
-                if price is not None and price > 0: prices[asset]=(1/price if inverse else price,alt or key)
+                price,pair,inverse=selected[asset];prices[asset]=(1/price if inverse else price,pair)
         return prices
 
     def read(self, force=False):
@@ -120,10 +130,13 @@ class KrakenPortfolio:
                     'value_usd':amount*price if price is not None else None,'price_pair':quote[1] if quote else None,
                     'status':'priced' if quote else 'unpriced'})
             positions.sort(key=lambda p:(p['value_usd'] is None,-abs(p['value_usd'] or 0),p['asset'],p['raw_asset']))
-            unpriced=[p['raw_asset'] for p in positions if p['value_usd'] is None]
+            unpriced=sorted(set(p['asset'] for p in positions if p['value_usd'] is None))
             known=sum(p['value_usd'] for p in positions if p['value_usd'] is not None)
-            result={'positions':positions,'known_value_usd':known,'total_value_usd':known if not unpriced else None,
+            hidden=sum(1 for p in positions if p['value_usd'] is not None and abs(p['value_usd']) < 10)
+            visible=[{k:v for k,v in p.items() if k!='raw_asset'} for p in positions if p['value_usd'] is None or abs(p['value_usd']) >= 10]
+            result={'positions':visible,'known_value_usd':known,'total_value_usd':known if not unpriced else None,
                 'unpriced_assets':unpriced,'complete':not unpriced,'as_of':dt.datetime.fromtimestamp(now,dt.timezone.utc).isoformat()}
+            result['hidden_small_positions']=hidden
             self.cached=result;self.cache_time=now
             return result
 

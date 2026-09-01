@@ -16,7 +16,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3"><div><h1 class="h3">Experimental Kraken Portfolio</h1><p class="exposure-description">Read-only balances from Kraken, valued with Kraken public USD tickers. This page does not change the main portfolio or its history.</p></div><button id="krakenRefresh" class="btn btn-outline-primary" type="button">Refresh balances</button></div>
         <div id="krakenStatus" class="alert alert-secondary" role="status">Loading Kraken balances…</div>
         <div id="krakenSummary" hidden><div class="scenario-results mb-4"><div><span>Total portfolio value</span><strong id="krakenTotal"></strong><small id="krakenCoverage"></small></div><div><span>Known USD value</span><strong id="krakenKnown"></strong><small>Sum of positions with Kraken USD prices</small></div><div><span>Data retrieved</span><strong id="krakenAsOf" class="fs-6"></strong><small>Balances cache for 30 seconds</small></div></div>
-        <div class="table-responsive"><table class="table table-dark"><thead><tr><th>Asset</th><th>Kraken balance code</th><th>Balance</th><th>USD price</th><th>USD value</th><th>Price source</th></tr></thead><tbody id="krakenRows"></tbody></table></div></div>
+        <div class="table-responsive"><table class="table table-dark"><thead><tr><th>Asset</th><th>Balance</th><th>USD price</th><th>USD value</th><th>Price source</th></tr></thead><tbody id="krakenRows"></tbody></table></div></div>
     </div></main>
 </div>
 <script src="{{ url_for('static', filename='kraken-portfolio.js') }}"></script>

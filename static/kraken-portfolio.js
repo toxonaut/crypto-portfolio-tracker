@@ -9,7 +9,7 @@ function renderKrakenPortfolio(data) {
     const body=document.getElementById('krakenRows');body.replaceChildren();
     for(const position of data.positions) {
         const row=document.createElement('tr');
-        const cells=[position.asset,position.raw_asset,krakenNumber(position.balance),krakenMoney(position.price_usd),krakenMoney(position.value_usd),position.price_pair||'No Kraken USD pair'];
+        const cells=[position.asset,krakenNumber(position.balance),krakenMoney(position.price_usd),krakenMoney(position.value_usd),position.price_pair||'No Kraken USD pair'];
         for(const value of cells){const cell=document.createElement('td');cell.textContent=value;if(position.status==='unpriced')cell.classList.add('text-warning');row.appendChild(cell);}
         body.appendChild(row);
     }
@@ -18,7 +18,7 @@ let krakenRequest=0;
 async function loadKrakenPortfolio(force=false) {
     const id=++krakenRequest,button=document.getElementById('krakenRefresh'),status=document.getElementById('krakenStatus');
     button.disabled=true;status.className='alert alert-secondary';status.textContent='Loading Kraken balances…';
-    try {const response=await fetch('/api/experimental/kraken-portfolio'+(force?'?refresh=1':''),{headers:{Accept:'application/json'}});const payload=await response.json();if(!response.ok||!payload.success)throw new Error(payload.error||'Kraken request failed.');if(id!==krakenRequest)return;renderKrakenPortfolio(payload.data);status.className=payload.data.complete?'alert alert-info':'alert alert-warning';status.textContent=`${payload.data.positions.length} nonzero Kraken balance(s) loaded.${payload.data.complete?'':' Some positions could not be valued.'}`;}
+    try {const response=await fetch('/api/experimental/kraken-portfolio'+(force?'?refresh=1':''),{headers:{Accept:'application/json'}});const payload=await response.json();if(!response.ok||!payload.success)throw new Error(payload.error||'Kraken request failed.');if(id!==krakenRequest)return;renderKrakenPortfolio(payload.data);status.className=payload.data.complete?'alert alert-info':'alert alert-warning';status.textContent=`${payload.data.positions.length} position(s) shown.${payload.data.hidden_small_positions?` ${payload.data.hidden_small_positions} position(s) below $10 hidden.`:''}${payload.data.complete?'':' Some positions could not be valued.'}`;}
     catch(error){if(id!==krakenRequest)return;status.className='alert alert-warning';status.textContent=error.message;}
     finally{if(id===krakenRequest)button.disabled=false;}
 }
