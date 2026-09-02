@@ -95,8 +95,6 @@ async function updatePortfolio() {
         
         // Store portfolio data in global variable for use in historical changes calculation
         portfolioData = data;
-        if (typeof renderExposure === 'function') renderExposure(data.data, isDemoMode, data.price_error);
-        if (typeof updateScenarioLab === 'function') updateScenarioLab(data.data, isDemoMode, data.price_error);
         
         // Update last updated timestamp
         const lastUpdatedElement = document.getElementById('lastUpdated');
@@ -222,8 +220,6 @@ async function updatePortfolio() {
         const warning = document.getElementById('priceApiError');
         if (warning) { warning.textContent = 'Refresh failed. Displayed figures are from the previous refresh and may be stale.'; warning.style.display = 'block'; warning.className = 'alert alert-warning'; }
         showHistoricalChangesError();
-        if (typeof showExposureError === 'function') showExposureError();
-        if (typeof showScenarioError === 'function') showScenarioError();
     }
 }
 
@@ -355,13 +351,9 @@ function renderPairButtons() {
 function toggleDemoMode() {
     isDemoMode = !isDemoMode;
     if (typeof renderComposition === 'function') renderComposition();
-    if (portfolioData && typeof renderExposure === 'function') {
-        renderExposure(portfolioData.data, isDemoMode, portfolioData.price_error);
-    }
+    if (typeof renderNewPortfolioExposure === 'function') renderNewPortfolioExposure();
     
-    if (portfolioData && typeof updateScenarioLab === 'function') {
-        updateScenarioLab(portfolioData.data, isDemoMode, portfolioData.price_error);
-    }
+    if (typeof renderNewPortfolioScenario === 'function') renderNewPortfolioScenario();
 
     // Update the status message
     const statusElement = document.getElementById('demoModeStatus');

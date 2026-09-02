@@ -1,6 +1,9 @@
 // Net exposure: signed balances reduce both asset and platform totals.
 // Invalid or missing prices are excluded explicitly.
 function calculateExposure(portfolio) {
+    if (Array.isArray(portfolio?.assets) && Array.isArray(portfolio?.platforms)) {
+        return portfolio;
+    }
     const assets = new Map();
     const platforms = new Map();
     let excluded = 0;

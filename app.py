@@ -13,7 +13,7 @@ from typing import Any, Optional
 from authlib.integrations.flask_client import OAuth
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from functools import wraps
-from composition_history import create_composition_blueprint, save_composition
+from composition_history import create_composition_blueprint, save_composition, save_new_composition, new_compositions
 from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows
 from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data, worker_key, snapshot_interval, utcnow
@@ -252,6 +252,8 @@ with app.app_context():
     initialize_snapshot_tables(db.engine)
 app.register_blueprint(create_snapshot_blueprint(db, Portfolio.__table__, PortfolioHistory.__table__))
 app.register_blueprint(create_composition_blueprint(db))
+with app.app_context():
+    new_compositions.create(db.engine, checkfirst=True)
 
 # Initialize OAuth
 oauth = OAuth(app)
@@ -740,7 +742,8 @@ def save_new_portfolio_snapshot():
             total=data.get('total_value_usd')
             if not data.get('complete') or not isinstance(total,(int,float)) or isinstance(total,bool) or not math.isfinite(total):
                 raise ValueError('New portfolio pricing is incomplete.')
-            row=NewPortfolioHistory(user_id=user_id,slot=slot,date=utcnow(),total_value=total);db.session.add(row);created.append(row)
+            row=NewPortfolioHistory(user_id=user_id,slot=slot,date=utcnow(),total_value=total);db.session.add(row);db.session.flush()
+            save_new_composition(db.session,row.id,user_id,row.date,data);created.append(row)
         db.session.commit()
         first=(created[0].id if created else db.session.execute(db.select(NewPortfolioHistory.id).where(NewPortfolioHistory.slot==slot).order_by(NewPortfolioHistory.id)).scalar())
         return jsonify(success=True,duplicate=not created,history_id=first,interval_seconds=interval)

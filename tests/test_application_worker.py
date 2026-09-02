@@ -95,6 +95,7 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
     with module.app.app_context():
         assert module.NewPortfolioHistory.query.count()==1
         assert module.NewPortfolioHistory.query.first().total_value==150
+        assert module.db.session.execute(module.db.select(module.new_compositions)).first() is not None
     updated=client.patch('/api/new-portfolio/manual/'+str(added.json['id']),json={'origin':'Cold wallet','amount':2,'apy':5.5})
     assert updated.status_code==200,updated.json
     with module.app.app_context():
@@ -104,11 +105,11 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
     with module.app.app_context(): assert module.NewPortfolioEntry.query.count()==0
 response=client.get('/history/composition?range=all')
 assert response.status_code==200
-assert len(response.json['data'])==2
+assert len(response.json['data'])==1
 for row in response.json['data']:
-    assert row['positions'][0]['source']=='Test wallet'
-    assert row['positions'][0]['amount']==2
-    assert sum(p['value_usd'] for p in row['positions'])==row['total_value']==200
+    assert row['positions'][0]['source']=='Ledger'
+    assert row['positions'][0]['amount']==1.5
+    assert sum(p['value_usd'] for p in row['positions'])==row['total_value']==150
 print('Full application price quality, worker and composition integration passed')
 '''
         result=subprocess.run([sys.executable,'-c',script],capture_output=True,text=True,timeout=30)

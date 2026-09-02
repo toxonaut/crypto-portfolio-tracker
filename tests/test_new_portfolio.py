@@ -25,17 +25,30 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual([(p['asset'],p['origin']) for p in result['positions']],
             [('BTC','Kraken'),('BTC','Ledger'),('eth','A wallet'),('ETH','Kraken')])
 
-    def test_overview_aggregates_origins_and_keeps_xstocks(self):
+    def test_overview_aggregates_origins_and_groups_xstocks(self):
         portfolio={'positions':[
             {'asset':'BTC','origin':'Kraken','balance':1,'price_usd':100,'value_usd':100,'apy':2,'market_data':{'image':'btc.png','change_24h':3}},
             {'asset':'BTC','origin':'Ledger','balance':2,'price_usd':100,'value_usd':200,'apy':0,'market_data':{'image':'btc.png','change_24h':3}},
-            {'asset':'SPYx','origin':'Kraken','balance':1,'price_usd':500,'value_usd':500,'apy':0,'market_data':{}}],
-            'total_value_usd':800,'known_value_usd':800,'complete':True,'unpriced_assets':[],'as_of':'now'}
+            {'asset':'SNX','origin':'Wallet','balance':10,'price_usd':2,'value_usd':20,'apy':0,'market_data':{}},
+            {'asset':'AAPLx','origin':'Kraken','balance':2,'price_usd':100,'value_usd':200,'apy':1,'market_data':{'change_24h':4}},
+            {'asset':'SPYx','origin':'Broker','balance':1,'price_usd':500,'value_usd':500,'apy':0,'market_data':{}},
+            {'asset':'TSLAx','origin':'Kraken','balance':-0.5,'price_usd':200,'value_usd':-100,'apy':0,'market_data':{}}],
+            'total_value_usd':920,'known_value_usd':920,'complete':True,'unpriced_assets':[],'as_of':'now'}
         result=overview_data(portfolio,100)
-        self.assertEqual([row['asset'] for row in result['assets']],['BTC','SPYx'])
+        self.assertEqual([row['asset'] for row in result['assets']],['BTC','SNX','xStocks'])
         self.assertEqual(result['assets'][0]['total_balance'],3);self.assertEqual(result['assets'][0]['total_value'],300)
         self.assertEqual(result['assets'][0]['origins'],['Kraken','Ledger']);self.assertEqual(result['assets'][0]['daily_change'],3)
-        self.assertEqual(result['btc_value'],8);self.assertAlmostEqual(result['monthly_yield_usd'],100*0.02/12)
+        xstocks=result['assets'][2]
+        self.assertIsNone(xstocks['total_balance']);self.assertIsNone(xstocks['price'])
+        self.assertIsNone(xstocks['daily_change']);self.assertEqual(xstocks['total_value'],600)
+        self.assertEqual(xstocks['origins'],['Broker','Kraken']);self.assertTrue(xstocks['is_xstocks'])
+        self.assertEqual(result['btc_value'],9.2);self.assertAlmostEqual(result['monthly_yield_usd'],(100*0.02+200*0.01)/12)
+        self.assertEqual(result['exposure']['assets'],[('xStocks',600),('BTC',300),('SNX',20)])
+        self.assertEqual(result['exposure']['platforms'],[('Broker',500),('Kraken',200),('Ledger',200),('Wallet',20)])
+        self.assertEqual(result['exposure']['total'],920);self.assertEqual(result['exposure']['excluded'],0)
+        self.assertEqual([row['coin'] for row in result['scenario']['positions']],['BTC','BTC','SNX','xStocks','xStocks','xStocks'])
+        self.assertEqual(sum(row['value'] for row in result['scenario']['positions'] if row['coin']=='xStocks'),600)
+        self.assertEqual(result['scenario']['excluded'],0);self.assertEqual(result['scenario']['unknownYield'],0)
 
 
 if __name__=='__main__':unittest.main()

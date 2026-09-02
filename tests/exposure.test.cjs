@@ -21,6 +21,10 @@ test('zero and negative net holdings remain signed, missing prices are excluded'
     assert.equal(result.total,-200);
     assert.equal(result.excluded,1);
 });
+test('accepts valued New Portfolio exposure with combined xStocks',()=>{
+    const valued={assets:[['xStocks',400],['BTC',300]],platforms:[['Kraken',500],['Wallet',200]],excluded:0,total:700};
+    assert.deepEqual(calculateExposure(valued),valued);
+});
 test('render keeps deductions negative, bounds bars, and handles nonpositive net totals', () => {
     function element(){return {style:{},children:[],textContent:'',append(...children){this.children.push(...children);},appendChild(child){this.children.push(child);},replaceChildren(){this.children=[];},setAttribute(){}};}
     const nodes=new Map();

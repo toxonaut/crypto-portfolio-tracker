@@ -1,5 +1,8 @@
 // Pure calculations: never mutate portfolio data or write to the server.
 function scenarioPositions(portfolio) {
+    if (Array.isArray(portfolio?.positions) && Number.isFinite(portfolio?.excluded) && Number.isFinite(portfolio?.unknownYield)) {
+        return portfolio;
+    }
     const positions = [];
     let excluded = 0;
     let unknownYield = 0;

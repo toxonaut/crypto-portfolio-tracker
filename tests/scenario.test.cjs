@@ -36,6 +36,12 @@ test('multiple locations retain their individual yields and never mutate holding
     assert.equal(calculateScenario(parsed.positions,new Map(),300,1).income,2);
     assert.equal(JSON.stringify(data),before);
 });
+test('accepts valued New Portfolio positions with one combined xStocks control',()=>{
+    const data={positions:[{coin:'xStocks',value:500,apy:0},{coin:'xStocks',value:-100,apy:5},{coin:'BTC',value:300,apy:2}],excluded:0,unknownYield:0};
+    assert.equal(scenarioPositions(data),data);
+    const result=calculateScenario(data.positions,new Map([['xStocks',10]]),0,1);
+    assert.equal(result.baseline,700);assert.equal(result.value,740);
+});
 test('missing prices, zero balances and unknown APYs are explicit', () => {
     const parsed=scenarioPositions({a:{price:100,sources:{x:{amount:1},y:{amount:0},z:{amount:-1}}},b:{price:0,sources:{x:{amount:2}}}});
     assert.equal(parsed.excluded,1);

@@ -19,6 +19,10 @@ test('demo scales dollars, not shares; nonpositive net shares are unavailable',(
     assert.equal(compositionSeries([{...rows[0],total_value:0}],'coin_id','share')[0].data[0],null);
     assert.equal(compositionSeries([{...rows[0],total_value:-1}],'coin_id','share')[0].data[0],null);
 });
+test('combined xStocks omit meaningless balance and unit price in snapshot details',()=>{
+    const grouped={total_value:400,positions:[{coin_id:'xStocks',source:'Kraken',amount:null,price_usd:null,value_usd:400}]};
+    assert.equal(compositionGroups(grouped,'coin_id').get('xStocks'),400);
+});
 const vm=require('node:vm');
 const fs=require('node:fs');
 test('UI loads composition only on demand and inspects saved signed quantities',async()=>{

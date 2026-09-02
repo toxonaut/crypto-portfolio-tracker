@@ -92,7 +92,7 @@ function renderCompositionSnapshot() {
     document.getElementById('compositionTotal').textContent = `Net value: ${compositionMoney(row.total_value/divisor)}${compositionDemo()?' · Demo values shown.':''}`;
     for (const p of row.positions) {
         const tr = document.createElement('tr');
-        for (const value of [p.coin_id,p.source,compositionNumber(p.amount/divisor),compositionMoney(p.price_usd),compositionMoney(p.value_usd/divisor),row.total_value>0?compositionNumber(p.value_usd/row.total_value*100)+'%':'Unavailable']) {
+        for (const value of [p.coin_id,p.source,p.amount===null?'':compositionNumber(p.amount/divisor),p.price_usd===null?'':compositionMoney(p.price_usd),compositionMoney(p.value_usd/divisor),row.total_value>0?compositionNumber(p.value_usd/row.total_value*100)+'%':'Unavailable']) {
             const td=document.createElement('td');td.textContent=value;tr.appendChild(td);
         }
         body.appendChild(tr);
