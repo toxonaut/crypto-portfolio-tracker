@@ -5,6 +5,7 @@ import datetime
 import json
 import math
 import logging
+import secrets
 import requests
 import time
 from dotenv import load_dotenv
@@ -15,7 +16,7 @@ from functools import wraps
 from composition_history import create_composition_blueprint, save_composition
 from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows
-from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data
+from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data, worker_key, snapshot_interval, utcnow
 from kraken_portfolio import portfolio as kraken_portfolio, KrakenUnavailable, enrich_market_data
 from new_portfolio import manual_positions, merge_portfolios, overview_data
 
@@ -154,6 +155,15 @@ class NewPortfolioEntry(db.Model):
 
     def to_editor_dict(self):
         return {'id':self.id,'coin_id':self.coin_id,'origin':self.origin,'amount':self.amount,'apy':self.apy}
+
+class NewPortfolioHistory(db.Model):
+    __tablename__ = 'new_portfolio_history'
+    __table_args__ = (db.UniqueConstraint('user_id','slot',name='uq_new_portfolio_history_user_slot'),)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    slot = db.Column(db.BigInteger, nullable=False)
+    date = db.Column(db.DateTime, nullable=False, index=True)
+    total_value = db.Column(db.Float, nullable=False)
 
 class PortfolioHistory(db.Model):
     __table_args__ = (db.Index('ix_portfolio_history_date', 'date'),)
@@ -550,7 +560,7 @@ last_history_check = datetime.datetime.now() - datetime.timedelta(hours=2)  # St
 @app.before_request
 def before_request():
     # The snapshot blueprint enforces its own service authentication (or login for status).
-    if request.blueprint == 'snapshot_worker':
+    if request.blueprint == 'snapshot_worker' or request.path == '/worker_api/new-portfolio-snapshot':
         return
     # Allow login routes and the public deployment health check.
     if request.path.startswith('/login') or request.path in ('/favicon.ico', '/health'):
@@ -675,11 +685,14 @@ def get_kraken_portfolio():
         logger.exception('Unexpected Kraken portfolio error')
         return jsonify(success=False, error='Kraken portfolio is temporarily unavailable.'), 503
 
-def read_new_portfolio(force=False):
+def read_new_portfolio_for_user(user_id,force=False):
     from price_data import prices as price_service
     data=enrich_market_data(kraken_portfolio.read(force=force),price_service.read)
-    entries=[entry.to_editor_dict() for entry in NewPortfolioEntry.query.filter_by(user_id=current_user.id).order_by(NewPortfolioEntry.id).all()]
+    entries=[entry.to_editor_dict() for entry in NewPortfolioEntry.query.filter_by(user_id=user_id).order_by(NewPortfolioEntry.id).all()]
     return merge_portfolios(data,manual_positions(entries,price_service.read))
+
+def read_new_portfolio(force=False):
+    return read_new_portfolio_for_user(current_user.id,force)
 
 @app.route('/api/new-portfolio/overview')
 @login_required
@@ -694,6 +707,47 @@ def get_new_portfolio_overview():
     except Exception:
         logger.exception('Unexpected new portfolio overview error')
         return jsonify(success=False,error='New portfolio overview is temporarily unavailable.'),503
+
+@app.route('/new-portfolio/history/summary')
+@login_required
+def get_new_portfolio_history_summary():
+    try:
+        data=read_history_summary(db.session,NewPortfolioHistory.__table__,filters=(NewPortfolioHistory.user_id==current_user.id,))
+        return jsonify(success=True,data=data)
+    except Exception:
+        db.session.rollback();logger.exception('Unable to load new portfolio history summary')
+        return jsonify(success=False,error='New portfolio history summary unavailable.'),503
+
+@app.route('/worker_api/new-portfolio-snapshot', methods=['POST'])
+def save_new_portfolio_snapshot():
+    expected=worker_key();supplied=request.headers.get('X-Worker-Key','')
+    if not expected:return jsonify(success=False,error='Worker authentication is not configured.'),503
+    if not secrets.compare_digest(supplied.encode(),expected.encode()):return jsonify(success=False,error='Invalid worker credentials.'),401
+    try: interval=snapshot_interval()
+    except Exception as error:return jsonify(success=False,error=str(error)),503
+    payload=request.get_json(silent=True);slot=payload.get('slot') if isinstance(payload,dict) else None
+    current_slot=int(time.time())//interval*interval
+    if isinstance(slot,bool) or not isinstance(slot,int) or slot not in (current_slot,current_slot-interval):
+        return jsonify(success=False,error='Invalid or expired snapshot slot.',interval_seconds=interval),400
+    try:
+        users=[row[0] for row in db.session.execute(db.select(User.id).order_by(User.id)).all()]
+        if not users:return jsonify(success=False,error='No portfolio owner is configured.'),503
+        existing={row[0] for row in db.session.execute(db.select(NewPortfolioHistory.user_id).where(NewPortfolioHistory.slot==slot)).all()}
+        created=[]
+        for index,user_id in enumerate(users):
+            if user_id in existing:continue
+            data=read_new_portfolio_for_user(user_id,force=index==0)
+            total=data.get('total_value_usd')
+            if not data.get('complete') or not isinstance(total,(int,float)) or isinstance(total,bool) or not math.isfinite(total):
+                raise ValueError('New portfolio pricing is incomplete.')
+            row=NewPortfolioHistory(user_id=user_id,slot=slot,date=utcnow(),total_value=total);db.session.add(row);created.append(row)
+        db.session.commit()
+        first=(created[0].id if created else db.session.execute(db.select(NewPortfolioHistory.id).where(NewPortfolioHistory.slot==slot).order_by(NewPortfolioHistory.id)).scalar())
+        return jsonify(success=True,duplicate=not created,history_id=first,interval_seconds=interval)
+    except Exception as error:
+        db.session.rollback()
+        if not isinstance(error,ValueError):logger.exception('New portfolio snapshot failed')
+        return jsonify(success=False,error=str(error) if isinstance(error,ValueError) else 'New portfolio snapshot failed.'),503
 
 @app.route('/api/new-portfolio/manual', methods=['POST'])
 @login_required

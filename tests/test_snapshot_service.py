@@ -120,12 +120,14 @@ class SnapshotTests(unittest.TestCase):
             def __init__(inner):inner.calls=[]
             def post(inner,url,**kwargs):
                 inner.calls.append(kwargs)
+                if url.endswith('/worker_api/new-portfolio-snapshot'):
+                    return SimpleNamespace(status_code=200,json=lambda:{'success':True,'history_id':99,'duplicate':False})
                 response=self.client.post('/worker_api/snapshot',json=kwargs['json'],headers=kwargs['headers'])
                 if len(inner.calls)==1:raise requests.Timeout()
                 return SimpleNamespace(status_code=response.status_code,json=lambda:response.json)
         http=Http()
         self.assertTrue(run_cycle(http,'https://test.invalid',KEY,3600,clock=lambda:self.slot+1,wait=lambda _:False))
-        self.assertEqual(self.count(self.history),1);self.assertEqual(len(http.calls),2)
+        self.assertEqual(self.count(self.history),1);self.assertEqual(len(http.calls),3)
         self.assertEqual(http.calls[0]['json'],http.calls[1]['json'])
         self.assertFalse(http.calls[0]['allow_redirects'])
         self.assertNotIn('cookies',http.calls[0])

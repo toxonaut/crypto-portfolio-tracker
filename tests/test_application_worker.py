@@ -24,8 +24,10 @@ assert client.get('/health').status_code==200
 assert client.get('/history/composition').status_code==302
 assert client.get('/experimental-portfolio').status_code==302
 assert client.get('/api/experimental/kraken-portfolio').status_code==302
+assert client.get('/new-portfolio/history/summary').status_code==302
 assert client.post('/api/new-portfolio/manual',json={}).status_code==302
 assert client.post('/worker_api/snapshot',json={'slot':int(time.time())//3600*3600}).status_code==401
+assert client.post('/worker_api/new-portfolio-snapshot',json={'slot':int(time.time())//3600*3600}).status_code==401
 reply=SimpleNamespace(status_code=200,json=lambda:{'bitcoin':{'usd':100,'last_updated_at':time.time()}})
 with patch('snapshot_service.requests.get',return_value=reply):
     response=client.post('/worker_api/snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
@@ -84,6 +86,15 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
     assert new_overview.json['data']['total_value_usd']==150
     assert new_overview.json['data']['btc_value']==1.5
     assert new_overview.json['data']['monthly_yield_usd']==0.5
+    with patch('price_data.prices.read',return_value=manual_quotes):
+        snapshot=client.post('/worker_api/new-portfolio-snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
+        assert snapshot.status_code==200,snapshot.json
+        repeat=client.post('/worker_api/new-portfolio-snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
+        assert repeat.json['duplicate'] is True
+    assert client.get('/new-portfolio/history/summary').status_code==200
+    with module.app.app_context():
+        assert module.NewPortfolioHistory.query.count()==1
+        assert module.NewPortfolioHistory.query.first().total_value==150
     updated=client.patch('/api/new-portfolio/manual/'+str(added.json['id']),json={'origin':'Cold wallet','amount':2,'apy':5.5})
     assert updated.status_code==200,updated.json
     with module.app.app_context():

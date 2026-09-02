@@ -78,14 +78,20 @@
         <div class="card mb-4" id="newPortfolioOverview">
             <div class="card-body">
                 <div class="row mb-3">
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <h3 class="card-title">New Portfolio Overview</h3>
                         <h4>Total Value: <span id="newPortfolioTotal">Loading…</span></h4>
                         <h5>Value in BTC: <span id="newPortfolioBtc">Loading…</span></h5>
                         <h5>Monthly Yield: <span id="newPortfolioYield">Loading…</span></h5>
                         <p class="text-muted small">Based on New Portfolio Editor entries. Refreshed: <span id="newPortfolioUpdated">—</span></p>
                     </div>
-                    <div class="col-md-4"><div id="newPortfolioQuality" class="alert alert-secondary" role="status">Loading new portfolio…</div></div>
+                    <div class="col-md-3">
+                        <h3 class="card-title">Historical Changes</h3>
+                        <h4>24h Change: <span id="newChange24h">Loading…</span></h4>
+                        <h5>7d Change: <span id="newChange7d">Loading…</span></h5>
+                        <h5>1m Change: <span id="newChange30d">Loading…</span></h5>
+                    </div>
+                    <div class="col-md-3"><div id="newPortfolioQuality" class="alert alert-secondary" role="status">Loading new portfolio…</div></div>
                 </div>
                 <div class="table-responsive"><table class="table"><thead><tr><th>Asset</th><th>Total Balance</th><th>Price (USD)</th><th>1h Change</th><th>24h Change</th><th>7d Change</th><th>Value (USD)</th></tr></thead><tbody id="newPortfolioOverviewRows"></tbody></table></div>
             </div>

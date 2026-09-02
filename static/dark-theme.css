@@ -38,6 +38,14 @@ body {
     border: 1px solid black;
 }
 
+#newPortfolioOverview .table td.price-change-positive {
+    color: #28a745;
+}
+
+#newPortfolioOverview .table td.price-change-negative {
+    color: #dc3545;
+}
+
 .table th, .table td {
     border: 1px solid black;
 }

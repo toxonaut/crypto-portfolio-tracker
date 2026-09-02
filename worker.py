@@ -13,24 +13,23 @@ logger = logging.getLogger('portfolio_worker')
 
 def run_cycle(http, base_url, key, interval, clock=time.time, wait=lambda seconds: time.sleep(seconds), attempts=4):
     slot = int(clock()) // interval * interval
-    for attempt in range(attempts):
-        try:
-            response = http.post(base_url.rstrip('/')+'/worker_api/snapshot',
-                json={'slot': slot}, headers={'X-Worker-Key': key}, timeout=(5, 90), allow_redirects=False)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success') is True and isinstance(data.get('history_id'), int):
-                    logger.info('Snapshot confirmed%s (id=%s)', ' (already recorded)' if data.get('duplicate') else '', data['history_id'])
-                    return True
-            if response.status_code in (400, 401, 403) or 300 <= response.status_code < 400:
-                logger.error('Snapshot rejected (HTTP %s). Check WORKER_KEY, BASE_URL and interval configuration.', response.status_code)
-                return False
-            logger.warning('Snapshot temporarily unavailable (HTTP %s), attempt %s/%s.', response.status_code, attempt+1, attempts)
-        except (requests.RequestException, ValueError, TypeError, AttributeError):
-            logger.warning('Snapshot request failed, attempt %s/%s.', attempt+1, attempts)
-        if attempt+1 < attempts and wait(min(5 * 2**attempt, 30)):
-            return False
-    return False
+    for path in ('/worker_api/snapshot','/worker_api/new-portfolio-snapshot'):
+        confirmed=False
+        for attempt in range(attempts):
+            try:
+                response=http.post(base_url.rstrip('/')+path,json={'slot':slot},headers={'X-Worker-Key':key},timeout=(5,90),allow_redirects=False)
+                if response.status_code==200:
+                    data=response.json()
+                    if data.get('success') is True and isinstance(data.get('history_id'),int):
+                        logger.info('%s confirmed%s (id=%s)',path,' (already recorded)' if data.get('duplicate') else '',data['history_id']);confirmed=True;break
+                if response.status_code in (400,401,403) or 300<=response.status_code<400:
+                    logger.error('Snapshot rejected (HTTP %s). Check WORKER_KEY, BASE_URL and interval configuration.',response.status_code);return False
+                logger.warning('Snapshot temporarily unavailable (HTTP %s), attempt %s/%s.',response.status_code,attempt+1,attempts)
+            except (requests.RequestException,ValueError,TypeError,AttributeError):
+                logger.warning('Snapshot request failed, attempt %s/%s.',attempt+1,attempts)
+            if attempt+1<attempts and wait(min(5*2**attempt,30)):return False
+        if not confirmed:return False
+    return True
 
 
 def main():

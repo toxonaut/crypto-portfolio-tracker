@@ -4,14 +4,14 @@ import math
 from sqlalchemy import select
 
 
-def read_history_summary(session, table, now=None):
+def read_history_summary(session, table, now=None, filters=()):
     # Existing writers store server-local naive datetimes; use the same clock.
     now = now or datetime.datetime.now()
     tolerance = datetime.timedelta(hours=12)
     comparisons = {}
     for name, days in [('change24h', 1), ('change7d', 7), ('change30d', 30)]:
         target = now - datetime.timedelta(days=days)
-        base = select(table.c.date, table.c.total_value)
+        base = select(table.c.date, table.c.total_value).where(*filters)
         before = session.execute(base.where(
             table.c.date >= target - tolerance, table.c.date <= target
         ).order_by(table.c.date.desc()).limit(1)).first()
