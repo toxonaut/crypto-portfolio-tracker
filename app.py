@@ -17,6 +17,7 @@ from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows
 from snapshot_service import create_snapshot_blueprint, initialize_snapshot_tables, health_data
 from kraken_portfolio import portfolio as kraken_portfolio, KrakenUnavailable, enrich_market_data
+from new_portfolio import manual_positions, merge_portfolios
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -142,6 +143,18 @@ class Portfolio(db.Model):
             'zerion_id': self.zerion_id
         }
 
+class NewPortfolioEntry(db.Model):
+    __tablename__ = 'new_portfolio_entry'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    coin_id = db.Column(db.String(100), nullable=False)
+    origin = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    apy = db.Column(db.Float, nullable=False, default=0.0)
+
+    def to_editor_dict(self):
+        return {'id':self.id,'coin_id':self.coin_id,'origin':self.origin,'amount':self.amount,'apy':self.apy}
+
 class PortfolioHistory(db.Model):
     __table_args__ = (db.Index('ix_portfolio_history_date', 'date'),)
     __tablename__ = 'portfolio_history'  # Explicitly set lowercase table name
@@ -216,6 +229,10 @@ with app.app_context():
         logger.info("Creating users table")
         db.create_all()
         logger.info("Users table created")
+
+# Isolated storage for the replacement editor; existing portfolio data is untouched.
+with app.app_context():
+    db.create_all()
 
 # Additive ledger only; historical balances are never rewritten.
 with app.app_context():
@@ -653,12 +670,44 @@ def get_kraken_portfolio():
     try:
         from price_data import prices as price_service
         data=kraken_portfolio.read(force=request.args.get('refresh') == '1')
-        return jsonify(success=True, data=enrich_market_data(data, price_service.read))
+        data=enrich_market_data(data, price_service.read)
+        entries=[entry.to_editor_dict() for entry in NewPortfolioEntry.query.filter_by(user_id=current_user.id).order_by(NewPortfolioEntry.id).all()]
+        return jsonify(success=True, data=merge_portfolios(data,manual_positions(entries,price_service.read)))
     except KrakenUnavailable as error:
         return jsonify(success=False, error=str(error)), 503
     except Exception:
         logger.exception('Unexpected Kraken portfolio error')
         return jsonify(success=False, error='Kraken portfolio is temporarily unavailable.'), 503
+
+@app.route('/api/new-portfolio/manual', methods=['POST'])
+@login_required
+def add_new_portfolio_entry():
+    try:
+        data=request.get_json(silent=True) or {}
+        coin_id=str(data.get('coin_id','')).strip().lower();origin=str(data.get('origin','')).strip()
+        amount=float(data.get('amount'));apy=float(data.get('apy',0))
+        if not coin_id or len(coin_id)>100 or not origin or len(origin)>100: raise ValueError('Coin and origin are required and must be at most 100 characters.')
+        if not math.isfinite(amount) or amount == 0: raise ValueError('Amount must be a finite nonzero number.')
+        if not math.isfinite(apy) or not 0 <= apy <= 10000: raise ValueError('APY must be between 0 and 10,000 percent.')
+        entry=NewPortfolioEntry(user_id=current_user.id,coin_id=coin_id,origin=origin,amount=amount,apy=apy)
+        db.session.add(entry);db.session.commit()
+        return jsonify(success=True,id=entry.id),201
+    except (TypeError,ValueError) as error:
+        db.session.rollback();return jsonify(success=False,error=str(error)),400
+    except Exception:
+        db.session.rollback();logger.exception('Unable to add new portfolio entry')
+        return jsonify(success=False,error='Entry could not be saved.'),503
+
+@app.route('/api/new-portfolio/manual/<int:entry_id>', methods=['DELETE'])
+@login_required
+def delete_new_portfolio_entry(entry_id):
+    entry=NewPortfolioEntry.query.filter_by(id=entry_id,user_id=current_user.id).first()
+    if entry is None:return jsonify(success=False,error='Entry not found.'),404
+    try:
+        db.session.delete(entry);db.session.commit();return jsonify(success=True)
+    except Exception:
+        db.session.rollback();logger.exception('Unable to delete new portfolio entry')
+        return jsonify(success=False,error='Entry could not be deleted.'),503
 
 @app.route('/portfolio')
 @login_required

@@ -24,6 +24,7 @@ assert client.get('/health').status_code==200
 assert client.get('/history/composition').status_code==302
 assert client.get('/experimental-portfolio').status_code==302
 assert client.get('/api/experimental/kraken-portfolio').status_code==302
+assert client.post('/api/new-portfolio/manual',json={}).status_code==302
 assert client.post('/worker_api/snapshot',json={'slot':int(time.time())//3600*3600}).status_code==401
 reply=SimpleNamespace(status_code=200,json=lambda:{'bitcoin':{'usd':100,'last_updated_at':time.time()}})
 with patch('snapshot_service.requests.get',return_value=reply):
@@ -69,8 +70,17 @@ with module.app.app_context():
     assert module.PortfolioHistory.query.count()==count
 with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value_usd':0,'total_value_usd':0,'unpriced_assets':[],'complete':True,'as_of':'2026-09-01T00:00:00+00:00'}):
     assert client.get('/experimental-portfolio').status_code==200
-    kraken=client.get('/api/experimental/kraken-portfolio')
+    assert client.post('/api/new-portfolio/manual',json={'coin_id':'bitcoin','origin':'Ledger','amount':0,'apy':4}).status_code==400
+    added=client.post('/api/new-portfolio/manual',json={'coin_id':'bitcoin','origin':'Ledger','amount':1.5,'apy':4})
+    assert added.status_code==201,added.json
+    manual_quotes={'bitcoin':{'usd':100,'image':'btc.png','status':'fresh'}}
+    with patch('price_data.prices.read',return_value=manual_quotes):
+        kraken=client.get('/api/experimental/kraken-portfolio')
     assert kraken.status_code==200 and kraken.json['data']['complete'] is True
+    assert kraken.json['data']['total_value_usd']==150
+    assert kraken.json['data']['positions'][0]['origin']=='Ledger'
+    assert client.delete('/api/new-portfolio/manual/'+str(added.json['id'])).status_code==200
+    with module.app.app_context(): assert module.NewPortfolioEntry.query.count()==0
 response=client.get('/history/composition?range=all')
 assert response.status_code==200
 assert len(response.json['data'])==2

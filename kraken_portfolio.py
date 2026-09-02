@@ -58,6 +58,10 @@ def aggregate_balances(balances):
     return {asset:amount for asset,amount in aggregated.items() if amount != 0}
 
 
+def is_earn_balance_code(asset):
+    return isinstance(asset,str) and '.' in asset and asset.rsplit('.',1)[1] in {'F','S','M'}
+
+
 def enrich_market_data(result, quote_reader):
     positions=[dict(position) for position in result.get('positions',[])]
     ids={COINGECKO_IDS[position['asset']] for position in positions if position.get('asset') in COINGECKO_IDS}
@@ -95,7 +99,7 @@ class KrakenPortfolio:
         return data['result']
 
     def _balances(self, key, secret):
-        now=int(self.clock()*1000);self.last_nonce=max(now,self.last_nonce+1)
+        now=int(self.clock()*1000000);self.last_nonce=max(now,self.last_nonce+1)
         payload={'nonce':str(self.last_nonce)}
         response=self.http.post(BASE_URL+BALANCE_PATH,data=payload,
             headers={'API-Key':key,'API-Sign':sign_request(BALANCE_PATH,payload,secret),'User-Agent':'crypto-portfolio-tracker/experimental'},
@@ -106,6 +110,33 @@ class KrakenPortfolio:
             amount=parse_number(value)
             if isinstance(asset,str) and amount is not None and amount != 0: balances[asset]=amount
         return balances
+
+    def _private(self, path, key, secret, fields=None):
+        now=int(self.clock()*1000000);self.last_nonce=max(now,self.last_nonce+1)
+        payload={'nonce':str(self.last_nonce),**(fields or {})}
+        response=self.http.post(BASE_URL+path,data=payload,
+            headers={'API-Key':key,'API-Sign':sign_request(path,payload,secret),'User-Agent':'crypto-portfolio-tracker/experimental'},
+            timeout=(5,20),allow_redirects=False)
+        return self._json(response,'Kraken Earn API')
+
+    def _earn_apys(self, balances, key, secret):
+        try:
+            allocations=self._private('/0/private/Earn/Allocations',key,secret,{'hide_zero_allocations':'true'}).get('items',[])
+            strategies=self._private('/0/private/Earn/Strategies',key,secret,{'limit':'1000'}).get('items',[])
+            rates={}
+            for strategy in strategies:
+                if not isinstance(strategy,dict): continue
+                low=parse_number((strategy.get('apr_estimate') or {}).get('low'));high=parse_number((strategy.get('apr_estimate') or {}).get('high'))
+                if isinstance(strategy.get('id'),str) and low is not None and high is not None: rates[strategy['id']]=(low+high)/2
+            earned={}
+            for allocation in allocations:
+                if not isinstance(allocation,dict): continue
+                asset=normalize_asset(allocation.get('native_asset',''));amount=parse_number((((allocation.get('amount_allocated') or {}).get('total') or {}).get('native')))
+                rate=rates.get(allocation.get('strategy_id'))
+                if asset and amount is not None and amount>0 and rate is not None: earned[asset]=earned.get(asset,0)+amount*rate
+            return {asset:weighted/balances[asset] for asset,weighted in earned.items() if balances.get(asset,0)>0}
+        except (KrakenUnavailable, requests.RequestException, TypeError, AttributeError):
+            return None
 
     def _asset_pairs(self, asset_class='currency'):
         now=self.clock()
@@ -153,11 +184,15 @@ class KrakenPortfolio:
         with self.lock:
             now=self.clock()
             if not force and self.cached is not None and now-self.cache_time < 30: return self.cached
-            key,secret=self._credentials();balances=aggregate_balances(self._balances(key,secret));prices=self._prices(balances)
+            key,secret=self._credentials();raw_balances=self._balances(key,secret);balances=aggregate_balances(raw_balances);prices=self._prices(balances)
+            earn_apys=self._earn_apys(balances,key,secret) if any(is_earn_balance_code(asset) for asset in raw_balances) else {}
             positions=[]
             for asset,amount in balances.items():
                 quote=prices.get(asset);price=quote[0] if quote else None
-                positions.append({'asset':asset,'origin':'Kraken','balance':amount,'price_usd':price,
+                positions.append({'asset':asset,'origin':'Kraken','balance':amount,
+                    'apy':earn_apys.get(asset,0) if earn_apys is not None else None,
+                    'apy_source':'Kraken Earn estimate' if earn_apys and asset in earn_apys else ('Unavailable' if earn_apys is None else 'No Earn allocation'),
+                    'price_usd':price,
                     'value_usd':amount*price if price is not None else None,'price_pair':quote[1] if quote else None,
                     'status':'priced' if quote else 'unpriced'})
             positions.sort(key=lambda p:(p['value_usd'] is None,-abs(p['value_usd'] or 0),p['asset']))

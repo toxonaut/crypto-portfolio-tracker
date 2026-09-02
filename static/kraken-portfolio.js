@@ -1,5 +1,6 @@
 function krakenNumber(value, digits=8) { return Number.isFinite(value) ? value.toLocaleString('en-US',{maximumFractionDigits:digits}).replace(/,/g,"'") : 'Unavailable'; }
 function krakenMoney(value) { return Number.isFinite(value) ? (value<0?'-$':'$')+Math.abs(value).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/,/g,"'") : 'Unavailable'; }
+function krakenApy(value) { return Number.isFinite(value) ? `${value.toFixed(2)}%` : 'Unavailable'; }
 function renderKrakenPortfolio(data) {
     document.getElementById('krakenSummary').hidden=false;
     document.getElementById('krakenTotal').textContent=krakenMoney(data.total_value_usd);
@@ -14,10 +15,31 @@ function renderKrakenPortfolio(data) {
         else {const fallback=document.createElement('span');fallback.classList.add('kraken-asset-fallback');fallback.textContent=position.asset.slice(0,2).toUpperCase();identity.appendChild(fallback);}
         const name=document.createElement('span');name.textContent=position.asset;name.title=`Kraken price: ${position.price_pair||'No USD pair'}${market.coin_id?`; icon: CoinGecko (${market.status||'unknown'})`:'; CoinGecko icon unavailable'}`;identity.appendChild(name);assetCell.appendChild(identity);row.appendChild(assetCell);
         const originCell=document.createElement('td');originCell.textContent=position.origin||'Unknown';row.appendChild(originCell);
-        for(const value of [krakenNumber(position.balance),krakenMoney(position.price_usd)]){const cell=document.createElement('td');cell.textContent=value;if(position.status==='unpriced')cell.classList.add('text-warning');row.appendChild(cell);}
+        const balanceCell=document.createElement('td');balanceCell.textContent=krakenNumber(position.balance);row.appendChild(balanceCell);
+        const apyCell=document.createElement('td');apyCell.textContent=krakenApy(position.apy);apyCell.title=position.apy_source||'';if(!Number.isFinite(position.apy))apyCell.classList.add('text-muted');row.appendChild(apyCell);
+        const priceCell=document.createElement('td');priceCell.textContent=krakenMoney(position.price_usd);if(position.status==='unpriced')priceCell.classList.add('text-warning');row.appendChild(priceCell);
         const valueCell=document.createElement('td');valueCell.textContent=krakenMoney(position.value_usd);if(position.status==='unpriced')valueCell.classList.add('text-warning');row.appendChild(valueCell);
+        const actionCell=document.createElement('td');
+        if(position.editable&&Number.isInteger(position.entry_id)){const remove=document.createElement('button');remove.type='button';remove.classList.add('btn','btn-sm','btn-outline-danger');remove.textContent='Remove';remove.addEventListener('click',async()=>{try{await removeManualEntry(position.entry_id);}catch(error){const status=document.getElementById('newPortfolioFormStatus');status.hidden=false;status.className='alert alert-warning mt-3';status.textContent=error.message;}});actionCell.appendChild(remove);}else actionCell.textContent='—';
+        row.appendChild(actionCell);
         body.appendChild(row);
     }
+}
+async function removeManualEntry(entryId) {
+    if(typeof window!=='undefined'&&!window.confirm('Remove this manual portfolio entry?'))return;
+    const response=await fetch(`/api/new-portfolio/manual/${entryId}`,{method:'DELETE',headers:{Accept:'application/json'}}),payload=await response.json();
+    if(!response.ok||!payload.success)throw new Error(payload.error||'Entry could not be removed.');
+    await loadKrakenPortfolio(true);
+}
+async function addManualEntry(event) {
+    event.preventDefault();const form=event.currentTarget,button=document.getElementById('newPortfolioAdd'),status=document.getElementById('newPortfolioFormStatus');
+    button.disabled=true;status.hidden=false;status.className='alert alert-secondary mt-3';status.textContent='Saving entry…';
+    try {
+        const body={coin_id:document.getElementById('newCoinId').value.trim(),origin:document.getElementById('newOrigin').value.trim(),amount:Number(document.getElementById('newAmount').value),apy:Number(document.getElementById('newApy').value)};
+        const response=await fetch('/api/new-portfolio/manual',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(body)}),payload=await response.json();
+        if(!response.ok||!payload.success)throw new Error(payload.error||'Entry could not be saved.');
+        form.reset();document.getElementById('newApy').value='0';status.className='alert alert-success mt-3';status.textContent='Entry added.';await loadKrakenPortfolio(true);
+    } catch(error){status.className='alert alert-warning mt-3';status.textContent=error.message;} finally{button.disabled=false;}
 }
 let krakenRequest=0;
 async function loadKrakenPortfolio(force=false) {
@@ -27,5 +49,5 @@ async function loadKrakenPortfolio(force=false) {
     catch(error){if(id!==krakenRequest)return;status.className='alert alert-warning';status.textContent=error.message;}
     finally{if(id===krakenRequest)button.disabled=false;}
 }
-if(typeof document!=='undefined')document.addEventListener('DOMContentLoaded',()=>{document.getElementById('krakenRefresh').addEventListener('click',()=>loadKrakenPortfolio(true));loadKrakenPortfolio();});
-if(typeof module!=='undefined'&&module.exports)module.exports={krakenNumber,krakenMoney,renderKrakenPortfolio};
+if(typeof document!=='undefined')document.addEventListener('DOMContentLoaded',()=>{document.getElementById('krakenRefresh').addEventListener('click',()=>loadKrakenPortfolio(true));document.getElementById('newPortfolioForm').addEventListener('submit',addManualEntry);loadKrakenPortfolio();});
+if(typeof module!=='undefined'&&module.exports)module.exports={krakenNumber,krakenMoney,krakenApy,renderKrakenPortfolio};

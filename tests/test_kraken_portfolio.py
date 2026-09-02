@@ -14,13 +14,13 @@ class KrakenPortfolioTests(unittest.TestCase):
         self.assertEqual(sign_request('/0/private/AddOrder',payload,secret),'4/dpxb3iT4tp/ZCVEwSnEsLxx0bqyhLpdfOpc6fn7OR8+UClSV5n9E6aSS8MPtnRfp32bAb0nmbRn6H8ndwLUQ==')
     def test_balance_only_private_call_and_public_usd_valuation(self):
         http=Mock();clock=Mock(return_value=1700000000)
-        http.post.return_value=Reply({'error':[],'result':{'XXBT':'2','ZUSD':'50','ETH.F':'3','ZCHF':'2','EMPTY':'0','BAD':'nan'}})
+        http.post.return_value=Reply({'error':[],'result':{'XXBT':'2','ZUSD':'50','XETH':'3','ZCHF':'2','EMPTY':'0','BAD':'nan'}})
         pairs={'XXBTZUSD':{'base':'XXBT','quote':'ZUSD','altname':'XBTUSD','status':'online'},'XETHZUSD':{'base':'XETH','quote':'ZUSD','altname':'ETHUSD','status':'online'},'ZUSDZCHF':{'base':'ZUSD','quote':'ZCHF','altname':'USDCHF','status':'online'}}
         ticker={'XXBTZUSD':{'c':['100','1']},'XETHZUSD':{'c':['10','1']},'ZUSDZCHF':{'c':['0.8','1']}}
         http.get.side_effect=[Reply({'error':[],'result':pairs}),Reply({'error':[],'result':ticker})]
         service=KrakenPortfolio(http,clock,{'KRAKEN_API_KEY':'public','KRAKEN_PRIVATE_KEY':'c2VjcmV0'})
         result=service.read()
-        self.assertEqual(http.post.call_args.args[0],'https://api.kraken.com/0/private/Balance')
+        self.assertEqual(http.post.call_args_list[0].args[0],'https://api.kraken.com/0/private/Balance')
         self.assertNotIn('key',str(result).lower());self.assertEqual(result['total_value_usd'],282.5);self.assertTrue(result['complete'])
         self.assertEqual([(p['asset'],p['value_usd']) for p in result['positions']],[('BTC',200),('USD',50),('ETH',30)])
         self.assertEqual(result['hidden_small_positions'],1)
@@ -31,12 +31,15 @@ class KrakenPortfolioTests(unittest.TestCase):
         nonces=[call.kwargs['data']['nonce'] for call in http.post.call_args_list];self.assertLess(int(nonces[0]),int(nonces[1]))
 
     def test_spot_and_earn_balances_are_combined_before_valuation(self):
-        http=Mock();http.post.return_value=Reply({'error':[],'result':{'XETH':'2','ETH.F':'3','SOL':'4','SOL.F':'-4'}})
+        http=Mock();http.post.side_effect=[
+            Reply({'error':[],'result':{'XETH':'2','ETH.F':'3','SOL':'4','SOL.F':'-4'}}),
+            Reply({'error':[],'result':{'items':[{'native_asset':'ETH','strategy_id':'eth-flex','amount_allocated':{'total':{'native':'3'}}}]}}),
+            Reply({'error':[],'result':{'items':[{'id':'eth-flex','apr_estimate':{'low':'4','high':'6'}}]}})]
         pairs={'XETHZUSD':{'base':'XETH','quote':'ZUSD','altname':'ETHUSD','status':'online'}}
         ticker={'XETHZUSD':{'c':['10','1']}}
         http.get.side_effect=[Reply({'error':[],'result':pairs}),Reply({'error':[],'result':ticker})]
         result=KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'a','KRAKEN_PRIVATE_KEY':'Yg=='}).read()
-        self.assertEqual(result['positions'],[{'asset':'ETH','origin':'Kraken','balance':5,'price_usd':10,'value_usd':50,'price_pair':'ETHUSD','status':'priced'}])
+        self.assertEqual(result['positions'],[{'asset':'ETH','origin':'Kraken','balance':5,'apy':3,'apy_source':'Kraken Earn estimate','price_usd':10,'value_usd':50,'price_pair':'ETHUSD','status':'priced'}])
         self.assertEqual(result['total_value_usd'],50)
         self.assertEqual(result['unpriced_assets'],[])
         self.assertEqual(aggregate_balances({'XXBT':1,'XBT':2,'XBT.F':3}),{'BTC':6})
