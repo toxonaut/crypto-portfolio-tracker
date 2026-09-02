@@ -70,7 +70,9 @@ def enrich_market_data(result, quote_reader):
         coin_id=COINGECKO_IDS.get(position.get('asset'));quote=quotes.get(coin_id,{}) if coin_id else {}
         position['market_data']={
             'coin_id':coin_id,'image':quote.get('image') or None,'source':'CoinGecko' if coin_id else None,
-            'status':quote.get('status') if coin_id else 'unavailable'
+            'status':quote.get('status') if coin_id else 'unavailable',
+            'change_1h':quote.get('usd_1h_change'),'change_24h':quote.get('usd_24h_change'),
+            'change_7d':quote.get('usd_7d_change')
         }
     return {**result,'positions':positions}
 

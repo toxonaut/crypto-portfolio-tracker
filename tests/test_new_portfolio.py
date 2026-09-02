@@ -1,5 +1,5 @@
 import unittest
-from new_portfolio import manual_positions, merge_portfolios
+from new_portfolio import manual_positions, merge_portfolios, overview_data
 
 
 class NewPortfolioTests(unittest.TestCase):
@@ -24,6 +24,18 @@ class NewPortfolioTests(unittest.TestCase):
         result=merge_portfolios(kraken,manual)
         self.assertEqual([(p['asset'],p['origin']) for p in result['positions']],
             [('BTC','Kraken'),('BTC','Ledger'),('eth','A wallet'),('ETH','Kraken')])
+
+    def test_overview_aggregates_origins_and_keeps_xstocks(self):
+        portfolio={'positions':[
+            {'asset':'BTC','origin':'Kraken','balance':1,'price_usd':100,'value_usd':100,'apy':2,'market_data':{'image':'btc.png','change_24h':3}},
+            {'asset':'BTC','origin':'Ledger','balance':2,'price_usd':100,'value_usd':200,'apy':0,'market_data':{'image':'btc.png','change_24h':3}},
+            {'asset':'SPYx','origin':'Kraken','balance':1,'price_usd':500,'value_usd':500,'apy':0,'market_data':{}}],
+            'total_value_usd':800,'known_value_usd':800,'complete':True,'unpriced_assets':[],'as_of':'now'}
+        result=overview_data(portfolio,100)
+        self.assertEqual([row['asset'] for row in result['assets']],['BTC','SPYx'])
+        self.assertEqual(result['assets'][0]['total_balance'],3);self.assertEqual(result['assets'][0]['total_value'],300)
+        self.assertEqual(result['assets'][0]['origins'],['Kraken','Ledger']);self.assertEqual(result['assets'][0]['daily_change'],3)
+        self.assertEqual(result['btc_value'],8);self.assertAlmostEqual(result['monthly_yield_usd'],100*0.02/12)
 
 
 if __name__=='__main__':unittest.main()

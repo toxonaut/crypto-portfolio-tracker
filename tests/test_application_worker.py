@@ -76,9 +76,14 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
     manual_quotes={'bitcoin':{'usd':100,'image':'btc.png','status':'fresh'}}
     with patch('price_data.prices.read',return_value=manual_quotes):
         kraken=client.get('/api/experimental/kraken-portfolio')
+        new_overview=client.get('/api/new-portfolio/overview')
     assert kraken.status_code==200 and kraken.json['data']['complete'] is True
     assert kraken.json['data']['total_value_usd']==150
     assert kraken.json['data']['positions'][0]['origin']=='Ledger'
+    assert new_overview.status_code==200,new_overview.json
+    assert new_overview.json['data']['total_value_usd']==150
+    assert new_overview.json['data']['btc_value']==1.5
+    assert new_overview.json['data']['monthly_yield_usd']==0.5
     updated=client.patch('/api/new-portfolio/manual/'+str(added.json['id']),json={'origin':'Cold wallet','amount':2,'apy':5.5})
     assert updated.status_code==200,updated.json
     with module.app.app_context():
