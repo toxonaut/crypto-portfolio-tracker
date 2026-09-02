@@ -698,6 +698,25 @@ def add_new_portfolio_entry():
         db.session.rollback();logger.exception('Unable to add new portfolio entry')
         return jsonify(success=False,error='Entry could not be saved.'),503
 
+@app.route('/api/new-portfolio/manual/<int:entry_id>', methods=['PATCH'])
+@login_required
+def update_new_portfolio_entry(entry_id):
+    entry=NewPortfolioEntry.query.filter_by(id=entry_id,user_id=current_user.id).first()
+    if entry is None:return jsonify(success=False,error='Entry not found.'),404
+    try:
+        data=request.get_json(silent=True) or {};origin=str(data.get('origin','')).strip()
+        amount=float(data.get('amount'));apy=float(data.get('apy'))
+        if not origin or len(origin)>100: raise ValueError('Origin is required and must be at most 100 characters.')
+        if not math.isfinite(amount) or amount == 0: raise ValueError('Amount must be a finite nonzero number.')
+        if not math.isfinite(apy) or not 0 <= apy <= 10000: raise ValueError('APY must be between 0 and 10,000 percent.')
+        entry.origin=origin;entry.amount=amount;entry.apy=apy;db.session.commit()
+        return jsonify(success=True)
+    except (TypeError,ValueError) as error:
+        db.session.rollback();return jsonify(success=False,error=str(error)),400
+    except Exception:
+        db.session.rollback();logger.exception('Unable to update new portfolio entry')
+        return jsonify(success=False,error='Entry could not be updated.'),503
+
 @app.route('/api/new-portfolio/manual/<int:entry_id>', methods=['DELETE'])
 @login_required
 def delete_new_portfolio_entry(entry_id):

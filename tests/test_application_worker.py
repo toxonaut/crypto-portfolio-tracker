@@ -79,6 +79,11 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
     assert kraken.status_code==200 and kraken.json['data']['complete'] is True
     assert kraken.json['data']['total_value_usd']==150
     assert kraken.json['data']['positions'][0]['origin']=='Ledger'
+    updated=client.patch('/api/new-portfolio/manual/'+str(added.json['id']),json={'origin':'Cold wallet','amount':2,'apy':5.5})
+    assert updated.status_code==200,updated.json
+    with module.app.app_context():
+        saved=module.NewPortfolioEntry.query.get(added.json['id'])
+        assert (saved.origin,saved.amount,saved.apy)==('Cold wallet',2,5.5)
     assert client.delete('/api/new-portfolio/manual/'+str(added.json['id'])).status_code==200
     with module.app.app_context(): assert module.NewPortfolioEntry.query.count()==0
 response=client.get('/history/composition?range=all')
