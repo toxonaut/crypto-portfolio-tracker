@@ -149,11 +149,13 @@ function renderPairButtons() {
             .sort((a,b)=>b.total_value-a.total_value);
 
         // Group 1: USD pairs of the top 5 by holdings (robust to unknown mappings)
-        let usdCount = 0;
+        // Keep BTC/USD available before the asynchronous portfolio load finishes.
+        container.appendChild(createBtn('BTC/USD', 'BINANCE:BTCUSD'));
+        let usdCount = 1;
         for (let i = 0; i < sorted.length && usdCount < 5; i++) {
             const coinId = sorted[i].asset;
             const ticker = getTickerFromCoinId(coinId);
-            if (!ticker) continue; // skip unknown mapping
+            if (!ticker || ticker === 'BTC') continue; // skip unknown and duplicate BTC mapping
             container.appendChild(createBtn(`${ticker}/USD`, `BINANCE:${ticker}USD`));
             usdCount++;
         }
