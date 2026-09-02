@@ -68,6 +68,11 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
         assert snapshot.status_code==200,snapshot.json
         repeat=client.post('/worker_api/new-portfolio-snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
         assert repeat.json['duplicate'] is True
+        with module.app.app_context():
+            module.NewPortfolioWorkerHealth.query.delete();module.db.session.commit()
+        confirmed=client.post('/worker_api/new-portfolio-snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
+        assert confirmed.json['duplicate'] is True
+        assert client.get('/new-portfolio/worker_status').json['data']['last_success'] is not None
         manual=client.post('/new-portfolio/add_history',json={})
         assert manual.status_code==200 and manual.json['duplicate'] is False,manual.json
     assert client.get('/new-portfolio/history/summary').status_code==200

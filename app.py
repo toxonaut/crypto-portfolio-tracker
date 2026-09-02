@@ -408,7 +408,14 @@ def capture_new_portfolio_snapshots(user_ids,slot,track_health=False):
         db.session.add(row);db.session.flush();save_new_composition(db.session,row.id,user_id,row.date,data);created.append(row)
     if track_health:
         health=NewPortfolioWorkerHealth.query.get(1)
-        if created: health.last_success=created[-1].date
+        if created:
+            health.last_success=created[-1].date
+        else:
+            # A retry may be the first request after the health table migration.
+            # Seed success from the snapshot whose slot the worker just confirmed.
+            confirmed_date=db.session.execute(db.select(db.func.max(NewPortfolioHistory.date)).where(
+                NewPortfolioHistory.slot==slot,NewPortfolioHistory.user_id.in_(user_ids))).scalar()
+            if confirmed_date: health.last_success=confirmed_date
         health.last_error=None
     db.session.commit()
     first=created[0].id if created else db.session.execute(db.select(NewPortfolioHistory.id).where(
