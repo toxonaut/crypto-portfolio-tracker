@@ -49,6 +49,7 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual([row['coin'] for row in result['scenario']['positions']],['BTC','BTC','SNX','xStocks','xStocks','xStocks'])
         self.assertEqual(sum(row['value'] for row in result['scenario']['positions'] if row['coin']=='xStocks'),600)
         self.assertEqual(result['scenario']['excluded'],0);self.assertEqual(result['scenario']['unknownYield'],0)
+        self.assertEqual(result['price_quality'],{'required_assets':3,'priced_assets':3,'complete':True,'stale':[],'sources':['Kraken']})
 
 
 if __name__=='__main__':unittest.main()

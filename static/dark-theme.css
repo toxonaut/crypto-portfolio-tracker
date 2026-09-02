@@ -46,6 +46,12 @@ body {
     color: #dc3545;
 }
 
+#newPortfolioQuality.alert-info {
+    color: #c7d8f7;
+    background-color: #111b2e;
+    border-color: #263a5c;
+}
+
 .table th, .table td {
     border: 1px solid black;
 }

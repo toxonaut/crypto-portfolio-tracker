@@ -40,6 +40,7 @@ def overview_data(portfolio, bitcoin_price=None):
     grouped={}
     exposure_assets={};exposure_platforms={};exposure_excluded=0
     scenario_positions=[];scenario_excluded=0;scenario_unknown_yield=0
+    pricing_sources=set();stale_assets=set()
     for position in portfolio.get('positions',[]):
         source_asset=position.get('asset','Unknown')
         # Kraken's tokenized-stock symbols use a lowercase x suffix (AAPLx, SPYx).
@@ -54,9 +55,14 @@ def overview_data(portfolio, bitcoin_price=None):
         if not is_xstocks: group['total_balance']+=position.get('balance') or 0
         group['origins'].add(position.get('origin','Unknown'))
         value=position.get('value_usd');price=position.get('price_usd');apy=position.get('apy')
+        market=position.get('market_data') or {};origin_name=str(position.get('origin') or 'Unknown')
+        if price is not None:
+            if origin_name.casefold()=='kraken': pricing_sources.add('Kraken')
+            elif market.get('source'): pricing_sources.add(market['source'])
+            if origin_name.casefold()!='kraken' and market.get('status')=='stale': stale_assets.add(asset)
         if isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value):
             exposure_assets[asset]=exposure_assets.get(asset,0)+value
-            origin=position.get('origin','Unknown').strip() or 'Unspecified'
+            origin=origin_name.strip() or 'Unspecified'
             exposure_platforms[origin]=exposure_platforms.get(origin,0)+value
             if position.get('balance') != 0:
                 valid_apy=isinstance(apy,(int,float)) and not isinstance(apy,bool) and math.isfinite(apy) and apy >= 0
@@ -70,7 +76,6 @@ def overview_data(portfolio, bitcoin_price=None):
         if value is None or apy is None: group['yield_complete']=False;group['monthly_yield']=None
         elif group['monthly_yield'] is not None: group['monthly_yield']+=value*apy/100/12
         if not is_xstocks:
-            market=position.get('market_data') or {}
             if market.get('image') and not group['image']: group['image']=market['image']
             for source,target in [('change_1h','hourly_change'),('change_24h','daily_change'),('change_7d','seven_day_change')]:
                 if group[target] is None and market.get(source) is not None: group[target]=market[source]
@@ -82,9 +87,12 @@ def overview_data(portfolio, bitcoin_price=None):
     exposure={'assets':ranked(exposure_assets),'platforms':ranked(exposure_platforms),
         'excluded':exposure_excluded,'total':sum(exposure_assets.values())}
     scenario={'positions':scenario_positions,'excluded':scenario_excluded,'unknownYield':scenario_unknown_yield}
+    price_quality={'required_assets':len(rows),'priced_assets':sum(1 for row in rows if row['complete']),
+        'complete':all(row['complete'] for row in rows),'stale':sorted(stale_assets,key=str.casefold),
+        'sources':sorted(pricing_sources,key=str.casefold)}
     total=portfolio.get('total_value_usd');monthly=None if any(not row['yield_complete'] for row in rows) else sum(row['monthly_yield'] for row in rows)
     btc=total/bitcoin_price if total is not None and isinstance(bitcoin_price,(int,float)) and bitcoin_price>0 else None
     return {'assets':rows,'total_value_usd':total,'known_value_usd':portfolio.get('known_value_usd',0),
         'btc_value':btc,'monthly_yield_usd':monthly,'complete':portfolio.get('complete',False),
         'unpriced_assets':portfolio.get('unpriced_assets',[]),'as_of':portfolio.get('as_of'),
-        'exposure':exposure,'scenario':scenario}
+        'exposure':exposure,'scenario':scenario,'price_quality':price_quality}
