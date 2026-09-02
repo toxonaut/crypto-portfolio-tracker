@@ -17,5 +17,13 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual(result['known_value_usd'],50);self.assertIsNone(result['total_value_usd'])
         self.assertEqual(result['unpriced_assets'],['UNKNOWN-COIN']);self.assertFalse(result['complete'])
 
+    def test_combined_positions_sort_by_asset_then_origin(self):
+        kraken={'positions':[{'asset':'ETH','origin':'Kraken','value_usd':50},{'asset':'BTC','origin':'Kraken','value_usd':100}],
+            'known_value_usd':150,'total_value_usd':150,'unpriced_assets':[],'complete':True}
+        manual=[{'asset':'eth','origin':'A wallet','value_usd':20},{'asset':'BTC','origin':'Ledger','value_usd':30}]
+        result=merge_portfolios(kraken,manual)
+        self.assertEqual([(p['asset'],p['origin']) for p in result['positions']],
+            [('BTC','Kraken'),('BTC','Ledger'),('eth','A wallet'),('ETH','Kraken')])
+
 
 if __name__=='__main__':unittest.main()

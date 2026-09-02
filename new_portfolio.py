@@ -25,7 +25,7 @@ def manual_positions(entries, quote_reader):
 
 def merge_portfolios(kraken, manual):
     positions=[*kraken.get('positions',[]),*manual]
-    positions.sort(key=lambda p:(p.get('value_usd') is None,-abs(p.get('value_usd') or 0),p.get('asset',''),p.get('origin','')))
+    positions.sort(key=lambda p:(p.get('asset','').casefold(),p.get('origin','').casefold()))
     manual_known=sum(p['value_usd'] for p in manual if p['value_usd'] is not None)
     missing=sorted(set(kraken.get('unpriced_assets',[])) | {p['asset'] for p in manual if p['value_usd'] is None})
     known=kraken.get('known_value_usd',0)+manual_known
