@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import datetime as dt
 import unittest
-from sqlalchemy import create_engine, MetaData, Table, Column, DateTime, Float, Index, event
+from sqlalchemy import create_engine, MetaData, Table, Column, DateTime, Float, Integer, Index, event
 from sqlalchemy.orm import Session
 from history_summary import read_history_summary
 
@@ -12,7 +12,7 @@ class SummaryTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine('sqlite://')
         metadata = MetaData()
-        self.table = Table('portfolio_history', metadata, Column('date', DateTime), Column('total_value', Float))
+        self.table = Table('portfolio_history', metadata, Column('user_id', Integer), Column('date', DateTime), Column('total_value', Float))
         Index('ix_portfolio_history_date', self.table.c.date)
         metadata.create_all(self.engine)
         self.session = Session(self.engine)
@@ -23,7 +23,7 @@ class SummaryTests(unittest.TestCase):
         self.engine.dispose()
 
     def add(self, hours, value):
-        self.session.execute(self.table.insert().values(date=self.now-dt.timedelta(hours=hours), total_value=value))
+        self.session.execute(self.table.insert().values(user_id=1, date=self.now-dt.timedelta(hours=hours), total_value=value))
 
     def test_endpoint_requires_login_and_returns_compact_payload(self):
         from flask import Flask, jsonify
@@ -35,19 +35,20 @@ class SummaryTests(unittest.TestCase):
         user.id = 'test'
         manager.user_loader(lambda user_id: user)
         definition = next(node for node in ast.parse(Path('app.py').read_text()).body
-                          if isinstance(node, ast.FunctionDef) and node.name == 'get_history_summary')
+                          if isinstance(node, ast.FunctionDef) and node.name == 'get_new_portfolio_history_summary')
         namespace = dict(app=app, jsonify=jsonify, login_required=login_required,
                          read_history_summary=read_history_summary,
                          db=SimpleNamespace(session=self.session),
-                         PortfolioHistory=SimpleNamespace(__table__=self.table),
+                         NewPortfolioHistory=SimpleNamespace(__table__=self.table, user_id=self.table.c.user_id),
+                         current_user=SimpleNamespace(id=1),
                          logger=app.logger)
         exec(compile(ast.Module(body=[definition], type_ignores=[]), 'app.py', 'exec'), namespace)
         client = app.test_client()
-        self.assertEqual(client.get('/history/summary').status_code, 401)
+        self.assertEqual(client.get('/new-portfolio/history/summary').status_code, 401)
         with client.session_transaction() as session:
             session['_user_id'] = 'test'
             session['_fresh'] = True
-        response = client.get('/history/summary')
+        response = client.get('/new-portfolio/history/summary')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json['data']['comparisons']), 3)
         self.assertLess(len(response.data), 500)

@@ -13,7 +13,7 @@ logger = logging.getLogger('portfolio_worker')
 
 def run_cycle(http, base_url, key, interval, clock=time.time, wait=lambda seconds: time.sleep(seconds), attempts=4):
     slot = int(clock()) // interval * interval
-    for path in ('/worker_api/snapshot','/worker_api/new-portfolio-snapshot'):
+    for path in ('/worker_api/new-portfolio-snapshot',):
         confirmed=False
         for attempt in range(attempts):
             try:

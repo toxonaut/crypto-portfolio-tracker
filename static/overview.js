@@ -3,7 +3,6 @@ let historyData = [];
 let historyChart = null;
 let tradingViewWidget = null;
 let isDemoMode = false;
-let portfolioData = null; // Global portfolio data
 let historyChartEnabled = false;
 
 // Detect iOS Chrome browser
@@ -61,6 +60,8 @@ function createTradingViewWidget(symbol) {
 function initializePairSelection() {
     const buttons = document.querySelectorAll('#pairButtons .list-group-item');
     buttons.forEach(button => {
+        if (button.dataset.ready) return;
+        button.dataset.ready = 'true';
         button.addEventListener('click', (e) => {
             // Remove active class from all buttons
             buttons.forEach(b => b.classList.remove('active'));
@@ -73,154 +74,6 @@ function initializePairSelection() {
             }
         });
     });
-}
-
-// Function to sample data for performance optimization
-async function updatePortfolio() {
-    await updateWorkerHealth();
-    try {
-        console.log('Updating portfolio...');
-        const response = await fetch('/portfolio');
-        const data = await response.json();
-        
-        if (!data.success) throw new Error('Portfolio refresh failed');
-
-        console.log('Portfolio data received:', data);
-
-        const priceApiErrorElement = document.getElementById('priceApiError');
-        if (priceApiErrorElement) {
-            priceApiErrorElement.style.display = 'none';
-            priceApiErrorElement.textContent = '';
-        }
-        
-        // Store portfolio data in global variable for use in historical changes calculation
-        portfolioData = data;
-        
-        // Update last updated timestamp
-        const lastUpdatedElement = document.getElementById('lastUpdated');
-        if (lastUpdatedElement) {
-            const now = new Date();
-            lastUpdatedElement.textContent = now.toLocaleString();
-        }
-        
-        // Get the total monthly yield from the API response
-        let totalMonthlyYield = data.total_monthly_yield;
-        
-        // Clear the table
-        const portfolioTable = document.getElementById('portfolioTableBody');
-        if (portfolioTable) portfolioTable.innerHTML = '';
-        
-        // Sort coins by value (descending)
-        const sortedCoins = Object.entries(data.data).sort((a, b) => {
-            return b[1].total_value - a[1].total_value;
-        });
-
-        // Add rows for each coin
-        for (const [coinId, details] of sortedCoins) {
-            const row = document.createElement('tr');
-            
-            // Create coin cell with image and name
-            const coinCell = document.createElement('td');
-            const coinImage = document.createElement('img');
-            coinImage.src = details.image;
-            coinImage.alt = coinId;
-            coinImage.className = 'coin-icon me-2';
-            coinImage.style.width = '24px';
-            coinImage.style.height = '24px';
-            coinCell.appendChild(coinImage);
-            const coinName = document.createElement('span');
-            coinName.textContent = coinId;
-            coinName.title = PriceQuality.label(details.price_quality);
-            coinCell.appendChild(coinName);
-            
-            // Create other cells
-            const totalBalanceCell = document.createElement('td');
-            let totalAmount = details.total_amount;
-            if (isDemoMode) {
-                totalAmount = totalAmount / 15;
-            }
-            totalBalanceCell.textContent = totalAmount.toFixed(8);
-            
-            const priceCell = document.createElement('td');
-            // Format with apostrophes as thousands separators and 2 decimal places
-            priceCell.textContent = Number.isFinite(details.price) ? '$' + PriceQuality.money(details.price) : 'Unavailable';
-
-            const hourlyChangeCell = document.createElement('td');
-            hourlyChangeCell.innerHTML = formatPriceChange(details.hourly_change);
-            
-            const dailyChangeCell = document.createElement('td');
-            dailyChangeCell.innerHTML = formatPriceChange(details.daily_change);
-            
-            const weeklyChangeCell = document.createElement('td');
-            weeklyChangeCell.innerHTML = formatPriceChange(details.seven_day_change);
-            
-            const valueCell = document.createElement('td');
-            let value = details.total_value;
-            if (isDemoMode) {
-                value = value / 15;
-            }
-            // Format with apostrophes as thousands separators and 2 decimal places
-            valueCell.textContent = Number.isFinite(details.total_value) ? '$' + PriceQuality.money(value) : 'Unavailable';
-
-            // Append all cells to the row
-            row.appendChild(coinCell);
-            row.appendChild(totalBalanceCell);
-            row.appendChild(priceCell);
-            row.appendChild(hourlyChangeCell);
-            row.appendChild(dailyChangeCell);
-            row.appendChild(weeklyChangeCell);
-            row.appendChild(valueCell);
-            
-            // Add the row to the table
-            if (portfolioTable) portfolioTable.appendChild(row);
-        }
-        
-        // Update total value
-        const totalValueElement = document.getElementById('totalValue');
-        let totalValue = data.total_value;
-        if (isDemoMode) {
-            totalValue = totalValue / 15;
-        }
-        // Format with apostrophes as thousands separators and 2 decimal places
-        totalValueElement.textContent = PriceQuality.money(Number.isFinite(data.total_value) ? totalValue : null);
-
-        // Update BTC value
-        const btcValueElement = document.getElementById('btcValue');
-        if (data.bitcoin_price > 0 && Number.isFinite(data.total_value)) {
-            const btcValue = totalValue / data.bitcoin_price;
-            btcValueElement.textContent = btcValue.toFixed(8);
-        } else {
-            btcValueElement.textContent = 'Unavailable';
-        }
-        
-        // Update monthly yield
-        const monthlyYieldElement = document.getElementById('monthlyYield');
-        if (isDemoMode) {
-            totalMonthlyYield = totalMonthlyYield / 15;
-        }
-        // Format with apostrophes as thousands separators and 2 decimal places
-        monthlyYieldElement.textContent = PriceQuality.money(Number.isFinite(data.total_monthly_yield) ? totalMonthlyYield : null);
-
-        // Refresh only the small summary; chart data loads solely on demand.
-        await updateHistorySummary();
-        
-        // Update historical changes
-        updateHistoricalChanges();
-        
-        console.log('Portfolio update complete');
-
-        if (priceApiErrorElement) {
-            priceApiErrorElement.textContent = PriceQuality.summary(data.price_quality);
-            priceApiErrorElement.className = data.price_quality?.fresh ? 'alert alert-info mt-3' : 'alert alert-warning mt-3';
-            priceApiErrorElement.style.display = 'block';
-        }
-    } catch (error) {
-        console.error('Error updating portfolio:', error);
-        portfolioData = null;
-        const warning = document.getElementById('priceApiError');
-        if (warning) { warning.textContent = 'Refresh failed. Displayed figures are from the previous refresh and may be stale.'; warning.style.display = 'block'; warning.className = 'alert alert-warning'; }
-        showHistoricalChangesError();
-    }
 }
 
 // Map CoinGecko coin_id to common ticker symbols (extend as needed)
@@ -258,12 +111,15 @@ function getTickerFromCoinId(coinId) {
         'aave': 'AAVE',
         'the-graph': 'GRT',
     };
-    return map[coinId] || null;
+    if (map[coinId]) return map[coinId];
+    const ticker=String(coinId).toUpperCase();
+    return Object.values(map).includes(ticker) ? ticker : null;
 }
 
 function renderPairButtons() {
     const container = document.getElementById('pairButtons');
     if (!container) return;
+    const selectedPair=container.querySelector('.active')?.dataset.pair;
 
     // Helper to create a button element
     const createBtn = (label, pair) => {
@@ -287,14 +143,15 @@ function renderPairButtons() {
     container.innerHTML = '';
 
     try {
-        // Build list from portfolioData if available
-        const entries = portfolioData && portfolioData.data ? Object.entries(portfolioData.data) : [];
-        const sorted = entries.sort((a, b) => b[1].total_value - a[1].total_value);
+        // Build from the New Portfolio Overview's aggregated, signed values.
+        const sorted = (typeof newOverviewCurrent!=='undefined'&&newOverviewCurrent?.assets ? newOverviewCurrent.assets : [])
+            .filter(asset=>!asset.is_xstocks&&Number.isFinite(asset.total_value))
+            .sort((a,b)=>b.total_value-a.total_value);
 
         // Group 1: USD pairs of the top 5 by holdings (robust to unknown mappings)
         let usdCount = 0;
         for (let i = 0; i < sorted.length && usdCount < 5; i++) {
-            const [coinId] = sorted[i];
+            const coinId = sorted[i].asset;
             const ticker = getTickerFromCoinId(coinId);
             if (!ticker) continue; // skip unknown mapping
             container.appendChild(createBtn(`${ticker}/USD`, `BINANCE:${ticker}USD`));
@@ -310,7 +167,7 @@ function renderPairButtons() {
         // Group 2: BTC pairs of the 5 biggest non-BTC cryptos by dollar value
         let btcCount = 0;
         for (let i = 0; i < sorted.length && btcCount < 5; i++) {
-            const [coinId] = sorted[i];
+            const coinId = sorted[i].asset;
             const ticker = getTickerFromCoinId(coinId);
             if (!ticker || ticker === 'BTC') continue;
             container.appendChild(createBtn(`${ticker}/BTC`, `BINANCE:${ticker}BTC`));
@@ -345,15 +202,16 @@ function renderPairButtons() {
                 container.appendChild(createBtn(label, sym));
             });
     }
+    initializePairSelection();
+    const selected=[...container.querySelectorAll('.list-group-item')].find(button=>button.dataset.pair===selectedPair);
+    (selected||container.querySelector('.list-group-item'))?.classList.add('active');
 }
 
 // Function to toggle demo mode
 function toggleDemoMode() {
     isDemoMode = !isDemoMode;
     if (typeof renderComposition === 'function') renderComposition();
-    if (typeof renderNewPortfolioExposure === 'function') renderNewPortfolioExposure();
-    
-    if (typeof renderNewPortfolioScenario === 'function') renderNewPortfolioScenario();
+    if (typeof newOverviewCurrent!=='undefined'&&newOverviewCurrent&&typeof renderNewPortfolioOverview==='function') renderNewPortfolioOverview(newOverviewCurrent);
 
     // Update the status message
     const statusElement = document.getElementById('demoModeStatus');
@@ -365,11 +223,9 @@ function toggleDemoMode() {
         }
     }
     
-    // Update the portfolio with the new mode
-    updatePortfolio();
-    
-    // Update the historical changes
-    updateHistoricalChanges();
+    // Update the active portfolio view with the new mode.
+    if (window.location.pathname === '/statistics' && typeof renderNewStatistics === 'function') renderNewStatistics();
+    else if (typeof renderNewHistoricalChanges === 'function') renderNewHistoricalChanges();
     if (historyChartPayload) { renderHistoryChart(); renderHistoryFlows(); updateHistoryExtremes(); }
 }
 
@@ -394,12 +250,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Load the portfolio data
         console.log('Loading portfolio data...');
-        await updatePortfolio();
+        if (isStatisticsPage && typeof updateNewStatistics === 'function') { await updateWorkerHealth(); await updateNewStatistics(); }
+        // The Portfolio Overview module owns its initial load and refresh timer.
         console.log('Portfolio data loaded');
-        
-        // Update historical changes explicitly
-        console.log('Explicitly updating historical changes...');
-        updateHistoricalChanges();
         
         // Render dynamic TradingView pair buttons and initialize selection
         if (!isStatisticsPage) {
@@ -431,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (addHistoryBtn) {
             addHistoryBtn.addEventListener('click', async function() {
                 try {
-                    const response = await fetch('/add_history', {
+                    const response = await fetch('/new-portfolio/add_history', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -442,7 +295,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const data = await response.json();
                     if (data.success) {
                         alert('History entry added successfully!');
-                        await updateHistorySummary();
+                        if (isStatisticsPage && typeof updateNewStatistics === 'function') await updateNewStatistics();
+                        else if (typeof loadNewPortfolioHistory === 'function') await loadNewPortfolioHistory();
                         if (historyChartEnabled) {
                             updateHistoryChart();
                         }
@@ -461,9 +315,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (checkHistoryBtn) {
             checkHistoryBtn.addEventListener('click', async function() {
                 try {
-                    await updateHistorySummary();
-                    alert(historySummaryError ? 'History summary unavailable.' :
-                        'Comparison snapshots available: ' + Object.values(historySummary.comparisons).filter(Boolean).length + ' of 3.');
+                    if (isStatisticsPage && typeof updateNewStatistics === 'function') await updateNewStatistics();
+                    else if (typeof loadNewPortfolioHistory === 'function') await loadNewPortfolioHistory();
+                    const summary=isStatisticsPage?newStatisticsSummary:newOverviewHistory;
+                    alert(summary ? 'Comparison snapshots available: ' + Object.values(summary.comparisons).filter(Boolean).length + ' of 3.' : 'History summary unavailable.');
                 } catch (error) {
                     console.error('Error checking history status:', error);
                     alert('Error checking history status: ' + error.message);
@@ -473,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Set up auto-refresh with different intervals based on browser
         const refreshInterval = isIOSChrome ? 300000 : 120000; // 5 minutes for iOS Chrome, 2 minutes for others
-        setInterval(updatePortfolio, refreshInterval);
+        if (isStatisticsPage&&typeof updateNewStatistics==='function') setInterval(updateNewStatistics,refreshInterval);
     } catch (error) {
         console.error('Error during initialization:', error);
     }

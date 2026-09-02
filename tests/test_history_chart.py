@@ -6,7 +6,7 @@ from flask import Flask
 from flask_login import LoginManager, UserMixin
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, DateTime, Float
 from sqlalchemy.orm import Session
-from history_chart import read_chart, parse_flow, cash_flows, create_history_blueprint
+from history_chart import read_chart, parse_flow, cash_flows, new_cash_flows, create_history_blueprint
 
 
 def fixture_app():
@@ -107,5 +107,23 @@ class ChartTests(unittest.TestCase):
         self.assertEqual(result['data'],[])
         self.assertEqual(client.delete('/history/flows/'+str(saved.json['id']),headers={'X-CSRF-Token':token}).status_code,200)
         self.assertEqual(client.get('/history').json['flows'],[])
+
+    def test_new_portfolio_chart_and_ledger_are_user_scoped(self):
+        engine=create_engine('sqlite://');metadata=MetaData()
+        history=Table('new_history',metadata,Column('id',Integer,primary_key=True),Column('user_id',Integer),
+            Column('date',DateTime,index=True),Column('total_value',Float),Column('btc',Float))
+        metadata.create_all(engine);new_cash_flows.create(engine,checkfirst=True);session=Session(engine)
+        app=Flask(__name__);app.secret_key='fixture-only';app.config['LOGIN_DISABLED']=True;LoginManager(app)
+        app.register_blueprint(create_history_blueprint(SimpleNamespace(session=session),history,path='/new-portfolio/history',
+            flow_table=new_cash_flows,user_id_provider=lambda:1))
+        now=dt.datetime.now()
+        session.execute(history.insert(),[{'user_id':1,'date':now,'total_value':100,'btc':1},{'user_id':2,'date':now,'total_value':999,'btc':9}])
+        session.execute(new_cash_flows.insert().values(user_id=2,date=now,amount_usd=999,note='private'));session.commit()
+        client=app.test_client();response=client.get('/new-portfolio/history?range=all').json
+        self.assertEqual([row['total_value'] for row in response['data']],[100]);self.assertEqual(response['flows'],[])
+        token=response['csrf_token'];data={'datetime':(now-dt.timedelta(minutes=1)).isoformat(),'kind':'deposit','amount_usd':'5','request_id':'user-one'}
+        self.assertEqual(client.post('/new-portfolio/history/flows',json=data,headers={'X-CSRF-Token':token}).status_code,201)
+        self.assertEqual(session.execute(new_cash_flows.select().where(new_cash_flows.c.user_id==1)).mappings().one()['amount_usd'],Decimal('5'))
+        session.close();engine.dispose()
 
 if __name__=='__main__':unittest.main()

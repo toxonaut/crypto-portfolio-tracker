@@ -1,4 +1,4 @@
-"""Composition helpers for the isolated replacement portfolio editor."""
+"""Composition helpers for the API-backed and manually administered portfolio."""
 import math
 from kraken_portfolio import COINGECKO_IDS
 

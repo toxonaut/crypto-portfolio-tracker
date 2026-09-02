@@ -24,3 +24,8 @@ test('demo coordinates scale amounts without changing dates',()=>{
  context.isDemoMode=false;
 });
 test('chart currencies use apostrophe grouping',()=>assert.equal(context.historyMoney(123532),"$123'532"));
+test('history UI targets New Portfolio chart and cash-flow endpoints',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../static/history-chart.js'),'utf8');
+ assert.match(source,/fetch\(`\/new-portfolio\/history\?/);
+ assert.match(source,/mutateHistoryFlow\('\/new-portfolio\/history\/flows'/);
+});

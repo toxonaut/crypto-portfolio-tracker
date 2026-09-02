@@ -17,7 +17,8 @@ os.environ['HISTORY_INTERVAL_SECONDS']='3600'
 with patch('dotenv.load_dotenv',return_value=False):
     import app as module
 with module.app.app_context():
-    module.db.session.add(module.Portfolio(coin_id='bitcoin',source='Test wallet',amount=2,apy=0))
+    legacy=module.PortfolioHistory(date=module.utcnow(),total_value=200,btc=2,actual_btc=2)
+    module.db.session.add(legacy)
     module.db.session.commit()
 client=module.app.test_client()
 assert client.get('/health').status_code==200
@@ -25,51 +26,27 @@ assert client.get('/history/composition').status_code==302
 assert client.get('/experimental-portfolio').status_code==302
 assert client.get('/api/experimental/kraken-portfolio').status_code==302
 assert client.get('/new-portfolio/history/summary').status_code==302
+assert client.get('/new-portfolio/history').status_code==302
+assert client.get('/new-portfolio/worker_status').status_code==302
 assert client.post('/api/new-portfolio/manual',json={}).status_code==302
-assert client.post('/worker_api/snapshot',json={'slot':int(time.time())//3600*3600}).status_code==401
 assert client.post('/worker_api/new-portfolio-snapshot',json={'slot':int(time.time())//3600*3600}).status_code==401
-reply=SimpleNamespace(status_code=200,json=lambda:{'bitcoin':{'usd':100,'last_updated_at':time.time()}})
-with patch('snapshot_service.requests.get',return_value=reply):
-    response=client.post('/worker_api/snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
-    assert response.status_code==200, response.json
-    repeat=client.post('/worker_api/snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
-    assert repeat.json['duplicate'] is True
 routes={rule.rule for rule in module.app.url_map.iter_rules()}
-for path in ['/worker_portfolio','/worker_add_history','/api/portfolio','/api/add_history','/api/update_worker_status','/worker_api/portfolio','/worker_api/add_history']:
+for path in ['/portfolio','/history/summary','/add_history','/edit_portfolio','/worker_api/snapshot','/api/add_coin','/api/update_coin','/api/remove_source','/debug_db','/initialize_bitcoin_data','/api/update_zerion_data']:
     assert path not in routes, path
 with module.app.app_context():
     assert module.PortfolioHistory.query.count()==1
-    assert module.PortfolioHistory.query.first().total_value==200
+
 # Exercise authenticated UI endpoints without real Google OAuth in this isolated test.
 with module.app.app_context():
     user=module.User(email='test@example.invalid',name='Test')
     module.db.session.add(user);module.db.session.commit();uid=user.id
+    assert module.migrate_legacy_history_if_unambiguous()==1
+    assert module.migrate_legacy_history_if_unambiguous()==0
+    migrated=module.NewPortfolioHistory.query.filter(module.NewPortfolioHistory.legacy_history_id.isnot(None)).order_by(module.NewPortfolioHistory.legacy_history_id).all()
+    assert len(migrated)==1 and migrated[0].slot<0
+    assert (migrated[0].total_value,migrated[0].btc,migrated[0].actual_btc)==(200,2,2)
 with client.session_transaction() as session:
     session['_user_id']=str(uid);session['_fresh']=True
-quotes={'bitcoin':{'usd':None,'status':'missing','source':None,'as_of':None,'cached':False}}
-with patch('price_data.prices.read',return_value=quotes):
-    response=client.get('/portfolio')
-    assert response.status_code==200, response.json
-    assert response.json['total_value'] is None
-    assert response.json['data']['bitcoin']['price'] is None
-    assert response.json['total_monthly_yield'] is None
-    assert response.json['price_quality']['missing']==['bitcoin']
-quotes['bitcoin'].update(usd=100,status='stale')
-with patch('price_data.prices.read',return_value=quotes):
-    response=client.get('/portfolio')
-    assert response.json['total_value']==200
-    assert response.json['price_error']
-with patch('snapshot_service.fresh_prices',return_value={'bitcoin':100}):
-    response=client.post('/add_history',json={'total_value':999999,'btc_value':99,'actual_btc':99})
-    assert response.status_code==200, response.json
-with module.app.app_context():
-    assert module.PortfolioHistory.query.order_by(module.PortfolioHistory.id.desc()).first().total_value==200
-    count=module.PortfolioHistory.query.count()
-from snapshot_service import SnapshotUnavailable
-with patch('snapshot_service.fresh_prices',side_effect=SnapshotUnavailable('Prices unavailable')):
-    assert client.post('/add_history',json={}).status_code==503
-with module.app.app_context():
-    assert module.PortfolioHistory.query.count()==count
 with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value_usd':0,'total_value_usd':0,'unpriced_assets':[],'complete':True,'as_of':'2026-09-01T00:00:00+00:00'}):
     assert client.get('/experimental-portfolio').status_code==200
     assert client.post('/api/new-portfolio/manual',json={'coin_id':'bitcoin','origin':'Ledger','amount':0,'apy':4}).status_code==400
@@ -91,10 +68,15 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
         assert snapshot.status_code==200,snapshot.json
         repeat=client.post('/worker_api/new-portfolio-snapshot',json={'slot':int(time.time())//3600*3600},headers={'X-Worker-Key':os.environ['WORKER_KEY']})
         assert repeat.json['duplicate'] is True
+        manual=client.post('/new-portfolio/add_history',json={})
+        assert manual.status_code==200 and manual.json['duplicate'] is False,manual.json
     assert client.get('/new-portfolio/history/summary').status_code==200
+    assert client.get('/new-portfolio/history?range=all').status_code==200
+    assert client.get('/new-portfolio/worker_status').json['data']['last_success'] is not None
     with module.app.app_context():
-        assert module.NewPortfolioHistory.query.count()==1
-        assert module.NewPortfolioHistory.query.first().total_value==150
+        assert module.NewPortfolioHistory.query.count()==3
+        assert module.NewPortfolioHistory.query.filter_by(legacy_history_id=None).first().total_value==150
+        assert module.NewPortfolioHistory.query.filter_by(legacy_history_id=None).first().btc==1.5
         assert module.db.session.execute(module.db.select(module.new_compositions)).first() is not None
     updated=client.patch('/api/new-portfolio/manual/'+str(added.json['id']),json={'origin':'Cold wallet','amount':2,'apy':5.5})
     assert updated.status_code==200,updated.json
@@ -105,7 +87,7 @@ with patch('app.kraken_portfolio.read',return_value={'positions':[],'known_value
     with module.app.app_context(): assert module.NewPortfolioEntry.query.count()==0
 response=client.get('/history/composition?range=all')
 assert response.status_code==200
-assert len(response.json['data'])==1
+assert len(response.json['data'])==2
 for row in response.json['data']:
     assert row['positions'][0]['source']=='Ledger'
     assert row['positions'][0]['amount']==1.5

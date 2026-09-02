@@ -1,6 +1,6 @@
 # Crypto Portfolio Tracker
 
-A web application for tracking cryptocurrency portfolios with real-time price updates and historical value tracking.
+A web application for tracking an API-backed and manually administered portfolio with real-time price updates and historical value tracking.
 
 ## Features
 
@@ -78,31 +78,26 @@ The application uses the following environment variables:
 
 ## Data Storage
 
-The application currently uses JSON files for data storage:
-- `portfolio.json`: Stores portfolio data
-- `portfolio_history.json`: Stores historical portfolio values
-
-For production deployment, consider migrating to a proper database system.
+Portfolio entries, history, composition snapshots, cash-flow annotations, and worker health are stored in PostgreSQL in production. The retired `portfolio` and `portfolio_history` tables remain read-only during the rollback window.
 
 ### Historical change summaries
 
-The dashboard requests `/history/summary` on each portfolio refresh. Six bounded indexed queries select the nearest snapshots for 24 hours, 7 days, and 30 days, returning at most three comparison records. Snapshots more than 12 hours from their target, or invalid/zero comparison values, show as unavailable. Returns describe portfolio value changes, including deposits and withdrawals.
+The New Portfolio dashboard requests `/new-portfolio/history/summary` on each refresh. Six bounded indexed queries select the signed-in user's nearest snapshots for 24 hours, 7 days, and 30 days, returning at most three comparison records. Snapshots more than 12 hours from their target, or invalid/zero comparison values, show as unavailable. Returns describe portfolio value changes, including deposits and withdrawals.
 
-Range-filtered `/history` data loads only when the user requests or refreshes the chart (on either page), changes an already-loaded chart's range, or adds a history entry with the chart open. Scale and currency toggles redraw locally. Statistics extrema are calculated on unsampled records from the selected range. Stored timestamps retain their time component; existing naive server-time conventions are preserved. Startup creates the date index on existing databases (concurrently on PostgreSQL).
+Range-filtered `/new-portfolio/history` data loads only when the user requests or refreshes the chart (on either page), changes an already-loaded chart's range, or adds a history entry with the chart open. Scale and currency toggles redraw locally. Statistics extrema are calculated on unsampled New Portfolio records from the selected range. Stored timestamps retain their time component; existing naive server-time conventions are preserved.
 
 Run the summary checks without connecting to the application database:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -p 'test_history_summary.py'
-node --test tests/history-summary.test.cjs
 ```
 
 ### Portfolio History explorer
 
-- `/history?range=90&max_points=600` filters dates in the database. Supported ranges are 7, 30, 90, 180, 365, 730 days and `all`; point limits are 32–1200. The UI requests 600 points (240 on iPhone Chrome). Small ranges keep every usable snapshot.
+- `/new-portfolio/history?range=90&max_points=600` filters the signed-in user's New Portfolio snapshots. Supported ranges are 7, 30, 90, 180, 365, 730 days and `all`; point limits are 32–1200. The UI requests 600 points (240 on iPhone Chrome). Small ranges keep every usable snapshot.
 - Larger ranges stream through time buckets, retaining each bucket's endpoints and USD, BTC and adjusted-USD minima/maxima. This bounds response size while preserving peaks and drops, but it does not reproduce every movement. The server still scans records in the selected range.
 - Gaps over three hours are flagged, while straight lines connect the last available point before a gap to the first one after it. These connections do not imply observations during the gap. Freshness uses the latest database timestamp, independently of the selected range. Null BTC values remain missing, not zero; the chart connects the surrounding available BTC points. All timestamp coordinates retain the existing server-time convention.
-- The new additive `portfolio_cash_flows` table stores explicit USD deposits/withdrawals. Authenticated, CSRF-protected create/delete operations affect annotations only. UI save retries reuse a request ID to avoid duplicate entries. No historical flows are inferred or backfilled.
+- The additive, per-user `new_portfolio_cash_flows` table stores explicit USD deposits/withdrawals for New Portfolio history. Authenticated, CSRF-protected create/delete operations affect annotations only. UI save retries reuse a request ID to avoid duplicate entries. On upgrade, legacy annotations are copied only when the database has exactly one user and the new ledger is empty; otherwise they remain untouched because ownership is ambiguous.
 - Dashed event markers and the ledger list annotate flows. The optional adjusted USD line subtracts cumulative net recorded flows after the first selected snapshot. It is **not investment return or verified profit**; results depend on complete, correctly dated records and do not distinguish rewards or fees. Transfers between your own locations should not be recorded as external flows. Demo Mode scales display values only; annotation inputs always use actual USD.
 - Responses include at most 500 annotations. If the range contains more, the UI warns and disables the adjusted line until a shorter range is chosen.
 
@@ -115,20 +110,20 @@ node --test tests/*.test.cjs
 
 ### Automatic snapshots without session cookies
 
-The worker now sends a dedicated `X-Worker-Key` to **POST `/worker_api/snapshot`**. It no longer reads browser session cookies or needs database credentials. Configure a matching `WORKER_KEY` of at least 32 characters and `HISTORY_INTERVAL_SECONDS` (default 3600) on the web and worker services. Never use the web session `SECRET_KEY` as the worker credential.
+The worker sends a dedicated `X-Worker-Key` to **POST `/worker_api/new-portfolio-snapshot`**. It no longer reads browser session cookies or needs database credentials. Configure a matching `WORKER_KEY` of at least 32 characters and `HISTORY_INTERVAL_SECONDS` (default 3600) on the web and worker services. Never use the web session `SECRET_KEY` as the worker credential.
 
-The authenticated server fetches only the required asset prices (plus Bitcoin), validates every nonzero balance, rejects incomplete prices, crypto prices older than 15 minutes, and CHF rates older than seven calendar days, and computes USD/BTC values itself. Negative positions reduce net portfolio value, matching the dashboard. Nonfinite balances are rejected; configured all-zero balances are valid. No cached or partial valuation is silently written. Manual Add History also recalculates the real portfolio on the server using strict fresh-price validation; browser-provided and demo values are ignored.
+The authenticated server reads Kraken balances and ticker prices plus required manual-entry and Bitcoin reference quotes. It rejects incomplete or stale manual pricing and computes USD/BTC values itself. Negative positions reduce net portfolio value, matching the dashboard. No cached or partial valuation is silently written. Manual Add History uses the same New Portfolio valuation and composition transaction; browser-provided and demo values are ignored.
 
 A unique UTC schedule slot and an atomic database receipt prevent duplicates across retries, restarts and simultaneous workers. Retries use delays of 5, 10 and 20 seconds, bounded HTTP timeouts, and the same slot. Redirects and rejected credentials fail closed. After an unsuccessful cycle, the worker tries again after a minute. Successful cycles align to the next schedule boundary; shutdown signals stop waits cleanly. Missed slots are not backfilled with fabricated valuations.
 
-Additive tables `worker_snapshot_receipts` and `worker_snapshot_health` preserve old history and store the last attempt, last success and sanitized error. The dashboard warns after two missed intervals or when no automatic success exists. Wrong credentials cannot update health; a dead/misconfigured worker is detected through overdue successes. No external email/SMS notifications are enabled. `/worker_status` requires a normal user login, and `/debug_worker` is now read-only. Legacy worker routes and insecure default-key fallbacks were removed.
+The unique `(user_id, slot)` constraint makes hourly retries idempotent. `new_portfolio_worker_health` stores the last automatic attempt, success, and sanitized error shown by `/new-portfolio/worker_status`; manual snapshots do not alter automatic health. The dashboard warns after two missed intervals or when no automatic success exists. Wrong credentials cannot update health. No external email/SMS notifications are enabled.
 
 One-time Railway rollout:
 
 1. Authenticate the Railway CLI with `railway login`.
 2. Run `python3 scripts/configure_railway_worker.py`. It reuses a suitable existing worker credential or generates one, sends it via stdin (not command-line arguments), stages matching configuration on both services, and verifies equality without printing secrets. It does not trigger deployments.
 3. Push the tested commit to the connected GitHub branch and verify both deployments.
-4. Verify a successful `/worker_api/snapshot` result and the dashboard's latest automatic success. Existing `SESSION_COOKIE` variables are ignored and can be removed after the successful rollout; they never need refreshing again.
+4. Verify a successful `/worker_api/new-portfolio-snapshot` result and the dashboard's latest automatic success. Existing `SESSION_COOKIE` variables are ignored and can be removed after the successful rollout; they never need refreshing again.
 
 To rotate credentials, stage the same new value on both services and deploy both. Until configured, the worker exits with an error and the API rejects snapshot requests. Do not deploy the replacement worker before staging its key.
 
@@ -160,14 +155,18 @@ Scenario Lab uses signed position values. Negative balances reduce the baseline,
 
 ### New Portfolio Editor
 
-`/experimental-portfolio` is the login-protected New Portfolio Editor linked from the top navigation. It combines read-only Kraken positions with separately stored manual entries without changing the existing main portfolio, legacy history, or Scenario Lab. Manual entries are owned by the signed-in user and stored in the additive `new_portfolio_entry` table with CoinGecko ID, origin/location, signed amount, and APY. They can be added, edited inline, and removed in the editor; CoinGecko supplies their current price and icon. Kraken rows remain read-only because their origin, balance, and yield come from the API.
+`/experimental-portfolio` is the login-protected New Portfolio Editor linked from the top navigation. It combines read-only Kraken positions with per-user manual entries stored in `new_portfolio_entry`. Manual rows contain a CoinGecko ID, origin/location, signed amount, and APY and can be added, edited inline, and removed. Kraken rows remain read-only because their origin, balance, and yield come from the API.
 
 The browser receives Kraken positions and calculated values but never API credentials or request signatures. The server calls Kraken Spot REST `POST /0/private/Balance` with the private key; Kraken's public `AssetPairs` and `Ticker` endpoints supply USD prices. Tokenized stocks use Kraken's separate `tokenized_asset` asset class so holdings such as AAPLx receive their xStocks/USD ticker price. When Kraken reports an Earn balance-code suffix, the editor also reads `Earn/Allocations` and `Earn/Strategies`. It displays a midpoint APR estimate weighted by the Earn amount and divided across the consolidated Spot + Earn balance, preventing the Earn rate from being applied to non-Earn units. Earn metadata failure never blocks balances and is shown as unavailable. Balance responses cache for 30 seconds and asset-pair metadata for one hour. The Refresh button explicitly bypasses the balance cache.
 
 Create `.kraken_credentials.txt` beside `app.py` with `KRAKEN_API_KEY=...` and `KRAKEN_PRIVATE_KEY=...`, or set the same environment variables. The local file is Git-ignored and should have owner-only permissions. The API key needs only Kraken's **Funds permissions – Query** permission; trading and withdrawal permissions are unnecessary and should remain disabled. Private keys are used solely to generate the HMAC-SHA512 `API-Sign` header and are never transmitted.
 
-Kraken balance codes remain server-side; the page displays normalized asset names only. Spot, Earn, and other Kraken balance-code variants that normalize to the same asset are added together before pricing, so each coin appears once. The Origin column labels these API-backed positions as Kraken and leaves room for future manual and additional API sources. Positions with a known absolute USD value below $10 are omitted from the table while still contributing to the portfolio total. Direct Kraken USD pairs and inverse USD pairs are valued from the latest public ticker close; USD cash is valued at $1. Curated CoinGecko matches supply icons for the overview-style table, but never replace Kraken prices or values. Unmatched assets use an initials icon. Assets without a Kraken Spot USD price are labeled unpriced. In that case the page displays the known subtotal but withholds a potentially misleading complete portfolio total. The replacement portfolio remains isolated from the manually maintained portfolio, legacy history, and Scenario Lab.
+Kraken balance codes remain server-side; the page displays normalized asset names only. Spot, Earn, and other Kraken balance-code variants that normalize to the same asset are added together before pricing, so each coin appears once. The Origin column labels these API-backed positions as Kraken and leaves room for future manual and additional API sources. Positions with a known absolute USD value below $10 are omitted from the table and derived views while still contributing to the portfolio total. Direct Kraken USD pairs and inverse USD pairs are valued from the latest public ticker close; USD cash is valued at $1. Curated CoinGecko matches supply icons, but never replace Kraken prices or values. Unmatched assets use an initials icon. Assets without a Kraken Spot USD price are labeled unpriced, and complete totals are withheld.
 
-The main page includes a separate New Portfolio Overview immediately below the existing overview. It groups New Portfolio Editor rows by asset across all origins, sums signed balances and USD values, and calculates the monthly yield from each origin's value and effective APY. Kraken remains the price source for Kraken assets, including xStocks; CoinGecko prices manual entries and supplies icons and 1h, 24h, and 7d market changes where a curated match exists. The overview withholds complete totals when any displayed editor position is unpriced and does not alter the legacy overview or history.
+The main Portfolio Overview groups New Portfolio Editor rows by asset across all origins, sums signed balances and USD values, and calculates monthly yield from each origin's value and effective APY. Kraken remains the price source for Kraken assets, including xStocks; CoinGecko prices manual entries and supplies icons and market changes where a curated match exists.
 
-New Portfolio Historical Changes use an independent `new_portfolio_history` table keyed by signed-in user and hourly worker slot. The existing cookie-free worker calls a second authenticated endpoint after the legacy snapshot; independent slot deduplication makes retries safe. The summary endpoint reads only bounded snapshots nearest 24 hours, 7 days, and 30 days, so it never loads a chart-sized history payload. Changes include both market movement and deposits, withdrawals, API-balance changes, or manual edits. A period remains unavailable until a valid snapshot exists within 12 hours of its target.
+The New Portfolio client owns the two-minute page refresh cycle (five minutes on iPhone Chrome), including its overview, compact history summary, worker status, Exposure Map, Scenario Lab, and dynamic market-pair menu. The pair menu ranks supported non-xStock assets by their signed values and preserves the selected chart across refreshes. Demo Mode divides balances, USD totals, position values, monthly yield, and historical dollar changes by 15 while leaving unit prices, percentages, and BTC-denominated values unchanged.
+
+New Portfolio Historical Changes, the full history chart, and Statistics use `new_portfolio_history`, keyed by signed-in user and worker slot. New records include USD and BTC-denominated totals; records created before the BTC column was added retain a missing BTC observation rather than a fabricated value. The cookie-free worker now records only the New Portfolio. The summary endpoint reads only bounded snapshots nearest 24 hours, 7 days, and 30 days, so it never loads a chart-sized history payload. Changes include both market movement and deposits, withdrawals, API-balance changes, or manual edits. A period remains unavailable until a valid snapshot exists within 12 hours of its target.
+
+All legacy `portfolio_history` rows are copied into New Portfolio history when the database has exactly one user, preserving their original timestamps, USD totals, BTC totals, and actual BTC balances. Each copied row stores its legacy ID and a synthetic negative slot; a unique `(user_id, legacy_history_id)` index makes the migration idempotent across restarts and concurrent deployments. The legacy rows remain untouched. With multiple users the copy is deliberately skipped because the old table has no ownership information.

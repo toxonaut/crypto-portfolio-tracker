@@ -29,7 +29,7 @@ async function updateHistoryChart() {
     panel.setAttribute('aria-busy','true');
     document.getElementById('historyChartStatus').textContent='Loading selected history…';
     try {
-        const response=await fetch(`/history?range=${encodeURIComponent(period)}&max_points=${isIOSChrome?240:600}`,{signal:historyRequest.signal});
+        const response=await fetch(`/new-portfolio/history?range=${encodeURIComponent(period)}&max_points=${isIOSChrome?240:600}`,{signal:historyRequest.signal});
         const payload=await response.json();
         if(!response.ok || !payload.success || !Array.isArray(payload.data)) throw new Error(payload.error || 'Could not load chart history.');
         if(version!==historyRequestVersion) return false;
@@ -117,7 +117,7 @@ function renderHistoryFlows() {
         const remove=document.createElement('button'); remove.type='button';remove.className='btn btn-sm btn-outline-danger';remove.textContent='Delete annotation';remove.disabled=historyMutationPending;
         remove.onclick=async()=>{
             if(historyMutationPending || !confirm('Delete this cash-flow annotation? Holdings will not change.')) return;
-            await mutateHistoryFlow(`/history/flows/${flow.id}`,'DELETE');
+            await mutateHistoryFlow(`/new-portfolio/history/flows/${flow.id}`,'DELETE');
         };
         item.append(label,remove);list.appendChild(item);
     }
@@ -154,6 +154,6 @@ function initializeHistoryPanel() {
         const data=Object.fromEntries(new FormData(event.target));
         historyFlowRequestId ||= crypto.randomUUID();
         data.request_id=historyFlowRequestId;
-        if(await mutateHistoryFlow('/history/flows','POST',data)) { historyFlowRequestId=null; event.target.elements.amount_usd.value=''; event.target.elements.note.value=''; }
+        if(await mutateHistoryFlow('/new-portfolio/history/flows','POST',data)) { historyFlowRequestId=null; event.target.elements.amount_usd.value=''; event.target.elements.note.value=''; }
     };
 }
