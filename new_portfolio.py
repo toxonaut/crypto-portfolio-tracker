@@ -82,7 +82,9 @@ def overview_data(portfolio, bitcoin_price=None):
     rows=[]
     for group in grouped.values():
         group['origins']=sorted(group['origins'],key=str.casefold);rows.append(group)
-    rows.sort(key=lambda row:row['asset'].casefold())
+    # Keep alphabetical ordering within each group, but move assets without a
+    # usable one-hour market change below assets that provide it.
+    rows.sort(key=lambda row:(row['hourly_change'] is None,row['asset'].casefold()))
     ranked=lambda values:sorted(values.items(),key=lambda item:(-item[1],item[0].casefold()))
     exposure={'assets':ranked(exposure_assets),'platforms':ranked(exposure_platforms),
         'excluded':exposure_excluded,'total':sum(exposure_assets.values())}

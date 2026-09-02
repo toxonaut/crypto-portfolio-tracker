@@ -25,6 +25,16 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual([(p['asset'],p['origin']) for p in result['positions']],
             [('BTC','Kraken'),('BTC','Ledger'),('eth','A wallet'),('ETH','Kraken')])
 
+    def test_overview_places_assets_without_one_hour_changes_last(self):
+        portfolio={'positions':[
+            {'asset':'ADA','origin':'Kraken','balance':1,'price_usd':1,'value_usd':1,'apy':0,'market_data':{}},
+            {'asset':'ETH','origin':'Kraken','balance':1,'price_usd':2,'value_usd':2,'apy':0,'market_data':{'change_1h':0}},
+            {'asset':'BTC','origin':'Kraken','balance':1,'price_usd':3,'value_usd':3,'apy':0,'market_data':{'change_1h':-1}},
+            {'asset':'XRP','origin':'Kraken','balance':1,'price_usd':1,'value_usd':1,'apy':0,'market_data':{}}],
+            'total_value_usd':7,'known_value_usd':7,'complete':True,'unpriced_assets':[]}
+        result=overview_data(portfolio,3)
+        self.assertEqual([row['asset'] for row in result['assets']],['BTC','ETH','ADA','XRP'])
+
     def test_overview_aggregates_origins_and_groups_xstocks(self):
         portfolio={'positions':[
             {'asset':'BTC','origin':'Kraken','balance':1,'price_usd':100,'value_usd':100,'apy':2,'market_data':{'image':'btc.png','change_24h':3}},
