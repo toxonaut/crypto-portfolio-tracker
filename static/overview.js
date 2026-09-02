@@ -105,7 +105,7 @@ function getTickerFromCoinId(coinId) {
         'vechain': 'VET',
         'render-token': 'RNDR',
         'fantom': 'FTM',
-        'sui': 'SUI',
+        'hyperliquid': 'HYPE',
         'hedera-hashgraph': 'HBAR',
         'algorand': 'ALGO',
         'aave': 'AAVE',
@@ -260,7 +260,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             renderPairButtons();
             initializePairSelection();
             // Activate the first button and load its chart by default
-            const firstBtn = document.querySelector('#pairButtons .list-group-item');
+            const firstBtn = [...document.querySelectorAll('#pairButtons .list-group-item')]
+                .find(button => button.dataset.pair === 'BINANCE:BTCUSD') || document.querySelector('#pairButtons .list-group-item');
             if (firstBtn) {
                 document.querySelectorAll('#pairButtons .list-group-item').forEach(b => b.classList.remove('active'));
                 firstBtn.classList.add('active');

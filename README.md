@@ -21,7 +21,7 @@ Run the calculation tests with Node.js 18 or later:
 node --test tests/scenario.test.cjs
 ```
 
-Scenario Lab uses New Portfolio Editor positions. Lowercase-`x` stock tokens share one `xStocks` price-change control while their signed values and origin-specific APYs remain separate in the calculation. Contributions buy positive positions proportionally at baseline prices before the selected price shocks. Estimated monthly income uses scenario values multiplied by adjusted APY divided by 12; it does not model compounding, fees, or taxes. Reset uses the most recently loaded portfolio. Assumptions remain in memory only and are discarded on reload.
+Scenario Lab uses Portfolio Editor positions. Lowercase-`x` stock tokens share one `xStocks` price-change control while their signed values and origin-specific APYs remain separate in the calculation. Contributions buy positive positions proportionally at baseline prices before the selected price shocks. Estimated monthly income uses scenario values multiplied by adjusted APY divided by 12; it does not model compounding, fees, or taxes. Reset uses the most recently loaded portfolio. Assumptions remain in memory only and are discarded on reload.
 
 ## Local Development
 
@@ -141,7 +141,7 @@ The dashboard requests only held CoinGecko IDs (plus Bitcoin for conversion), wi
 
 If a nonzero holding lacks a usable quote, portfolio totals and yield are unavailable rather than silently partial. Stale quotes may support an explicitly labeled estimate, but historical comparisons are withheld until all required quotes recover. Exposure and scenario views retain their incomplete-price warnings. Manual and automatic history writes use fresh server-side quotes, never this fallback cache.
 
-Exposure Map uses the New Portfolio Editor positions and signed net values: negative balances reduce the asset, origin, and overall total. Assets whose symbols end in `x` are combined into one `xStocks` exposure. Negative totals appear left of zero in red. Shares use positive net portfolio value (and may exceed 100%); shares are unavailable if net value is zero or negative. Missing-price positions remain explicitly excluded.
+Exposure Map uses the Portfolio Editor positions and signed net values: negative balances reduce the asset, origin, and overall total. Assets whose symbols end in `x` are combined into one `xStocks` exposure. Negative totals appear left of zero in red. Shares use positive net portfolio value (and may exceed 100%); shares are unavailable if net value is zero or negative. Missing-price positions remain explicitly excluded.
 
 
 ### Portfolio composition history
@@ -153,9 +153,9 @@ The Composition History panel on Overview and Statistics loads only when request
 
 Scenario Lab uses signed position values. Negative balances reduce the baseline, respond to the same asset price shock as positive balances, and generate negative income when they carry a positive APY. Contributions are allocated proportionally across gross positive holdings only, so a small or negative net portfolio cannot amplify a contribution and liabilities are never increased. Scenarios remain available for zero or negative net portfolios when valid priced positions exist.
 
-### New Portfolio Editor
+### Portfolio Editor
 
-`/experimental-portfolio` is the login-protected New Portfolio Editor linked from the top navigation. It combines read-only Kraken positions with per-user manual entries stored in `new_portfolio_entry`. Manual rows contain a CoinGecko ID, origin/location, signed amount, and APY and can be added, edited inline, and removed. Kraken rows remain read-only because their origin, balance, and yield come from the API.
+`/experimental-portfolio` is the login-protected Portfolio Editor linked from the top navigation. It combines read-only Kraken positions with per-user manual entries stored in `new_portfolio_entry`. Manual rows contain a CoinGecko ID, origin/location, signed amount, and APY and can be added, edited inline, and removed. Kraken rows remain read-only because their origin, balance, and yield come from the API.
 
 The browser receives Kraken positions and calculated values but never API credentials or request signatures. The server calls Kraken Spot REST `POST /0/private/Balance` with the private key; Kraken's public `AssetPairs` and `Ticker` endpoints supply USD prices. Tokenized stocks use Kraken's separate `tokenized_asset` asset class so holdings such as AAPLx receive their xStocks/USD ticker price. When Kraken reports an Earn balance-code suffix, the editor also reads `Earn/Allocations` and `Earn/Strategies`. It displays a midpoint APR estimate weighted by the Earn amount and divided across the consolidated Spot + Earn balance, preventing the Earn rate from being applied to non-Earn units. Earn metadata failure never blocks balances and is shown as unavailable. Balance responses cache for 30 seconds and asset-pair metadata for one hour. The Refresh button explicitly bypasses the balance cache.
 
@@ -163,7 +163,7 @@ Create `.kraken_credentials.txt` beside `app.py` with `KRAKEN_API_KEY=...` and `
 
 Kraken balance codes remain server-side; the page displays normalized asset names only. Spot, Earn, and other Kraken balance-code variants that normalize to the same asset are added together before pricing, so each coin appears once. The Origin column labels these API-backed positions as Kraken and leaves room for future manual and additional API sources. Positions with a known absolute USD value below $10 are omitted from the table and derived views while still contributing to the portfolio total. Direct Kraken USD pairs and inverse USD pairs are valued from the latest public ticker close; USD cash is valued at $1. Curated CoinGecko matches supply icons, but never replace Kraken prices or values. Unmatched assets use an initials icon. Assets without a Kraken Spot USD price are labeled unpriced, and complete totals are withheld.
 
-The main Portfolio Overview groups New Portfolio Editor rows by asset across all origins, sums signed balances and USD values, and calculates monthly yield from each origin's value and effective APY. Kraken remains the price source for Kraken assets, including xStocks; CoinGecko prices manual entries and supplies icons and market changes where a curated match exists.
+The main Portfolio Overview groups Portfolio Editor rows by asset across all origins, sums signed balances and USD values, and calculates monthly yield from each origin's value and effective APY. Kraken remains the price source for Kraken assets, including xStocks; CoinGecko prices manual entries and supplies icons and market changes where a curated match exists.
 
 The New Portfolio client owns the two-minute page refresh cycle (five minutes on iPhone Chrome), including its overview, compact history summary, worker status, Exposure Map, Scenario Lab, and dynamic market-pair menu. The pair menu ranks supported non-xStock assets by their signed values and preserves the selected chart across refreshes. Demo Mode divides balances, USD totals, position values, monthly yield, and historical dollar changes by 15 while leaving unit prices, percentages, and BTC-denominated values unchanged.
 
