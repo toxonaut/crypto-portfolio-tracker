@@ -82,12 +82,13 @@ def overview_data(portfolio, bitcoin_price=None):
     rows=[]
     for group in grouped.values():
         group['origins']=sorted(group['origins'],key=str.casefold);rows.append(group)
-    # Rank percentage-bearing assets by unit price. Assets without a usable
-    # one-hour change stay together at the bottom.
+    # Rank percentage-bearing assets by total position value. Assets without a
+    # usable one-hour change stay together alphabetically at the bottom.
     def overview_order(row):
-        price=row['price']
-        ranked_price=-price if isinstance(price,(int,float)) and not isinstance(price,bool) and math.isfinite(price) else math.inf
-        return row['hourly_change'] is None,ranked_price,row['asset'].casefold()
+        missing_change=row['hourly_change'] is None
+        value=row['total_value']
+        ranked_value=-value if not missing_change and isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value) else 0
+        return missing_change,ranked_value,row['asset'].casefold()
     rows.sort(key=overview_order)
     ranked=lambda values:sorted(values.items(),key=lambda item:(-item[1],item[0].casefold()))
     exposure={'assets':ranked(exposure_assets),'platforms':ranked(exposure_platforms),
