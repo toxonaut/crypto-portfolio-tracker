@@ -66,8 +66,8 @@ class KrakenPortfolioTests(unittest.TestCase):
         http=Mock();http.post.return_value=Reply({'error':[],'result':{'AAPLx.T':'0.1','MSFTx.T':'0.01'}})
         standard=Reply({'error':[],'result':{}})
         stocks=Reply({'error':[],'result':{
-            'AAPLxUSD':{'base':'AAPLx','quote':'ZUSD','altname':'AAPLxUSD','status':'online'},
-            'MSFTxUSD':{'base':'MSFTx','quote':'ZUSD','altname':'MSFTxUSD','status':'online'}}})
+            'AAPLxUSD':{'base':'AAPLx','quote':'ZUSD','altname':'AAPLxUSD','status':'post_only'},
+            'MSFTxUSD':{'base':'MSFTx','quote':'ZUSD','altname':'MSFTxUSD','status':'post_only'}}})
         tickers=Reply({'error':[],'result':{'AAPLxUSD':{'c':['250','1']},'MSFTxUSD':{'c':['300','1']}}})
         http.get.side_effect=[standard,stocks,tickers]
         result=KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'a','KRAKEN_PRIVATE_KEY':'Yg=='}).read()

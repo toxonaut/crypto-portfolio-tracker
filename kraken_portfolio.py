@@ -15,6 +15,7 @@ from dotenv import dotenv_values
 BASE_URL = 'https://api.kraken.com'
 BALANCE_PATH = '/0/private/Balance'
 CREDENTIAL_FILE = Path(__file__).with_name('.kraken_credentials.txt')
+VALUABLE_PAIR_STATUSES = {None, 'online', 'post_only', 'limit_only', 'cancel_only', 'reduce_only'}
 COINGECKO_IDS = {
     'AAVE':'aave','ADA':'cardano','ALGO':'algorand','APE':'apecoin','ARB':'arbitrum',
     'ATOM':'cosmos','AVAX':'avalanche-2','BCH':'bitcoin-cash','BTC':'bitcoin',
@@ -158,7 +159,9 @@ class KrakenPortfolio:
         for asset_class in classes:
             class_selected={}
             for result_key,info in self._asset_pairs(asset_class).items():
-                if not isinstance(info,dict) or info.get('status') not in (None,'online'): continue
+                # Non-online trading modes can still expose a current public
+                # ticker suitable for valuation (xStocks commonly use post_only).
+                if not isinstance(info,dict) or info.get('status') not in VALUABLE_PAIR_STATUSES: continue
                 base,quote=info.get('base'),info.get('quote')
                 normalized_base = normalize_asset(base) if isinstance(base, str) else None
                 normalized_quote = normalize_asset(quote) if isinstance(quote, str) else None
