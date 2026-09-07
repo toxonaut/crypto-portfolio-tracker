@@ -118,6 +118,7 @@ body {
 .scenario-results strong { display: block; font-size: 1.6rem; color: #e0eaff; margin: .35rem 0; font-variant-numeric: tabular-nums; }
 .scenario-control { margin-bottom: 1rem; }
 .scenario-control label { overflow-wrap: anywhere; }
+.scenario-hypothetical-price { display: block; color: #b7c5df; margin-top: -.35rem; font-variant-numeric: tabular-nums; }
 #scenarioLab output { font-variant-numeric: tabular-nums; color: #69dfba; }
 #scenarioLab input[type="range"] { accent-color: #7ea6ff; }
 @media (max-width: 767px) {

@@ -67,7 +67,8 @@ def overview_data(portfolio, bitcoin_price=None):
             if position.get('balance') != 0:
                 valid_apy=isinstance(apy,(int,float)) and not isinstance(apy,bool) and math.isfinite(apy) and apy >= 0
                 if not valid_apy: scenario_unknown_yield+=1
-                scenario_positions.append({'coin':asset,'value':value,'apy':apy if valid_apy else 0})
+                scenario_positions.append({'coin':asset,'value':value,'apy':apy if valid_apy else 0,
+                    'price':price if not is_xstocks else None})
         else: exposure_excluded+=1
         if not isinstance(value,(int,float)) or isinstance(value,bool) or not math.isfinite(value): scenario_excluded+=1
         if not is_xstocks and price is not None and group['price'] is None: group['price']=price

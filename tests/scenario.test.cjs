@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const context = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/scenario.js'), 'utf8'), context);
-const {calculateScenario, scenarioPositions} = context;
+const {calculateScenario, scenarioPositions, hypotheticalAssetPrice, scenarioPrice} = context;
 const positions = [{coin:'bitcoin',value:600,apy:12},{coin:'ether',value:400,apy:6}];
 
 test('unchanged scenario matches portfolio value and dashboard income convention', () => {
@@ -27,6 +27,14 @@ test('total price loss and zero yield are supported', () => {
     assert.equal(loss.income,0);
     assert.equal(loss.impact,-2000);
     assert.equal(calculateScenario(positions,new Map(),0,0).income,0);
+});
+test('hypothetical unit prices follow each asset change', () => {
+    const priced=[{coin:'BTC',value:200,price:100,apy:0},{coin:'BTC',value:100,price:100,apy:0},{coin:'xStocks',value:50,price:null,apy:0}];
+    assert.equal(hypotheticalAssetPrice(priced,'BTC',new Map([['BTC',25]])),125);
+    assert.equal(hypotheticalAssetPrice(priced,'BTC',new Map([['BTC',-100]])),0);
+    assert.equal(hypotheticalAssetPrice(priced,'xStocks',new Map([['xStocks',10]])),null);
+    assert.equal(scenarioPrice(125), '$125.00');
+    assert.equal(scenarioPrice(0.123456), '$0.1235');
 });
 test('multiple locations retain their individual yields and never mutate holdings', () => {
     const data = {bitcoin:{price:100,sources:{Wallet:{amount:2,apy:0},Staking:{amount:1,apy:12}}}};

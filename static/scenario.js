@@ -17,10 +17,25 @@ function scenarioPositions(portfolio) {
             }
             const validYield = Number.isFinite(position.apy) && position.apy >= 0;
             if (!validYield) unknownYield++;
-            positions.push({coin, value, apy: validYield ? position.apy : 0});
+            positions.push({coin, value, apy: validYield ? position.apy : 0, price: details.price});
         }
     }
     return {positions, excluded, unknownYield};
+}
+
+function hypotheticalAssetPrice(positions, coin, changes) {
+    const prices = positions.filter(position => position.coin === coin && Number.isFinite(position.price) && position.price > 0)
+        .map(position => position.price);
+    if (!prices.length) return null;
+    // Multiple origins for the same fungible asset should use one unit price.
+    // If providers disagree, use the first displayed baseline consistently.
+    return prices[0] * (1 + (changes.get(coin) || 0) / 100);
+}
+
+function scenarioPrice(value) {
+    if (!Number.isFinite(value)) return 'Unavailable';
+    const digits = Math.abs(value) < 1 ? 4 : 2;
+    return '$' + value.toLocaleString('en-US', {minimumFractionDigits: digits, maximumFractionDigits: digits}).replace(/,/g, "'");
 }
 
 function calculateScenario(positions, changes, contribution, yieldMultiplier) {
@@ -93,7 +108,10 @@ function resetScenarioLab() {
             output.textContent = `${change > 0 ? '+' : ''}${change}%`;
             renderScenarioResults();
         });
-        row.append(label, input);
+        const price = document.createElement('small');
+        price.className = 'scenario-hypothetical-price';
+        price.dataset.scenarioPrice = coin;
+        row.append(label, input, price);
         container.appendChild(row);
     });
     contribution.oninput = () => {
@@ -137,6 +155,13 @@ function renderScenarioResults() {
     text('scenarioImpact', `${result.impact > 0 ? '+' : ''}${money(result.impact)}`);
     text('scenarioIncome', money(result.income));
     text('scenarioIncomeChange', `Baseline ${money(result.baselineIncome)} / month`);
+    document.querySelectorAll('[data-scenario-price]').forEach(element => {
+        const coin = element.dataset.scenarioPrice;
+        const price = hypotheticalAssetPrice(baseline.data.positions, coin, scenarioState.changes);
+        element.textContent = price === null && coin === 'xStocks'
+            ? 'Hypothetical price: not applicable to combined xStocks'
+            : `Hypothetical price: ${scenarioPrice(price)}`;
+    });
 }
 
 function showScenarioError() {
