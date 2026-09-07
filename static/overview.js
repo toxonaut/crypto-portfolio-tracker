@@ -180,12 +180,13 @@ function renderPairButtons() {
 
         // Group 3: static extras
         container.appendChild(createBtn('SOL/ETH', 'BINANCE:SOLETH'));
+        container.appendChild(createBtn('CHF/USD', 'FX_IDC:CHFUSD'));
         container.appendChild(createBtn('SPY', 'SPY'));
         container.appendChild(createBtn('BTC.D', 'CRYPTOCAP:BTC.D'));
 
         // If nothing was added (empty portfolio or unknown mappings), fallback to defaults
         if (container.querySelectorAll('.list-group-item').length === 0) {
-            ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','KRAKEN:PAXGUSD','KRAKEN:ZECUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
+            ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','KRAKEN:PAXGUSD','KRAKEN:ZECUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','FX_IDC:CHFUSD','SPY','CRYPTOCAP:BTC.D']
                 .forEach(sym => {
                     const label = sym === 'CRYPTOCAP:BTC.D' ? 'BTC.D' :
                                   sym === 'SPY' ? 'SPY' :
@@ -196,7 +197,7 @@ function renderPairButtons() {
     } catch (e) {
         console.error('Error rendering pair buttons, falling back to defaults', e);
         container.innerHTML = '';
-        ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','KRAKEN:PAXGUSD','KRAKEN:ZECUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','SPY','CRYPTOCAP:BTC.D']
+        ['BINANCE:BTCUSD','BINANCE:ETHUSD','BINANCE:SOLUSD','KRAKEN:PAXGUSD','KRAKEN:ZECUSD','BINANCE:ETHBTC','BINANCE:SOLBTC','BINANCE:SOLETH','FX_IDC:CHFUSD','SPY','CRYPTOCAP:BTC.D']
             .forEach(sym => {
                 const label = sym === 'CRYPTOCAP:BTC.D' ? 'BTC.D' :
                               sym === 'SPY' ? 'SPY' :
