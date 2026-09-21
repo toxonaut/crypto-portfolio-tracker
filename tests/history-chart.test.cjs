@@ -24,6 +24,14 @@ test('demo coordinates scale amounts without changing dates',()=>{
  context.isDemoMode=false;
 });
 test('chart currencies use apostrophe grouping',()=>assert.equal(context.historyMoney(123532),"$123'532"));
+test('history extremes format gains, losses, empty periods and demo dollars',()=>{
+ const gain={value:1500,percent:2.345,date:'2026-08-30T12:00:00'};
+ const loss={value:-300,percent:-1.25,date:'2026-08-29T12:00:00'};
+ assert.equal(context.historyExtremeText('largestPercentGain',gain),'+2.35% — 2026-08-30 12:00:00 (server time)');
+ assert.equal(context.historyExtremeText('largestDollarGain',gain,true),'+$100 — 2026-08-30 12:00:00 (server time)');
+ assert.equal(context.historyExtremeText('largestDollarLoss',loss),'−$300 — 2026-08-29 12:00:00 (server time)');
+ assert.equal(context.historyExtremeText('largestPercentLoss',null),'No qualifying 24h change in this period');
+});
 test('history UI targets New Portfolio chart and cash-flow endpoints',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../static/history-chart.js'),'utf8');
  assert.match(source,/fetch\(`\/new-portfolio\/history\?/);

@@ -7,6 +7,29 @@ let historyFlowRequestId = null;
 // Treat naive server timestamps consistently as coordinates, not browser-local dates.
 function historyTime(value) { return Date.parse(/[zZ]$|[+-]\d\d:\d\d$/.test(value) ? value : value + 'Z'); }
 function historyMoney(value) { return '$' + value.toLocaleString('en-US', {maximumFractionDigits: 2}).replace(/,/g, "'"); }
+function historyExtremeText(key, extreme, demo=false) {
+    if (!extreme) return 'No qualifying 24h change in this period';
+    const date=extreme.date ? extreme.date.replace('T',' ').slice(0,19)+' (server time)' : 'date unavailable';
+    if (key.includes('Percent')) {
+        const value=extreme.percent;
+        return `${value>0?'+':''}${value.toFixed(2)}% — ${date}`;
+    }
+    const value=extreme.value/(demo?15:1);
+    const amount=historyMoney(Math.abs(value));
+    return `${value>0?'+':'−'}${amount} — ${date}`;
+}
+function updateHistoryExtremes() {
+    if (!historyChartPayload) return;
+    const demo=typeof isDemoMode!=='undefined'&&isDemoMode;
+    const extremes=historyChartPayload.extremes || {};
+    for (const key of ['largestPercentGain','largestDollarGain','largestPercentLoss','largestDollarLoss']) {
+        const element=document.getElementById(key);
+        if (!element) continue;
+        const extreme=extremes[key];
+        element.textContent=historyExtremeText(key,extreme,demo);
+        element.className=extreme ? (key.includes('Gain')?'text-success':'text-danger') : 'text-muted';
+    }
+}
 function historyCoordinates(rows, field) {
     const points=[];
     for (let i=0; i<rows.length; i++) {
