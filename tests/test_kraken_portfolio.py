@@ -43,6 +43,7 @@ class KrakenPortfolioTests(unittest.TestCase):
         self.assertEqual(result['total_value_usd'],50)
         self.assertEqual(result['unpriced_assets'],[])
         self.assertEqual(aggregate_balances({'XXBT':1,'XBT':2,'XBT.F':3}),{'BTC':6})
+        self.assertEqual(aggregate_balances({'SOL':4,'SOL03':3,'SOL03.F':2}),{'SOL':9})
 
     def test_market_data_enrichment_uses_only_curated_coingecko_matches(self):
         base={'positions':[{'asset':'BTC'},{'asset':'HYPE'},{'asset':'AAPLx'}],'known_value_usd':1}
@@ -84,6 +85,6 @@ class KrakenPortfolioTests(unittest.TestCase):
         with self.assertRaisesRegex(KrakenUnavailable,'Invalid key') as raised:
             KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'sensitive-public','KRAKEN_PRIVATE_KEY':'c2Vuc2l0aXZl'}).read()
         self.assertNotIn('sensitive',str(raised.exception))
-        for raw,expected in [('XXBT','BTC'),('XETH','ETH'),('XZEC','ZEC'),('ZUSD','USD'),('ETH.F','ETH'),('SOL','SOL')]:self.assertEqual(normalize_asset(raw),expected)
+        for raw,expected in [('XXBT','BTC'),('XETH','ETH'),('XZEC','ZEC'),('ZUSD','USD'),('ETH.F','ETH'),('SOL','SOL'),('SOL03','SOL'),('SOL03.F','SOL')]:self.assertEqual(normalize_asset(raw),expected)
 
 if __name__=='__main__':unittest.main()

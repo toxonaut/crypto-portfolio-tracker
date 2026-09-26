@@ -41,7 +41,7 @@ def sign_request(path, payload, secret):
 
 def normalize_asset(raw):
     base = raw.split('.', 1)[0]
-    aliases = {'XXBT':'BTC','XBT':'BTC','XETH':'ETH','XZEC':'ZEC','ZEUR':'EUR','ZUSD':'USD','ZGBP':'GBP','ZJPY':'JPY','ZCAD':'CAD','ZCHF':'CHF','ZAUD':'AUD'}
+    aliases = {'XXBT':'BTC','XBT':'BTC','XETH':'ETH','XZEC':'ZEC','SOL03':'SOL','ZEUR':'EUR','ZUSD':'USD','ZGBP':'GBP','ZJPY':'JPY','ZCAD':'CAD','ZCHF':'CHF','ZAUD':'AUD'}
     return aliases.get(base, base)
 
 
