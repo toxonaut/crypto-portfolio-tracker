@@ -102,9 +102,9 @@ def overview_data(portfolio, bitcoin_price=None, chf_quote=None):
     btc=total/bitcoin_price if total is not None and isinstance(bitcoin_price,(int,float)) and bitcoin_price>0 else None
     chf_rate=(chf_quote or {}).get('usd')
     valid_chf_rate=isinstance(chf_rate,(int,float)) and not isinstance(chf_rate,bool) and math.isfinite(chf_rate) and chf_rate>0
-    chf=total/chf_rate if total is not None and valid_chf_rate else None
+    scenario['chf_per_usd']=1/chf_rate if valid_chf_rate else None
     if valid_chf_rate and (chf_quote or {}).get('source'): price_quality['sources'].append(chf_quote['source'])
     return {'assets':rows,'total_value_usd':total,'known_value_usd':portfolio.get('known_value_usd',0),
-        'total_value_chf':chf,'btc_value':btc,'monthly_yield_usd':monthly,'complete':portfolio.get('complete',False),
+        'btc_value':btc,'monthly_yield_usd':monthly,'complete':portfolio.get('complete',False),
         'unpriced_assets':portfolio.get('unpriced_assets',[]),'as_of':portfolio.get('as_of'),
         'exposure':exposure,'scenario':scenario,'price_quality':price_quality}

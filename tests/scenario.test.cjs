@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const context = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/scenario.js'), 'utf8'), context);
-const {calculateScenario, scenarioPositions, hypotheticalAssetPrice, scenarioPrice} = context;
+const {calculateScenario, scenarioPositions, hypotheticalAssetPrice, scenarioPrice, scenarioValueText} = context;
 const positions = [{coin:'bitcoin',value:600,apy:12},{coin:'ether',value:400,apy:6}];
 
 test('unchanged scenario matches portfolio value and dashboard income convention', () => {
@@ -35,6 +35,12 @@ test('hypothetical unit prices follow each asset change', () => {
     assert.equal(hypotheticalAssetPrice(priced,'xStocks',new Map([['xStocks',10]])),null);
     assert.equal(scenarioPrice(125), '$125.00');
     assert.equal(scenarioPrice(0.123456), '$0.1235');
+});
+test('scenario value uses whole USD with CHF in parentheses', () => {
+    assert.equal(scenarioValueText(11245382.70,0.8407489769),"$11'245'383 (9'454'544)");
+    assert.equal(scenarioValueText(1500,0.9,true),'$100 (90)');
+    assert.equal(scenarioValueText(-1500,0.9),'-$1\'500 (-1\'350)');
+    assert.equal(scenarioValueText(1500,null),"$1'500");
 });
 test('multiple locations retain their individual yields and never mutate holdings', () => {
     const data = {bitcoin:{price:100,sources:{Wallet:{amount:2,apy:0},Staking:{amount:1,apy:12}}}};

@@ -48,7 +48,7 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual([row['asset'] for row in result['assets']],['BTC','SNX','xStocks'])
         self.assertEqual(result['assets'][0]['total_balance'],3);self.assertEqual(result['assets'][0]['total_value'],300)
         self.assertEqual(result['assets'][0]['origins'],['Kraken','Ledger']);self.assertEqual(result['assets'][0]['daily_change'],3)
-        self.assertAlmostEqual(result['total_value_chf'],800)
+        self.assertAlmostEqual(result['scenario']['chf_per_usd'],1/1.15)
         xstocks=result['assets'][2]
         self.assertIsNone(xstocks['total_balance']);self.assertIsNone(xstocks['price'])
         self.assertIsNone(xstocks['daily_change']);self.assertEqual(xstocks['total_value'],600)

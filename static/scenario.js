@@ -38,6 +38,16 @@ function scenarioPrice(value) {
     return '$' + value.toLocaleString('en-US', {minimumFractionDigits: digits, maximumFractionDigits: digits}).replace(/,/g, "'");
 }
 
+function scenarioValueText(value, chfPerUsd, demo=false) {
+    if (!Number.isFinite(value)) return 'Unavailable';
+    const divisor=demo ? 15 : 1;
+    const grouped = amount => Math.abs(amount/divisor).toLocaleString('en-US', {maximumFractionDigits: 0}).replace(/,/g, "'");
+    const usd=`${value<0?'-$':'$'}${grouped(value)}`;
+    if (!Number.isFinite(chfPerUsd) || chfPerUsd <= 0) return usd;
+    const chf=value*chfPerUsd;
+    return `${usd} (${chf<0?'-':''}${grouped(chf)})`;
+}
+
 function calculateScenario(positions, changes, contribution, yieldMultiplier) {
     const baseline = positions.reduce((sum, p) => sum + p.value, 0);
     const grossPositive = positions.reduce((sum, p) => sum + Math.max(p.value, 0), 0);
@@ -150,7 +160,7 @@ function renderScenarioResults() {
     if (baseline.priceError) status += ' Baseline price provider reported an error; prices may be incomplete or cached.';
     if (scenarioState.stale) status += ' Portfolio refresh failed; baseline and reset data may be stale.';
     text('scenarioStatus', status);
-    text('scenarioValue', money(result.value));
+    text('scenarioValue', scenarioValueText(result.value,baseline.data.chf_per_usd,scenarioState.demo));
     text('scenarioBaseline', `Baseline ${money(result.baseline)} + contribution ${money(result.contributionApplied)}`);
     text('scenarioImpact', `${result.impact > 0 ? '+' : ''}${money(result.impact)}`);
     text('scenarioIncome', money(result.income));
