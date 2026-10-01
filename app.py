@@ -365,8 +365,9 @@ def get_new_portfolio_overview():
     try:
         from price_data import prices as price_service
         data=read_new_portfolio()
-        bitcoin=price_service.read({'bitcoin'}).get('bitcoin',{}).get('usd')
-        return jsonify(success=True,data=overview_data(data,bitcoin))
+        references=price_service.read({'bitcoin','CHF'})
+        bitcoin=references.get('bitcoin',{}).get('usd')
+        return jsonify(success=True,data=overview_data(data,bitcoin,references.get('CHF')))
     except KrakenUnavailable as error:
         return jsonify(success=False,error=str(error)),503
     except Exception:

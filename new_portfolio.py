@@ -36,7 +36,7 @@ def merge_portfolios(kraken, manual):
         'manual_positions':len(manual)}
 
 
-def overview_data(portfolio, bitcoin_price=None):
+def overview_data(portfolio, bitcoin_price=None, chf_quote=None):
     grouped={}
     exposure_assets={};exposure_platforms={};exposure_excluded=0
     scenario_positions=[];scenario_excluded=0;scenario_unknown_yield=0
@@ -100,7 +100,11 @@ def overview_data(portfolio, bitcoin_price=None):
         'sources':sorted(pricing_sources,key=str.casefold)}
     total=portfolio.get('total_value_usd');monthly=None if any(not row['yield_complete'] for row in rows) else sum(row['monthly_yield'] for row in rows)
     btc=total/bitcoin_price if total is not None and isinstance(bitcoin_price,(int,float)) and bitcoin_price>0 else None
+    chf_rate=(chf_quote or {}).get('usd')
+    valid_chf_rate=isinstance(chf_rate,(int,float)) and not isinstance(chf_rate,bool) and math.isfinite(chf_rate) and chf_rate>0
+    chf=total/chf_rate if total is not None and valid_chf_rate else None
+    if valid_chf_rate and (chf_quote or {}).get('source'): price_quality['sources'].append(chf_quote['source'])
     return {'assets':rows,'total_value_usd':total,'known_value_usd':portfolio.get('known_value_usd',0),
-        'btc_value':btc,'monthly_yield_usd':monthly,'complete':portfolio.get('complete',False),
+        'total_value_chf':chf,'btc_value':btc,'monthly_yield_usd':monthly,'complete':portfolio.get('complete',False),
         'unpriced_assets':portfolio.get('unpriced_assets',[]),'as_of':portfolio.get('as_of'),
         'exposure':exposure,'scenario':scenario,'price_quality':price_quality}

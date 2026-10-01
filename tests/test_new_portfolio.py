@@ -44,10 +44,11 @@ class NewPortfolioTests(unittest.TestCase):
             {'asset':'SPYx','origin':'Broker','balance':1,'price_usd':500,'value_usd':500,'apy':0,'market_data':{}},
             {'asset':'TSLAx','origin':'Kraken','balance':-0.5,'price_usd':200,'value_usd':-100,'apy':0,'market_data':{}}],
             'total_value_usd':920,'known_value_usd':920,'complete':True,'unpriced_assets':[],'as_of':'now'}
-        result=overview_data(portfolio,100)
+        result=overview_data(portfolio,100,{'usd':1.15,'source':'Frankfurter (daily reference rate)'})
         self.assertEqual([row['asset'] for row in result['assets']],['BTC','SNX','xStocks'])
         self.assertEqual(result['assets'][0]['total_balance'],3);self.assertEqual(result['assets'][0]['total_value'],300)
         self.assertEqual(result['assets'][0]['origins'],['Kraken','Ledger']);self.assertEqual(result['assets'][0]['daily_change'],3)
+        self.assertAlmostEqual(result['total_value_chf'],800)
         xstocks=result['assets'][2]
         self.assertIsNone(xstocks['total_balance']);self.assertIsNone(xstocks['price'])
         self.assertIsNone(xstocks['daily_change']);self.assertEqual(xstocks['total_value'],600)
@@ -60,7 +61,7 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual([row['price'] for row in result['scenario']['positions']],[100,100,2,None,None,None])
         self.assertEqual(sum(row['value'] for row in result['scenario']['positions'] if row['coin']=='xStocks'),600)
         self.assertEqual(result['scenario']['excluded'],0);self.assertEqual(result['scenario']['unknownYield'],0)
-        self.assertEqual(result['price_quality'],{'required_assets':3,'priced_assets':3,'complete':True,'stale':[],'sources':['Kraken']})
+        self.assertEqual(result['price_quality'],{'required_assets':3,'priced_assets':3,'complete':True,'stale':[],'sources':['Kraken','Frankfurter (daily reference rate)']})
 
 
 if __name__=='__main__':unittest.main()
