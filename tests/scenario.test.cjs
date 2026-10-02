@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const context = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/scenario.js'), 'utf8'), context);
-const {calculateScenario, scenarioPositions, hypotheticalAssetPrice, scenarioPrice, scenarioValueText} = context;
+const {calculateScenario, scenarioPositions, hypotheticalAssetPrice, scenarioPrice, scenarioValueText, scenarioHasAssumptions} = context;
 const positions = [{coin:'bitcoin',value:600,apy:12},{coin:'ether',value:400,apy:6}];
 
 test('unchanged scenario matches portfolio value and dashboard income convention', () => {
@@ -13,6 +13,19 @@ test('unchanged scenario matches portfolio value and dashboard income convention
     assert.equal(r.value,1000);
     assert.equal(r.income,8);
     assert.equal(r.impact,0);
+});
+test('hidden priced value reconciles scenario baseline without receiving asset shocks', () => {
+    const r=calculateScenario([{coin:'BTC',value:100,apy:0}],new Map([['BTC',10]]),0,1,5);
+    assert.equal(r.baseline,105);
+    assert.ok(Math.abs(r.value-115)<1e-9);
+    assert.ok(Math.abs(r.impact-10)<1e-9);
+    assert.equal(r.positionCount,2);
+});
+test('only active scenario assumptions freeze the refresh baseline',()=>{
+    assert.equal(scenarioHasAssumptions({contribution:0,yieldMultiplier:1,changes:new Map([['BTC',0]])}),false);
+    assert.equal(scenarioHasAssumptions({contribution:1,yieldMultiplier:1,changes:new Map()}),true);
+    assert.equal(scenarioHasAssumptions({contribution:0,yieldMultiplier:.5,changes:new Map()}),true);
+    assert.equal(scenarioHasAssumptions({contribution:0,yieldMultiplier:1,changes:new Map([['BTC',5]])}),true);
 });
 test('contributions are allocated before independent price shocks; impact excludes deposits', () => {
     const r = calculateScenario(positions,new Map([['bitcoin',50],['ether',-50]]),1000,0.5);

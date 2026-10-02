@@ -49,6 +49,7 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual(result['assets'][0]['total_balance'],3);self.assertEqual(result['assets'][0]['total_value'],300)
         self.assertEqual(result['assets'][0]['origins'],['Kraken','Ledger']);self.assertEqual(result['assets'][0]['daily_change'],3)
         self.assertAlmostEqual(result['scenario']['chf_per_usd'],1/1.15)
+        self.assertEqual(result['scenario']['unallocated_value'],0)
         xstocks=result['assets'][2]
         self.assertIsNone(xstocks['total_balance']);self.assertIsNone(xstocks['price'])
         self.assertIsNone(xstocks['daily_change']);self.assertEqual(xstocks['total_value'],600)
@@ -62,6 +63,13 @@ class NewPortfolioTests(unittest.TestCase):
         self.assertEqual(sum(row['value'] for row in result['scenario']['positions'] if row['coin']=='xStocks'),600)
         self.assertEqual(result['scenario']['excluded'],0);self.assertEqual(result['scenario']['unknownYield'],0)
         self.assertEqual(result['price_quality'],{'required_assets':3,'priced_assets':3,'complete':True,'stale':[],'sources':['Kraken','Frankfurter (daily reference rate)']})
+
+    def test_scenario_reconciles_value_hidden_by_display_filter(self):
+        portfolio={'positions':[{'asset':'BTC','origin':'Kraken','balance':1,'price_usd':100,'value_usd':100,'apy':0,'market_data':{}}],
+            'total_value_usd':105,'known_value_usd':105,'complete':True,'unpriced_assets':[]}
+        result=overview_data(portfolio,100,{'usd':1.25,'source':'Frankfurter (daily reference rate)'})
+        self.assertEqual(result['scenario']['unallocated_value'],5)
+        self.assertAlmostEqual(result['scenario']['chf_per_usd'],.8)
 
 
 if __name__=='__main__':unittest.main()

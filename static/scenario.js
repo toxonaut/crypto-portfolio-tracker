@@ -48,11 +48,15 @@ function scenarioValueText(value, chfPerUsd, demo=false) {
     return `${usd} (${chf<0?'-':''}${grouped(chf)})`;
 }
 
-function calculateScenario(positions, changes, contribution, yieldMultiplier) {
-    const baseline = positions.reduce((sum, p) => sum + p.value, 0);
+function calculateScenario(positions, changes, contribution, yieldMultiplier, unallocatedValue=0) {
+    const unallocated=Number.isFinite(unallocatedValue) ? unallocatedValue : 0;
+    const baseline = positions.reduce((sum, p) => sum + p.value, 0) + unallocated;
     const grossPositive = positions.reduce((sum, p) => sum + Math.max(p.value, 0), 0);
     const contributionApplied = grossPositive > 0 ? contribution : 0;
-    let value = 0;
+    // Priced positions hidden by the editor's $10 display filter remain in the
+    // portfolio total. Their composition is unavailable here, so carry their
+    // combined value unchanged rather than silently dropping it.
+    let value = unallocated;
     let income = 0;
     let baselineIncome = 0;
     for (const p of positions) {
@@ -65,10 +69,14 @@ function calculateScenario(positions, changes, contribution, yieldMultiplier) {
         baselineIncome += p.value * p.apy / 100 / 12;
     }
     return {baseline, grossPositive, contributionApplied, baselineIncome, value, income,
-        impact: value - baseline - contributionApplied, positionCount: positions.length};
+        impact: value - baseline - contributionApplied, positionCount: positions.length + (unallocated!==0?1:0)};
 }
 
 const scenarioState = {latest: null, baseline: null, demo: false, changes: new Map(), contribution: 0, yieldMultiplier: 1, stale: false};
+
+function scenarioHasAssumptions(state=scenarioState) {
+    return state.contribution!==0 || state.yieldMultiplier!==1 || [...state.changes.values()].some(value=>value!==0);
+}
 
 function updateScenarioLab(portfolio, demoMode = false, priceError = null) {
     if (!document.getElementById('scenarioLab')) return;
@@ -76,7 +84,10 @@ function updateScenarioLab(portfolio, demoMode = false, priceError = null) {
     scenarioState.stale = false;
     const modeChanged = scenarioState.demo !== demoMode;
     scenarioState.demo = demoMode;
-    if (!scenarioState.baseline) resetScenarioLab();
+    // Keep an untouched scenario aligned with the automatically refreshed
+    // overview. Once the user changes an assumption, preserve its baseline
+    // until Reset is pressed.
+    if (!scenarioState.baseline || !scenarioHasAssumptions()) resetScenarioLab();
     else {
         if (modeChanged) document.getElementById('scenarioContribution').value = scenarioState.contribution / (demoMode ? 15 : 1);
         renderScenarioResults();
@@ -148,13 +159,14 @@ function resetScenarioLab() {
 function renderScenarioResults() {
     const baseline = scenarioState.baseline;
     if (!baseline) return;
-    const result = calculateScenario(baseline.data.positions, scenarioState.changes, scenarioState.contribution, scenarioState.yieldMultiplier);
+    const result = calculateScenario(baseline.data.positions, scenarioState.changes, scenarioState.contribution, scenarioState.yieldMultiplier,baseline.data.unallocated_value);
     const money = value => (value < 0 ? '-$' : '$') + (Math.abs(value) / (scenarioState.demo ? 15 : 1)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}).replace(/,/g, "'");
     const text = (id, value) => { document.getElementById(id).textContent = value; };
     document.getElementById('scenarioContent').hidden = result.positionCount === 0;
     let status = result.positionCount ? `Signed baseline captured at ${baseline.time}. Negative balances are deductions.` : 'No priced holdings available. Reset after portfolio data becomes available.';
     if (scenarioState.demo) status += ' Demo values shown (divided by 15).';
     if (baseline.data.excluded) status += ` ${baseline.data.excluded} position(s) excluded due to missing prices or invalid amounts.`;
+    if (Math.abs(baseline.data.unallocated_value||0) > 0.005) status += ' Priced positions hidden by the $10 display filter are included at their current combined value.';
     if (scenarioState.contribution > 0 && result.grossPositive <= 0) status += ' The contribution is not applied because there are no positive holdings to allocate it to.';
     if (baseline.data.unknownYield) status += ` ${baseline.data.unknownYield} position(s) have missing or invalid APY; assumed 0%.`;
     if (baseline.priceError) status += ' Baseline price provider reported an error; prices may be incomplete or cached.';

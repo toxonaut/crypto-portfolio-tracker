@@ -99,6 +99,8 @@ def overview_data(portfolio, bitcoin_price=None, chf_quote=None):
         'complete':all(row['complete'] for row in rows),'stale':sorted(stale_assets,key=str.casefold),
         'sources':sorted(pricing_sources,key=str.casefold)}
     total=portfolio.get('total_value_usd');monthly=None if any(not row['yield_complete'] for row in rows) else sum(row['monthly_yield'] for row in rows)
+    represented_scenario_value=sum(position['value'] for position in scenario_positions)
+    scenario['unallocated_value']=total-represented_scenario_value if isinstance(total,(int,float)) and not isinstance(total,bool) and math.isfinite(total) else 0
     btc=total/bitcoin_price if total is not None and isinstance(bitcoin_price,(int,float)) and bitcoin_price>0 else None
     chf_rate=(chf_quote or {}).get('usd')
     valid_chf_rate=isinstance(chf_rate,(int,float)) and not isinstance(chf_rate,bool) and math.isfinite(chf_rate) and chf_rate>0
