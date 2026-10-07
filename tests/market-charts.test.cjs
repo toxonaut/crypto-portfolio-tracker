@@ -34,6 +34,7 @@ test('iOS Chrome receives one performance notice instead of six widgets',()=>{
 test('grid is three by two on desktop and responsive below it',()=>{
     const css=fs.readFileSync(require.resolve('../static/style.css'),'utf8');
     assert.match(css,/grid-template-columns:\s*repeat\(3,/);
+    assert.match(css,/\.market-mini-chart\s*\{[^}]*height:\s*350px/);
     assert.match(css,/max-width:\s*991px[\s\S]*repeat\(2,/);
     assert.match(css,/max-width:\s*575px[\s\S]*grid-template-columns:\s*minmax/);
 });
