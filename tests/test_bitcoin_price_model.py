@@ -2,7 +2,7 @@ import datetime as dt
 import unittest
 from unittest.mock import Mock
 
-from bitcoin_price_model import BitcoinPriceModel, BitcoinPriceModelUnavailable, GENESIS_DATE, model_price
+from bitcoin_price_model import BitcoinPriceModel, BitcoinPriceModelUnavailable, GENESIS_DATE, ALL_HISTORY_START, model_price
 
 
 class Reply:
@@ -27,7 +27,9 @@ class BitcoinPriceModelTests(unittest.TestCase):
         self.assertEqual(result['latest_source'],'CoinGecko')
         self.assertEqual(len(result['model']),366)
         self.assertAlmostEqual(result['ratio'],110000/result['current_model'])
-        service.read('all',{'usd':110000});self.assertEqual(http.get.call_count,1)
+        complete=service.read('all',{'usd':110000});self.assertEqual(http.get.call_count,1)
+        self.assertEqual(dt.datetime.fromtimestamp(complete['model'][0][0]/1000,dt.timezone.utc).date(),ALL_HISTORY_START)
+        self.assertTrue(all(dt.datetime.fromtimestamp(point[0]/1000,dt.timezone.utc).date()>=ALL_HISTORY_START for point in complete['actual']))
 
     def test_validation_and_initial_provider_failure(self):
         service=BitcoinPriceModel(Mock(),lambda:1)

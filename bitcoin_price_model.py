@@ -8,6 +8,7 @@ import requests
 
 
 GENESIS_DATE = dt.date(2009, 1, 3)
+ALL_HISTORY_START = dt.date(2010, 7, 25)
 MODEL_COEFFICIENT = 4.42e-17
 MODEL_EXPONENT = 5.6
 COIN_METRICS_URL = 'https://community-api.coinmetrics.io/v4/timeseries/asset-metrics'
@@ -70,7 +71,7 @@ class BitcoinPriceModel:
         now = dt.datetime.fromtimestamp(self.clock(), dt.timezone.utc)
         end = now.date()
         days = RANGE_DAYS[selected_range]
-        start = GENESIS_DATE if days is None else max(GENESIS_DATE, end - dt.timedelta(days=days))
+        start = ALL_HISTORY_START if days is None else max(GENESIS_DATE, end - dt.timedelta(days=days))
         actual = {date: price for date, price in self._history() if start <= date <= end}
         quote = current_quote or {}
         current_price = quote.get('usd')
