@@ -16,6 +16,7 @@ from history_summary import read_history_summary
 from history_chart import create_history_blueprint, cash_flows, new_cash_flows
 from snapshot_service import worker_key, snapshot_interval, utcnow
 from kraken_portfolio import portfolio as kraken_portfolio, KrakenUnavailable, enrich_market_data
+from bitcoin_price_model import bitcoin_price_model, BitcoinPriceModelUnavailable
 from new_portfolio import manual_positions, merge_portfolios, overview_data
 
 # Configure logging
@@ -373,6 +374,21 @@ def get_new_portfolio_overview():
     except Exception:
         logger.exception('Unexpected new portfolio overview error')
         return jsonify(success=False,error='New portfolio overview is temporarily unavailable.'),503
+
+@app.route('/api/bitcoin-price-model')
+@login_required
+def get_bitcoin_price_model():
+    try:
+        from price_data import prices as price_service
+        quote=price_service.read({'bitcoin'}).get('bitcoin',{})
+        return jsonify(success=True,data=bitcoin_price_model.read(request.args.get('range','all'),quote))
+    except ValueError as error:
+        return jsonify(success=False,error=str(error)),400
+    except BitcoinPriceModelUnavailable as error:
+        return jsonify(success=False,error=str(error)),503
+    except Exception:
+        logger.exception('Unexpected Bitcoin price-model error')
+        return jsonify(success=False,error='Bitcoin price model is temporarily unavailable.'),503
 
 @app.route('/new-portfolio/history/summary')
 @login_required

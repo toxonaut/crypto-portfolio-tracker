@@ -94,6 +94,9 @@ body {
 }
 .market-chart-grid h4 { margin: 0 0 .5rem; font-size: 1rem; }
 .market-mini-chart { width: 100%; height: 350px; }
+.price-model-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.price-model-controls .form-select { width: auto; min-width: 9rem; }
+.price-model-chart { position: relative; width: 100%; height: 520px; }
 @media (max-width: 991px) { .market-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 575px) { .market-chart-grid { grid-template-columns: minmax(0, 1fr); } }
 

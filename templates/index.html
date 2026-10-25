@@ -80,6 +80,29 @@
             </div>
         </div>
 
+        <section class="card mb-4" aria-labelledby="priceModelHeading" id="priceModelSection">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                    <div><h3 id="priceModelHeading" class="card-title">Price Model</h3><p class="exposure-description">Bitcoin market price compared with 4.42×10⁻¹⁷ × (days since 3 January 2009)<sup>5.6</sup>.</p></div>
+                    <div class="price-model-controls">
+                        <label for="priceModelRange">Range</label>
+                        <select id="priceModelRange" class="form-select">
+                            <option value="1y">1 year</option><option value="2y">2 years</option><option value="5y">5 years</option><option value="10y">10 years</option><option value="all" selected>All history</option>
+                        </select>
+                        <label><input type="checkbox" id="priceModelLog" checked> Log scale</label>
+                        <button type="button" id="priceModelRefresh" class="btn btn-outline-primary">Refresh</button>
+                    </div>
+                </div>
+                <div class="scenario-results mt-3">
+                    <div><span>BTC price</span><strong id="priceModelActual">Loading…</strong><small>Latest available quote</small></div>
+                    <div><span>Modeled price</span><strong id="priceModelModeled">Loading…</strong><small id="priceModelRatio">—</small></div>
+                    <div><span>Deviation from model</span><strong id="priceModelDeviation">Loading…</strong><small>Actual ÷ modeled price</small></div>
+                </div>
+                <p id="priceModelStatus" class="exposure-description mt-3" role="status">Loading Bitcoin price history…</p>
+                <div class="price-model-chart"><canvas id="priceModelChart" aria-label="Bitcoin market price and modeled price over time" role="img"></canvas></div>
+            </div>
+        </section>
+
         <div class="card mb-4">
             <div class="card-body">
                 <h3 class="card-title">Portfolio History</h3>
@@ -173,6 +196,7 @@
     <script src="{{ url_for('static', filename='price-quality.js') }}"></script>
     <script src="{{ url_for('static', filename='new-portfolio-overview.js') }}"></script>
     <script src="{{ url_for('static', filename='market-charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='price-model.js') }}"></script>
     <script src="{{ url_for('static', filename='overview.js') }}"></script>
     <script src="{{ url_for('static', filename='composition.js') }}"></script>
 </body>
