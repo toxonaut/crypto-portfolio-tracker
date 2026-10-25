@@ -1,6 +1,7 @@
 let bitcoinPriceModelChart=null;
 let bitcoinPriceModelRequest=0;
 let bitcoinPriceModelData=null;
+let bitcoinPriceModelProjection=false;
 
 function priceModelMoney(value) {
     if(!Number.isFinite(value)) return 'Unavailable';
@@ -36,13 +37,14 @@ async function loadBitcoinPriceModel() {
     button.disabled=true;status.textContent='Loading selected Bitcoin history…';
     try {
         const range=document.getElementById('priceModelRange').value;
-        const response=await fetch(`/api/bitcoin-price-model?range=${encodeURIComponent(range)}`,{headers:{Accept:'application/json'}});
+        const projection=bitcoinPriceModelProjection?'5y':'none';
+        const response=await fetch(`/api/bitcoin-price-model?range=${encodeURIComponent(range)}&projection=${projection}`,{headers:{Accept:'application/json'}});
         const payload=await response.json();
         if(!response.ok||!payload.success)throw new Error(payload.error||'Bitcoin price model could not be loaded.');
         if(request!==bitcoinPriceModelRequest)return;
         renderBitcoinPriceModel(payload.data);
         const first=payload.data.actual.length?new Date(payload.data.actual[0][0]).toISOString().slice(0,10):'unavailable';
-        status.textContent=`${payload.data.actual.length.toLocaleString()} market observations from ${first}; ${payload.data.model.length.toLocaleString()} modeled daily values. Historical source: ${payload.data.historical_source}; latest quote: ${payload.data.latest_source||'historical source'}.`;
+        status.textContent=`${payload.data.actual.length.toLocaleString()} market observations from ${first}; ${payload.data.model.length.toLocaleString()} modeled daily values${payload.data.projected_through?` through ${payload.data.projected_through}`:''}. Historical source: ${payload.data.historical_source}; latest quote: ${payload.data.latest_source||'historical source'}.`;
     } catch(error) {
         if(request===bitcoinPriceModelRequest)status.textContent=`${error.message} Retry with Refresh.`;
     } finally { if(request===bitcoinPriceModelRequest)button.disabled=false; }
@@ -53,6 +55,14 @@ function initializeBitcoinPriceModel() {
     if(!section)return;
     document.getElementById('priceModelRefresh').onclick=loadBitcoinPriceModel;
     document.getElementById('priceModelRange').onchange=loadBitcoinPriceModel;
+    document.getElementById('priceModelProjection').onclick=()=>{
+        bitcoinPriceModelProjection=!bitcoinPriceModelProjection;
+        const button=document.getElementById('priceModelProjection');
+        button.setAttribute('aria-pressed',String(bitcoinPriceModelProjection));
+        button.classList.toggle('active',bitcoinPriceModelProjection);
+        button.textContent=bitcoinPriceModelProjection?'Hide 5-year projection':'Project 5 years';
+        loadBitcoinPriceModel();
+    };
     document.getElementById('priceModelLog').onchange=()=>{if(bitcoinPriceModelData)renderBitcoinPriceModel(bitcoinPriceModelData);};
     loadBitcoinPriceModel();
 }

@@ -30,10 +30,15 @@ class BitcoinPriceModelTests(unittest.TestCase):
         complete=service.read('all',{'usd':110000});self.assertEqual(http.get.call_count,1)
         self.assertEqual(dt.datetime.fromtimestamp(complete['model'][0][0]/1000,dt.timezone.utc).date(),ALL_HISTORY_START)
         self.assertTrue(all(dt.datetime.fromtimestamp(point[0]/1000,dt.timezone.utc).date()>=ALL_HISTORY_START for point in complete['actual']))
+        projected=service.read('1y',{'usd':110000},'5y')
+        self.assertEqual(projected['projected_through'],'2031-10-25')
+        self.assertEqual(dt.datetime.fromtimestamp(projected['model'][-1][0]/1000,dt.timezone.utc).date(),dt.date(2031,10,25))
+        self.assertEqual(projected['actual'][-1][0],result['actual'][-1][0])
 
     def test_validation_and_initial_provider_failure(self):
         service=BitcoinPriceModel(Mock(),lambda:1)
         with self.assertRaisesRegex(ValueError,'Unsupported'): service.read('bad')
+        with self.assertRaisesRegex(ValueError,'projection'): service.read('all',projection='10y')
         service.http.get.return_value=Reply({},503)
         with self.assertRaises(BitcoinPriceModelUnavailable): service.read('all')
 

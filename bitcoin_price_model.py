@@ -65,11 +65,14 @@ class BitcoinPriceModel:
                 raise BitcoinPriceModelUnavailable('Bitcoin history is temporarily unavailable.') from None
         return self.cached_history
 
-    def read(self, selected_range='all', current_quote=None):
+    def read(self, selected_range='all', current_quote=None, projection='none'):
         if selected_range not in RANGE_DAYS:
             raise ValueError('Unsupported price-model range.')
+        if projection not in ('none', '5y'):
+            raise ValueError('Unsupported price-model projection.')
         now = dt.datetime.fromtimestamp(self.clock(), dt.timezone.utc)
         end = now.date()
+        model_end = end + dt.timedelta(days=1826) if projection == '5y' else end
         days = RANGE_DAYS[selected_range]
         start = ALL_HISTORY_START if days is None else max(GENESIS_DATE, end - dt.timedelta(days=days))
         actual = {date: price for date, price in self._history() if start <= date <= end}
@@ -80,7 +83,7 @@ class BitcoinPriceModel:
         model_start = max(start, GENESIS_DATE + dt.timedelta(days=1))
         model = []
         date = model_start
-        while date <= end:
+        while date <= model_end:
             model.append([int(dt.datetime.combine(date, dt.time(), dt.timezone.utc).timestamp() * 1000), model_price(date)])
             date += dt.timedelta(days=1)
         actual_points = [[int(dt.datetime.combine(date, dt.time(), dt.timezone.utc).timestamp() * 1000), price]
@@ -92,6 +95,7 @@ class BitcoinPriceModel:
             'current_actual': latest_actual, 'current_model': current_model,
             'ratio': latest_actual / current_model if latest_actual is not None and current_model > 0 else None,
             'deviation_percent': (latest_actual / current_model - 1) * 100 if latest_actual is not None and current_model > 0 else None,
+            'projection': projection, 'projected_through': model_end.isoformat() if projection == '5y' else None,
             'as_of': now.isoformat(), 'historical_source': 'Coin Metrics Community',
             'latest_source': quote.get('source') if current_price is not None else None,
         }

@@ -16,4 +16,8 @@ test('Price Model section sits between Market Charts and Portfolio History and o
     assert.ok(html.indexOf('Price Model')<html.indexOf('Portfolio History'));
     for(const value of ['1y','2y','5y','10y','all'])assert.match(html,new RegExp(`value="${value}"`));
     assert.match(html,/id="priceModelLog"[^>]*checked/);
+    assert.match(html,/id="priceModelProjection"[^>]*aria-pressed="false"[^>]*>Project 5 years/);
+    const source=fs.readFileSync(require.resolve('../static/price-model.js'),'utf8');
+    assert.match(source,/projection=\$\{projection\}/);
+    assert.match(source,/Hide 5-year projection/);
 });

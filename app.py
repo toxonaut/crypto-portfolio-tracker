@@ -381,7 +381,8 @@ def get_bitcoin_price_model():
     try:
         from price_data import prices as price_service
         quote=price_service.read({'bitcoin'}).get('bitcoin',{})
-        return jsonify(success=True,data=bitcoin_price_model.read(request.args.get('range','all'),quote))
+        return jsonify(success=True,data=bitcoin_price_model.read(
+            request.args.get('range','all'),quote,request.args.get('projection','none')))
     except ValueError as error:
         return jsonify(success=False,error=str(error)),400
     except BitcoinPriceModelUnavailable as error:
