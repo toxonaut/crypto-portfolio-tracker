@@ -45,6 +45,23 @@ class KrakenPortfolioTests(unittest.TestCase):
         self.assertEqual(aggregate_balances({'XXBT':1,'XBT':2,'XBT.F':3}),{'BTC':6})
         self.assertEqual(aggregate_balances({'SOL':4,'SOL03':3,'SOL03.F':2}),{'SOL':9})
 
+    def test_vault_allocation_is_added_without_double_counting_auto_earn(self):
+        http=Mock();http.post.side_effect=[
+            Reply({'error':[],'result':{'SPYx.T':'4'}}),
+            Reply({'error':[],'result':{'items':[
+                {'native_asset':'SPYx','strategy_id':'vault','amount_allocated':{'total':{'native':'144'}},'payout':None},
+                {'native_asset':'SPYx','strategy_id':'auto','amount_allocated':{'total':{'native':'4'}},'payout':{'period_end':'later'}}]}}),
+            Reply({'error':[],'result':{'items':[{'id':'auto','apr_estimate':{'low':'1','high':'1'}}]}})]
+        standard=Reply({'error':[],'result':{}})
+        stocks=Reply({'error':[],'result':{'SPYxUSD':{'base':'SPYx','quote':'ZUSD','altname':'SPYxUSD','status':'online'}}})
+        ticker=Reply({'error':[],'result':{'SPYxUSD':{'c':['700','1']}}})
+        http.get.side_effect=[standard,stocks,ticker]
+        result=KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'a','KRAKEN_PRIVATE_KEY':'Yg=='}).read()
+        position=result['positions'][0]
+        self.assertEqual(position['asset'],'SPYx');self.assertEqual(position['balance'],148)
+        self.assertEqual(position['value_usd'],103600);self.assertAlmostEqual(position['apy'],4/148)
+        self.assertEqual(result['total_value_usd'],103600)
+
     def test_market_data_enrichment_uses_only_curated_coingecko_matches(self):
         base={'positions':[{'asset':'BTC'},{'asset':'HYPE'},{'asset':'AAPLx'}],'known_value_usd':1}
         requested=[]

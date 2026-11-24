@@ -122,24 +122,36 @@ class KrakenPortfolio:
             timeout=(5,20),allow_redirects=False)
         return self._json(response,'Kraken Earn API')
 
-    def _earn_apys(self, balances, key, secret):
+    def _earn_data(self, balances, key, secret):
         try:
             allocations=self._private('/0/private/Earn/Allocations',key,secret,{'hide_zero_allocations':'true'}).get('items',[])
             strategies=self._private('/0/private/Earn/Strategies',key,secret,{'limit':'1000'}).get('items',[])
-            rates={}
+            rates={};strategy_ids=set()
             for strategy in strategies:
                 if not isinstance(strategy,dict): continue
+                if isinstance(strategy.get('id'),str): strategy_ids.add(strategy['id'])
                 low=parse_number((strategy.get('apr_estimate') or {}).get('low'));high=parse_number((strategy.get('apr_estimate') or {}).get('high'))
                 if isinstance(strategy.get('id'),str) and low is not None and high is not None: rates[strategy['id']]=(low+high)/2
-            earned={}
+            earned={};vault_balances={}
             for allocation in allocations:
                 if not isinstance(allocation,dict): continue
                 asset=normalize_asset(allocation.get('native_asset',''));amount=parse_number((((allocation.get('amount_allocated') or {}).get('total') or {}).get('native')))
                 rate=rates.get(allocation.get('strategy_id'))
-                if asset and amount is not None and amount>0 and rate is not None: earned[asset]=earned.get(asset,0)+amount*rate
-            return {asset:weighted/balances[asset] for asset,weighted in earned.items() if balances.get(asset,0)>0}
+                if asset and amount is not None and amount>0:
+                    if rate is not None: earned[asset]=earned.get(asset,0)+amount*rate
+                    # Kraken Vault / Advanced Strategy allocations are returned
+                    # by Earn/Allocations but omitted from both /Balance and the
+                    # public Earn/Strategies list. Normal Auto Earn allocations
+                    # have a listed strategy and payout metadata and must not be
+                    # added again.
+                    if allocation.get('strategy_id') not in strategy_ids and allocation.get('payout') is None:
+                        vault_balances[asset]=vault_balances.get(asset,0)+amount
+            combined={**balances}
+            for asset,amount in vault_balances.items(): combined[asset]=combined.get(asset,0)+amount
+            apys={asset:weighted/combined[asset] for asset,weighted in earned.items() if combined.get(asset,0)>0}
+            return apys,vault_balances
         except (KrakenUnavailable, requests.RequestException, TypeError, AttributeError):
-            return None
+            return None,{}
 
     def _asset_pairs(self, asset_class='currency'):
         now=self.clock()
@@ -189,8 +201,11 @@ class KrakenPortfolio:
         with self.lock:
             now=self.clock()
             if not force and self.cached is not None and now-self.cache_time < 30: return self.cached
-            key,secret=self._credentials();raw_balances=self._balances(key,secret);balances=aggregate_balances(raw_balances);prices=self._prices(balances)
-            earn_apys=self._earn_apys(balances,key,secret) if any(is_earn_balance_code(asset) for asset in raw_balances) else {}
+            key,secret=self._credentials();raw_balances=self._balances(key,secret);balances=aggregate_balances(raw_balances)
+            needs_earn=any(is_earn_balance_code(asset) or normalize_asset(asset).endswith('x') for asset in raw_balances)
+            earn_apys,vault_balances=self._earn_data(balances,key,secret) if needs_earn else ({},{})
+            for asset,amount in vault_balances.items(): balances[asset]=balances.get(asset,0)+amount
+            prices=self._prices(balances)
             positions=[]
             for asset,amount in balances.items():
                 quote=prices.get(asset);price=quote[0] if quote else None
