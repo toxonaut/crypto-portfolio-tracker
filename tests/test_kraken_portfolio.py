@@ -85,6 +85,6 @@ class KrakenPortfolioTests(unittest.TestCase):
         with self.assertRaisesRegex(KrakenUnavailable,'Invalid key') as raised:
             KrakenPortfolio(http,lambda:1,{'KRAKEN_API_KEY':'sensitive-public','KRAKEN_PRIVATE_KEY':'c2Vuc2l0aXZl'}).read()
         self.assertNotIn('sensitive',str(raised.exception))
-        for raw,expected in [('XXBT','BTC'),('XETH','ETH'),('XZEC','ZEC'),('ZUSD','USD'),('ETH.F','ETH'),('SOL','SOL'),('SOL03','SOL'),('SOL03.F','SOL')]:self.assertEqual(normalize_asset(raw),expected)
+        for raw,expected in [('XXBT','BTC'),('XETH','ETH'),('XZEC','ZEC'),('ZUSD','USD'),('ETH.F','ETH'),('SOL','SOL'),('SOL03','SOL'),('SOL03.F','SOL'),('SPYx.T','SPYx')]:self.assertEqual(normalize_asset(raw),expected)
 
 if __name__=='__main__':unittest.main()

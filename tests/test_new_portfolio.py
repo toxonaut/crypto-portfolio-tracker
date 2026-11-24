@@ -1,5 +1,5 @@
 import unittest
-from new_portfolio import manual_positions, merge_portfolios, overview_data
+from new_portfolio import manual_positions, merge_portfolios, overview_data, xstock_symbol
 
 
 class NewPortfolioTests(unittest.TestCase):
@@ -70,6 +70,15 @@ class NewPortfolioTests(unittest.TestCase):
         result=overview_data(portfolio,100,{'usd':1.25,'source':'Frankfurter (daily reference rate)'})
         self.assertEqual(result['scenario']['unallocated_value'],5)
         self.assertAlmostEqual(result['scenario']['chf_per_usd'],.8)
+
+    def test_kraken_vault_xstock_code_stays_in_combined_group(self):
+        self.assertEqual(xstock_symbol('SPYx.T'),'SPYx')
+        self.assertIsNone(xstock_symbol('SNX'))
+        portfolio={'positions':[{'asset':'SPYx.T','origin':'Kraken','balance':4,'price_usd':700,'value_usd':2800,'apy':0,'market_data':{}}],
+            'total_value_usd':2800,'known_value_usd':2800,'complete':True,'unpriced_assets':[]}
+        result=overview_data(portfolio)
+        self.assertEqual([(row['asset'],row['total_value']) for row in result['assets']],[('xStocks',2800)])
+        self.assertEqual(result['scenario']['positions'][0]['coin'],'xStocks')
 
 
 if __name__=='__main__':unittest.main()

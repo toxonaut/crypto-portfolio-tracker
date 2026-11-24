@@ -3,6 +3,13 @@ import math
 from kraken_portfolio import COINGECKO_IDS
 
 
+def xstock_symbol(asset):
+    """Return the canonical xStock symbol, accepting Kraken vault suffixes."""
+    if not isinstance(asset,str): return None
+    base=asset.split('.',1)[0]
+    return base if base.endswith('x') else None
+
+
 def manual_positions(entries, quote_reader):
     entries=list(entries)
     coin_ids={entry['coin_id'] for entry in entries}
@@ -44,8 +51,10 @@ def overview_data(portfolio, bitcoin_price=None, chf_quote=None):
     for position in portfolio.get('positions',[]):
         source_asset=position.get('asset','Unknown')
         # Kraken's tokenized-stock symbols use a lowercase x suffix (AAPLx, SPYx).
-        # Keep crypto tickers such as SNX separate.
-        is_xstocks=source_asset.endswith('x')
+        # Keep crypto tickers such as SNX separate while accepting vault codes
+        # such as SPYx.T if one reaches this layer before normalization.
+        canonical_xstock=xstock_symbol(source_asset)
+        is_xstocks=canonical_xstock is not None
         asset='xStocks' if is_xstocks else source_asset
         group=grouped.setdefault(asset,{
             'asset':asset,'is_xstocks':is_xstocks,'total_balance':None if is_xstocks else 0,
